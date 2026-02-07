@@ -3,10 +3,83 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { AppLayout } from "@/components/AppLayout";
+import { useRouteState } from "@/hooks/useRouteState";
+import UploadPage from "@/pages/Index";
+import MapPage from "@/pages/MapPage";
+import NavigationPage from "@/pages/NavigationPage";
+import SegmentsPage from "@/pages/SegmentsPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function AppRoutes() {
+  const {
+    state,
+    setRoute,
+    startNavigation,
+    stopNavigation,
+    confirmStartSegment,
+    completeSegment,
+    addIncident,
+    reoptimize,
+    clearRoute,
+  } = useRouteState();
+
+  return (
+    <AppLayout>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <UploadPage
+              onRouteLoaded={setRoute}
+              hasRoute={!!state.route}
+            />
+          }
+        />
+        <Route
+          path="/map"
+          element={
+            <MapPage
+              state={state}
+              onStartNavigation={startNavigation}
+              onReoptimize={() => reoptimize(state.currentPosition)}
+            />
+          }
+        />
+        <Route
+          path="/navigate"
+          element={
+            <NavigationPage
+              state={state}
+              onConfirmStart={confirmStartSegment}
+              onComplete={completeSegment}
+              onStopNavigation={stopNavigation}
+              onAddIncident={addIncident}
+              onReoptimize={reoptimize}
+            />
+          }
+        />
+        <Route
+          path="/segments"
+          element={<SegmentsPage state={state} />}
+        />
+        <Route
+          path="/settings"
+          element={
+            <SettingsPage
+              onClear={clearRoute}
+              hasRoute={!!state.route}
+            />
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AppLayout>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -14,11 +87,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
