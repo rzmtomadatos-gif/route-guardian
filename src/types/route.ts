@@ -1,0 +1,52 @@
+export type SegmentDirection = 'creciente' | 'ambos';
+export type SegmentType = 'tramo' | 'rotonda';
+export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado';
+
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface Segment {
+  id: string;
+  routeId: string;
+  name: string;
+  coordinates: LatLng[];
+  direction: SegmentDirection;
+  type: SegmentType;
+  status: SegmentStatus;
+}
+
+export interface Route {
+  id: string;
+  name: string;
+  loadedAt: string;
+  fileName: string;
+  segments: Segment[];
+  optimizedOrder: string[];
+}
+
+export type IncidentCategory =
+  | 'lluvia'
+  | 'niebla'
+  | 'obra'
+  | 'inundacion'
+  | 'accidente'
+  | 'otro';
+
+export interface Incident {
+  id: string;
+  segmentId: string;
+  category: IncidentCategory;
+  note?: string;
+  timestamp: string;
+  location?: LatLng;
+}
+
+export interface AppState {
+  route: Route | null;
+  incidents: Incident[];
+  activeSegmentId: string | null;
+  navigationActive: boolean;
+  currentPosition: LatLng | null;
+}
