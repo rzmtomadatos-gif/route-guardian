@@ -64,6 +64,16 @@
   /* Leaflet overrides for dark theme */
   .leaflet-container {
     background: hsl(220 20% 7%) !important;
+    z-index: 0 !important;
+  }
+
+  .leaflet-pane {
+    z-index: 1 !important;
+  }
+
+  .leaflet-top,
+  .leaflet-bottom {
+    z-index: 10 !important;
   }
 
   .leaflet-control-zoom a {
