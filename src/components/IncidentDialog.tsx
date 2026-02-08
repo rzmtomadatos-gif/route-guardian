@@ -7,13 +7,15 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CloudRain, CloudFog, Construction, Droplets, Car, MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, CloudRain, CloudFog, Construction, Droplets, Car, MoreHorizontal, CircleOff, Circle } from 'lucide-react';
 import type { IncidentCategory } from '@/types/route';
 
 const categories: { value: IncidentCategory; label: string; icon: React.ElementType }[] = [
   { value: 'lluvia', label: 'Lluvia', icon: CloudRain },
   { value: 'niebla', label: 'Niebla', icon: CloudFog },
+  { value: 'bache', label: 'Bache', icon: Circle },
   { value: 'obra', label: 'Obra', icon: Construction },
+  { value: 'carretera_cortada', label: 'Cortada', icon: CircleOff },
   { value: 'inundacion', label: 'Inundación', icon: Droplets },
   { value: 'accidente', label: 'Accidente', icon: Car },
   { value: 'otro', label: 'Otro', icon: MoreHorizontal },
