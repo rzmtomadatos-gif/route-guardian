@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
-import type { Route, Segment, Incident, AppState, IncidentCategory, LatLng } from '@/types/route';
+import { useState, useCallback } from 'react';
+import type { Route, AppState, IncidentCategory, LatLng } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
+import { optimizeWithDirections } from '@/utils/google-directions';
 
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
@@ -14,15 +15,30 @@ export function useRouteState() {
     });
   }, []);
 
-  const setRoute = useCallback((route: Route) => {
-    const optimizedOrder = optimizeRoute(route.segments);
+  const setRoute = useCallback(async (route: Route) => {
+    // Start with nearest-neighbor fallback
+    const fallbackOrder = optimizeRoute(route.segments);
     setState((s) => ({
       ...s,
-      route: { ...route, optimizedOrder },
+      route: { ...route, optimizedOrder: fallbackOrder },
       incidents: [],
       activeSegmentId: null,
       navigationActive: false,
     }));
+
+    // Try Google Directions API optimization
+    const endpoints = route.segments.map((seg) => ({
+      id: seg.id,
+      start: seg.coordinates[0],
+      end: seg.coordinates[seg.coordinates.length - 1],
+    }));
+    const directionsOrder = await optimizeWithDirections(endpoints);
+    if (directionsOrder) {
+      setState((s) => {
+        if (!s.route || s.route.id !== route.id) return s;
+        return { ...s, route: { ...s.route, optimizedOrder: directionsOrder } };
+      });
+    }
   }, [setState]);
 
   const startNavigation = useCallback(() => {
@@ -103,6 +119,16 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  const resetSegment = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) =>
+        seg.id === segmentId ? { ...seg, status: 'pendiente' as const } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
   const clearRoute = useCallback(() => {
     setState(() => ({
       route: null,
@@ -122,6 +148,7 @@ export function useRouteState() {
     completeSegment,
     addIncident,
     reoptimize,
+    resetSegment,
     clearRoute,
   };
 }

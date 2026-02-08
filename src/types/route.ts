@@ -29,7 +29,9 @@ export interface Route {
 export type IncidentCategory =
   | 'lluvia'
   | 'niebla'
+  | 'bache'
   | 'obra'
+  | 'carretera_cortada'
   | 'inundacion'
   | 'accidente'
   | 'otro';

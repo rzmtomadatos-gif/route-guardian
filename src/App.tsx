@@ -24,6 +24,7 @@ function AppRoutes() {
     completeSegment,
     addIncident,
     reoptimize,
+    resetSegment,
     clearRoute,
   } = useRouteState();
 
@@ -64,7 +65,13 @@ function AppRoutes() {
         />
         <Route
           path="/segments"
-          element={<SegmentsPage state={state} />}
+          element={
+            <SegmentsPage
+              state={state}
+              onResetSegment={resetSegment}
+              onCompleteSegment={completeSegment}
+            />
+          }
         />
         <Route
           path="/settings"

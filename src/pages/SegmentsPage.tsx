@@ -1,14 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/StatusBadge';
-import { MapPin } from 'lucide-react';
+import { MapPin, RotateCcw, XCircle } from 'lucide-react';
 import type { AppState, Incident } from '@/types/route';
 
 interface Props {
   state: AppState;
+  onResetSegment: (segmentId: string) => void;
+  onCompleteSegment: (segmentId: string) => void;
 }
 
-export default function SegmentsPage({ state }: Props) {
+export default function SegmentsPage({ state, onResetSegment, onCompleteSegment }: Props) {
   const navigate = useNavigate();
 
   if (!state.route) {
@@ -61,7 +63,27 @@ export default function SegmentsPage({ state }: Props) {
                     )}
                   </div>
                 </div>
-                <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {seg.status === 'completado' && (
+                    <button
+                      onClick={() => onResetSegment(seg.id)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Repetir tramo"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  )}
+                  {seg.status === 'en_progreso' && (
+                    <button
+                      onClick={() => onResetSegment(seg.id)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="Anular grabación"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                </div>
               </div>
             );
           })}
