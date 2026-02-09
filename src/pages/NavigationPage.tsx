@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Square, AlertTriangle, Check, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { GoogleMapDisplay } from '@/components/GoogleMapDisplay';
 import { MapDisplay } from '@/components/MapDisplay';
+import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -88,12 +90,21 @@ export default function NavigationPage({
     <div className="flex flex-col h-full">
       {/* Map */}
       <div className="flex-1 relative">
-        <MapDisplay
-          segments={route.segments}
-          activeSegmentId={state.activeSegmentId}
-          currentPosition={geo.position}
-          optimizedOrder={route.optimizedOrder}
-        />
+        {getGoogleMapsApiKey() ? (
+          <GoogleMapDisplay
+            segments={route.segments}
+            activeSegmentId={state.activeSegmentId}
+            currentPosition={geo.position}
+            optimizedOrder={route.optimizedOrder}
+          />
+        ) : (
+          <MapDisplay
+            segments={route.segments}
+            activeSegmentId={state.activeSegmentId}
+            currentPosition={geo.position}
+            optimizedOrder={route.optimizedOrder}
+          />
+        )}
 
         {/* GPS info overlay */}
         {geo.position && (

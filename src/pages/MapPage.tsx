@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { Navigation, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { GoogleMapDisplay } from '@/components/GoogleMapDisplay';
 import { MapDisplay } from '@/components/MapDisplay';
+import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { formatDistance, getTotalDistance } from '@/utils/route-optimizer';
 import type { AppState } from '@/types/route';
 
@@ -45,12 +47,21 @@ export default function MapPage({ state, onStartNavigation, onReoptimize }: Prop
 
       {/* Map */}
       <div className="flex-1 relative">
-        <MapDisplay
-          segments={route.segments}
-          activeSegmentId={state.activeSegmentId}
-          currentPosition={state.currentPosition}
-          optimizedOrder={route.optimizedOrder}
-        />
+        {getGoogleMapsApiKey() ? (
+          <GoogleMapDisplay
+            segments={route.segments}
+            activeSegmentId={state.activeSegmentId}
+            currentPosition={state.currentPosition}
+            optimizedOrder={route.optimizedOrder}
+          />
+        ) : (
+          <MapDisplay
+            segments={route.segments}
+            activeSegmentId={state.activeSegmentId}
+            currentPosition={state.currentPosition}
+            optimizedOrder={route.optimizedOrder}
+          />
+        )}
       </div>
 
       {/* Actions */}
