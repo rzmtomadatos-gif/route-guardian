@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Route, AlertCircle } from 'lucide-react';
+import { FileUp, Route, AlertCircle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseKMLFile } from '@/utils/kml-parser';
+import { generateSampleRoute } from '@/utils/sample-kml';
 import type { Route as RouteType } from '@/types/route';
 
 interface Props {
@@ -104,6 +105,19 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
             <p className="text-sm text-destructive">{error}</p>
           </div>
         )}
+
+        <Button
+          onClick={() => {
+            const sample = generateSampleRoute();
+            onRouteLoaded(sample);
+            navigate('/map');
+          }}
+          variant="outline"
+          className="w-full driving-button border-border text-foreground"
+        >
+          <MapPin className="w-4 h-4 mr-2" />
+          Cargar ruta de ejemplo
+        </Button>
 
         {hasRoute && (
           <Button
