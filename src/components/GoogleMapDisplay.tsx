@@ -1,5 +1,5 @@
 /// <reference types="google.maps" />
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 
@@ -25,7 +25,6 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   if (googleMapsPromise) return googleMapsPromise;
 
   googleMapsPromise = new Promise((resolve, reject) => {
-    // Remove any existing script
     const existing = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existing) existing.remove();
 
@@ -60,7 +59,7 @@ export function GoogleMapDisplay({
   const markersRef = useRef<google.maps.Marker[]>([]);
   const posMarkerRef = useRef<google.maps.Marker | null>(null);
   const connectionLinesRef = useRef<google.maps.Polyline[]>([]);
-  const initRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const clearOverlays = useCallback(() => {
     polylinesRef.current.forEach((p) => p.setMap(null));
@@ -73,18 +72,18 @@ export function GoogleMapDisplay({
 
   // Initialize map
   useEffect(() => {
-    if (!containerRef.current || initRef.current) return;
+    if (!containerRef.current || mapRef.current) return;
 
     const apiKey = getGoogleMapsApiKey();
     if (!apiKey) return;
 
-    initRef.current = true;
+    let cancelled = false;
 
     loadGoogleMaps(apiKey)
       .then(() => {
-        if (!containerRef.current) return;
+        if (cancelled || !containerRef.current) return;
 
-        mapRef.current = new google.maps.Map(containerRef.current, {
+        const map = new google.maps.Map(containerRef.current, {
           center: { lat: 40.4168, lng: -3.7038 },
           zoom: 6,
           disableDefaultUI: true,
@@ -100,24 +99,26 @@ export function GoogleMapDisplay({
             { featureType: 'transit', stylers: [{ visibility: 'off' }] },
           ],
         });
+        mapRef.current = map;
+        setMapReady(true);
       })
       .catch((err) => {
         console.error('Google Maps init error:', err);
-        initRef.current = false;
       });
 
     return () => {
-      // cleanup on unmount
+      cancelled = true;
       mapRef.current = null;
-      initRef.current = false;
+      setMapReady(false);
     };
   }, []);
 
   // Update segments
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapReady || !mapRef.current) return;
     clearOverlays();
 
+    const map = mapRef.current;
     const bounds = new google.maps.LatLngBounds();
 
     // Connection lines for optimized order
@@ -130,12 +131,15 @@ export function GoogleMapDisplay({
           const endCoord = curr.coordinates[curr.coordinates.length - 1];
           const startCoord = next.coordinates[0];
           const line = new google.maps.Polyline({
-            path: [endCoord, startCoord],
+            path: [
+              { lat: endCoord.lat, lng: endCoord.lng },
+              { lat: startCoord.lat, lng: startCoord.lng },
+            ],
             strokeColor: '#ffffff',
             strokeOpacity: 0.12,
             strokeWeight: 1,
             geodesic: true,
-            map: mapRef.current,
+            map,
           });
           connectionLinesRef.current.push(line);
         }
@@ -152,7 +156,7 @@ export function GoogleMapDisplay({
         strokeColor: color,
         strokeWeight: isActive ? 6 : 3,
         strokeOpacity: isActive ? 1 : 0.7,
-        map: mapRef.current,
+        map,
       });
 
       if (onSegmentClick) {
@@ -161,16 +165,16 @@ export function GoogleMapDisplay({
 
       polylinesRef.current.push(polyline);
 
-      // Extend bounds
-      path.forEach((p) => bounds.extend(p));
+      // Extend bounds with plain LatLngLiteral
+      path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
 
       // Number marker
       const orderIdx = optimizedOrder?.indexOf(seg.id);
       if (orderIdx !== undefined && orderIdx >= 0) {
         const startCoord = seg.coordinates[0];
         const marker = new google.maps.Marker({
-          position: startCoord,
-          map: mapRef.current,
+          position: { lat: startCoord.lat, lng: startCoord.lng },
+          map,
           label: {
             text: `${orderIdx + 1}`,
             color: '#fff',
@@ -191,13 +195,13 @@ export function GoogleMapDisplay({
     });
 
     if (!bounds.isEmpty()) {
-      mapRef.current.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+      map.fitBounds(bounds, 40);
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, clearOverlays]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, clearOverlays, mapReady]);
 
   // Current position marker
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapReady || !mapRef.current) return;
 
     if (posMarkerRef.current) {
       posMarkerRef.current.setMap(null);
@@ -206,7 +210,7 @@ export function GoogleMapDisplay({
 
     if (currentPosition) {
       posMarkerRef.current = new google.maps.Marker({
-        position: currentPosition,
+        position: { lat: currentPosition.lat, lng: currentPosition.lng },
         map: mapRef.current,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -219,7 +223,7 @@ export function GoogleMapDisplay({
         zIndex: 999,
       });
     }
-  }, [currentPosition]);
+  }, [currentPosition, mapReady]);
 
   const apiKey = getGoogleMapsApiKey();
 
