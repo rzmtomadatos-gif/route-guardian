@@ -148,11 +148,14 @@ export function GoogleMapDisplay({
   // Update segments
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    // Verify the map is a real Google Maps instance
+    try {
+      if (typeof map.getCenter !== 'function') return;
+    } catch { return; }
     clearOverlays();
 
-    const map = mapRef.current;
     const bounds = new google.maps.LatLngBounds();
-
     if (optimizedOrder && optimizedOrder.length > 1) {
       const segMap = new Map(segments.map((s) => [s.id, s]));
       for (let i = 0; i < optimizedOrder.length - 1; i++) {
@@ -223,7 +226,11 @@ export function GoogleMapDisplay({
     });
 
     if (!bounds.isEmpty()) {
-      map.fitBounds(bounds, 40);
+      try {
+        map.fitBounds(bounds, 40);
+      } catch (e) {
+        console.warn('fitBounds failed:', e);
+      }
     }
   }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, clearOverlays, mapReady]);
 
