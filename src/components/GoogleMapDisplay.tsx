@@ -2,6 +2,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
+import { MapDisplay } from './MapDisplay';
 
 interface Props {
   segments: Segment[];
@@ -60,6 +61,7 @@ export function GoogleMapDisplay({
   const posMarkerRef = useRef<google.maps.Marker | null>(null);
   const connectionLinesRef = useRef<google.maps.Polyline[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
 
   const clearOverlays = useCallback(() => {
     polylinesRef.current.forEach((p) => p.setMap(null));
@@ -70,12 +72,31 @@ export function GoogleMapDisplay({
     connectionLinesRef.current = [];
   }, []);
 
+  // Listen for Google Maps auth errors
+  useEffect(() => {
+    const handler = () => {
+      console.warn('Google Maps auth error detected, falling back to Leaflet');
+      setFallbackToLeaflet(true);
+    };
+
+    // Google Maps dispatches gm_authFailure on window
+    (window as any).gm_authFailure = handler;
+
+    return () => {
+      delete (window as any).gm_authFailure;
+    };
+  }, []);
+
   // Initialize map
   useEffect(() => {
+    if (fallbackToLeaflet) return;
     if (!containerRef.current || mapRef.current) return;
 
     const apiKey = getGoogleMapsApiKey();
-    if (!apiKey) return;
+    if (!apiKey) {
+      setFallbackToLeaflet(true);
+      return;
+    }
 
     let cancelled = false;
 
@@ -99,11 +120,22 @@ export function GoogleMapDisplay({
             { featureType: 'transit', stylers: [{ visibility: 'off' }] },
           ],
         });
-        mapRef.current = map;
-        setMapReady(true);
+
+        // Check for auth failure after a short delay
+        setTimeout(() => {
+          if (cancelled) return;
+          const errorDiv = containerRef.current?.querySelector('.gm-err-container');
+          if (errorDiv) {
+            console.warn('Google Maps error container detected, falling back to Leaflet');
+            setFallbackToLeaflet(true);
+            return;
+          }
+          mapRef.current = map;
+          setMapReady(true);
+        }, 1500);
       })
-      .catch((err) => {
-        console.error('Google Maps init error:', err);
+      .catch(() => {
+        if (!cancelled) setFallbackToLeaflet(true);
       });
 
     return () => {
@@ -111,7 +143,7 @@ export function GoogleMapDisplay({
       mapRef.current = null;
       setMapReady(false);
     };
-  }, []);
+  }, [fallbackToLeaflet]);
 
   // Update segments
   useEffect(() => {
@@ -121,7 +153,6 @@ export function GoogleMapDisplay({
     const map = mapRef.current;
     const bounds = new google.maps.LatLngBounds();
 
-    // Connection lines for optimized order
     if (optimizedOrder && optimizedOrder.length > 1) {
       const segMap = new Map(segments.map((s) => [s.id, s]));
       for (let i = 0; i < optimizedOrder.length - 1; i++) {
@@ -164,11 +195,8 @@ export function GoogleMapDisplay({
       }
 
       polylinesRef.current.push(polyline);
-
-      // Extend bounds with plain LatLngLiteral
       path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
 
-      // Number marker
       const orderIdx = optimizedOrder?.indexOf(seg.id);
       if (orderIdx !== undefined && orderIdx >= 0) {
         const startCoord = seg.coordinates[0];
@@ -225,17 +253,17 @@ export function GoogleMapDisplay({
     }
   }, [currentPosition, mapReady]);
 
-  const apiKey = getGoogleMapsApiKey();
-
-  if (!apiKey) {
+  // Fallback to Leaflet if Google Maps fails
+  if (fallbackToLeaflet) {
     return (
-      <div className={`w-full h-full flex items-center justify-center bg-background ${className}`}>
-        <div className="text-center px-6 space-y-2">
-          <p className="text-muted-foreground text-sm">
-            Configura tu API Key de Google Maps en Ajustes para ver el mapa.
-          </p>
-        </div>
-      </div>
+      <MapDisplay
+        segments={segments}
+        activeSegmentId={activeSegmentId}
+        currentPosition={currentPosition}
+        optimizedOrder={optimizedOrder}
+        className={className}
+        onSegmentClick={onSegmentClick}
+      />
     );
   }
 
