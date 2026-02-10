@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import type { Route, AppState, IncidentCategory, LatLng } from '@/types/route';
+import { useState, useCallback, useRef } from 'react';
+import type { Route, AppState, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
@@ -88,7 +88,7 @@ export function useRouteState() {
       if (shouldReoptimize && pending.length > 0) {
         const newOrder = [
           ...segments.filter((seg) => seg.status !== 'pendiente').map((seg) => seg.id),
-          ...optimizeRoute(pending, s.currentPosition),
+          ...optimizeRoute(pending, s.base?.position || s.currentPosition),
         ];
         return {
           ...s,
@@ -130,11 +130,12 @@ export function useRouteState() {
   const reoptimize = useCallback((currentPos?: LatLng | null) => {
     setState((s) => {
       if (!s.route) return s;
+      const basePos = currentPos || s.base?.position || null;
       const pending = s.route.segments.filter((seg) => seg.status === 'pendiente');
       const completed = s.route.segments.filter((seg) => seg.status !== 'pendiente');
       const newOrder = [
         ...completed.map((s) => s.id),
-        ...optimizeRoute(pending, currentPos),
+        ...optimizeRoute(pending, basePos),
       ];
       return { ...s, route: { ...s.route, optimizedOrder: newOrder } };
     });
@@ -151,17 +152,22 @@ export function useRouteState() {
   }, [setState]);
 
   const clearRoute = useCallback(() => {
-    setState(() => ({
+    setState((s) => ({
       route: null,
       incidents: [],
       activeSegmentId: null,
       navigationActive: false,
       currentPosition: null,
+      base: s.base, // preserve base
     }));
   }, [setState]);
 
   const setActiveSegment = useCallback((segmentId: string) => {
     setState((s) => ({ ...s, activeSegmentId: segmentId }));
+  }, [setState]);
+
+  const setBase = useCallback((base: BaseLocation) => {
+    setState((s) => ({ ...s, base }));
   }, [setState]);
 
   return {
@@ -176,5 +182,6 @@ export function useRouteState() {
     resetSegment,
     clearRoute,
     setActiveSegment,
+    setBase,
   };
 }

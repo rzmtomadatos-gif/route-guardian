@@ -45,10 +45,16 @@ export interface Incident {
   location?: LatLng;
 }
 
+export interface BaseLocation {
+  position: LatLng;
+  label: string;
+}
+
 export interface AppState {
   route: Route | null;
   incidents: Incident[];
   activeSegmentId: string | null;
   navigationActive: boolean;
   currentPosition: LatLng | null;
+  base: BaseLocation | null;
 }
