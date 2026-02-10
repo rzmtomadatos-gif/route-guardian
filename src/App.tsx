@@ -7,7 +7,6 @@ import { AppLayout } from "@/components/AppLayout";
 import { useRouteState } from "@/hooks/useRouteState";
 import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
-import NavigationPage from "@/pages/NavigationPage";
 import SegmentsPage from "@/pages/SegmentsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound";
@@ -26,6 +25,7 @@ function AppRoutes() {
     reoptimize,
     resetSegment,
     clearRoute,
+    setActiveSegment,
   } = useRouteState();
 
   return (
@@ -46,20 +46,13 @@ function AppRoutes() {
             <MapPage
               state={state}
               onStartNavigation={startNavigation}
-              onReoptimize={() => reoptimize(state.currentPosition)}
-            />
-          }
-        />
-        <Route
-          path="/navigate"
-          element={
-            <NavigationPage
-              state={state}
+              onStopNavigation={stopNavigation}
               onConfirmStart={confirmStartSegment}
               onComplete={completeSegment}
-              onStopNavigation={stopNavigation}
+              onResetSegment={resetSegment}
               onAddIncident={addIncident}
               onReoptimize={reoptimize}
+              onSetActiveSegment={setActiveSegment}
             />
           }
         />
