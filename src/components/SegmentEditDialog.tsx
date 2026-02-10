@@ -46,6 +46,37 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
             <label className="text-xs text-muted-foreground">Nombre</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del tramo" />
           </div>
+
+          {/* KML Metadata (read-only info) */}
+          {segment.kmlMeta && (segment.kmlMeta.carretera || segment.kmlMeta.identtramo || segment.kmlMeta.tipo) && (
+            <div className="bg-secondary/50 rounded-lg p-3 space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Datos KML</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                {segment.kmlMeta.carretera && (
+                  <div><span className="text-muted-foreground">Carretera:</span> <span className="text-foreground">{segment.kmlMeta.carretera}</span></div>
+                )}
+                {segment.kmlMeta.identtramo && (
+                  <div><span className="text-muted-foreground">Ident:</span> <span className="text-foreground">{segment.kmlMeta.identtramo}</span></div>
+                )}
+                {segment.kmlMeta.tipo && (
+                  <div><span className="text-muted-foreground">Tipo:</span> <span className="text-foreground">{segment.kmlMeta.tipo}</span></div>
+                )}
+                {segment.kmlMeta.calzada && (
+                  <div><span className="text-muted-foreground">Calzada:</span> <span className="text-foreground">{segment.kmlMeta.calzada}</span></div>
+                )}
+                {segment.kmlMeta.sentido && (
+                  <div><span className="text-muted-foreground">Sentido:</span> <span className="text-foreground">{segment.kmlMeta.sentido}</span></div>
+                )}
+                {segment.kmlMeta.pkInicial && (
+                  <div><span className="text-muted-foreground">PK Inicial:</span> <span className="text-foreground">{segment.kmlMeta.pkInicial}</span></div>
+                )}
+                {segment.kmlMeta.pkFinal && (
+                  <div><span className="text-muted-foreground">PK Final:</span> <span className="text-foreground">{segment.kmlMeta.pkFinal}</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Tipo</label>

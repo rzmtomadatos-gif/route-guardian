@@ -237,9 +237,19 @@ export default function SegmentsPage({
                       )}
                     </div>
                     <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={seg.status} />
                       <span className="text-[10px] text-muted-foreground capitalize">{seg.type} · {seg.direction}</span>
+                      {seg.kmlMeta?.pkInicial && seg.kmlMeta?.pkFinal && (
+                        <span className="text-[10px] text-muted-foreground">
+                          PK {seg.kmlMeta.pkInicial} → {seg.kmlMeta.pkFinal}
+                        </span>
+                      )}
+                      {seg.kmlMeta?.calzada && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Calz: {seg.kmlMeta.calzada}
+                        </span>
+                      )}
                       {seg.trackHistory.length > 0 && (
                         <span className="text-[10px] text-muted-foreground">
                           Tracks ant: {seg.trackHistory.join(', ')}

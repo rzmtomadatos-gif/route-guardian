@@ -25,6 +25,7 @@ export function generateSampleRoute(): Route {
       direction: 'creciente',
       type: 'tramo',
       status: 'pendiente',
+      kmlMeta: { carretera: 'M-30', tipo: 'Autopista', calzada: 'Derecha', sentido: 'Creciente', pkInicial: '0+000', pkFinal: '2+500' },
     },
     {
       id: 'seg_02',
@@ -43,6 +44,7 @@ export function generateSampleRoute(): Route {
       direction: 'creciente',
       type: 'tramo',
       status: 'pendiente',
+      kmlMeta: { carretera: 'M-30', tipo: 'Autopista', calzada: 'Derecha', sentido: 'Creciente', pkInicial: '2+500', pkFinal: '5+000' },
     },
     {
       id: 'seg_03',
@@ -63,6 +65,7 @@ export function generateSampleRoute(): Route {
       direction: 'ambos',
       type: 'tramo',
       status: 'pendiente',
+      kmlMeta: { carretera: 'A-2', tipo: 'Autovía', sentido: 'Ambos', pkInicial: '0+000', pkFinal: '6+000' },
     },
     {
       id: 'seg_04',
@@ -86,6 +89,7 @@ export function generateSampleRoute(): Route {
       direction: 'ambos',
       type: 'rotonda',
       status: 'pendiente',
+      kmlMeta: { tipo: 'Rotonda' },
     },
     {
       id: 'seg_05',
@@ -105,6 +109,7 @@ export function generateSampleRoute(): Route {
       direction: 'creciente',
       type: 'tramo',
       status: 'pendiente',
+      kmlMeta: { carretera: 'M-40', tipo: 'Autopista', calzada: 'Izquierda', sentido: 'Decreciente', pkInicial: '15+000', pkFinal: '20+000' },
     },
   ];
 

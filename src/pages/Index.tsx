@@ -2,8 +2,10 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileUp, Route, AlertCircle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { parseKMLFile } from '@/utils/kml-parser';
+import { parseKMLFile, applyNamingField } from '@/utils/kml-parser';
+import type { ParsedKmlResult } from '@/utils/kml-parser';
 import { generateSampleRoute } from '@/utils/sample-kml';
+import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
 import type { Route as RouteType } from '@/types/route';
 
 interface Props {
@@ -15,6 +17,7 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingResult, setPendingResult] = useState<ParsedKmlResult | null>(null);
   const navigate = useNavigate();
 
   const handleFile = useCallback(
@@ -27,9 +30,13 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const route = await parseKMLFile(file);
-        onRouteLoaded(route);
-        navigate('/map');
+        const result = await parseKMLFile(file);
+        if (result.hasBothNamingFields) {
+          setPendingResult(result);
+        } else {
+          onRouteLoaded(result.route);
+          navigate('/map');
+        }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error al procesar el archivo';
         setError(msg);
@@ -38,6 +45,17 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
       }
     },
     [onRouteLoaded, navigate]
+  );
+
+  const handleNamingChoice = useCallback(
+    (field: 'carretera' | 'identtramo') => {
+      if (!pendingResult) return;
+      const route = applyNamingField(pendingResult.route, field);
+      onRouteLoaded(route);
+      setPendingResult(null);
+      navigate('/map');
+    },
+    [pendingResult, onRouteLoaded, navigate]
   );
 
   const handleDrop = useCallback(
@@ -130,6 +148,15 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
           </Button>
         )}
       </div>
+
+      {pendingResult && (
+        <NamingChoiceDialog
+          open
+          sampleCarretera={pendingResult.sampleCarretera}
+          sampleIdenttramo={pendingResult.sampleIdenttramo}
+          onChoice={handleNamingChoice}
+        />
+      )}
     </div>
   );
 }
