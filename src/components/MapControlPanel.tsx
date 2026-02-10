@@ -2,15 +2,16 @@ import { useState } from 'react';
 import {
   Play, Square, Check, AlertTriangle, ChevronDown, ChevronUp,
   MapPin, RotateCcw, Navigation, ExternalLink, LocateFixed, LocateOff,
-  RefreshCw,
+  RefreshCw, Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
+import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { formatDistance } from '@/utils/route-optimizer';
 import { playStartSound, playEndSound } from '@/utils/sounds';
-import type { Segment, LatLng, IncidentCategory } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, BaseLocation } from '@/types/route';
 
 interface Props {
   segments: Segment[];
@@ -22,6 +23,7 @@ interface Props {
   gpsSpeed: number | null;
   gpsError: string | null;
   navigationActive: boolean;
+  base: BaseLocation | null;
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
@@ -32,6 +34,7 @@ interface Props {
   onStopNavigation: () => void;
   onExportToGoogleMaps: () => void;
   onSegmentSelect: (segmentId: string) => void;
+  onSetBase: (base: BaseLocation) => void;
 }
 
 export function MapControlPanel({
@@ -44,6 +47,7 @@ export function MapControlPanel({
   gpsSpeed,
   gpsError,
   navigationActive,
+  base,
   onToggleGps,
   onConfirmStart,
   onComplete,
@@ -54,6 +58,7 @@ export function MapControlPanel({
   onStopNavigation,
   onExportToGoogleMaps,
   onSegmentSelect,
+  onSetBase,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [confirmAction, setConfirmAction] = useState<'start' | 'end' | null>(null);
@@ -109,10 +114,15 @@ export function MapControlPanel({
 
         {/* Summary bar */}
         <div className="px-4 pb-3 flex items-center justify-between">
-          <div className="flex gap-3 text-xs text-muted-foreground">
-            <span>{segments.length} tramos</span>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <BaseLocationDialog currentBase={base} currentPosition={currentPosition} onSetBase={onSetBase}>
+              <button className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${base ? 'bg-accent/20 text-accent' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}>
+                <Home className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[80px]">{base ? base.label : 'Base'}</span>
+              </button>
+            </BaseLocationDialog>
             <span>{pending} pend.</span>
-            {inProgress > 0 && <span className="text-primary">{inProgress} grabando</span>}
+            {inProgress > 0 && <span className="text-primary">{inProgress} grab.</span>}
             <span className="text-success">{completed} compl.</span>
           </div>
           <div className="flex items-center gap-2">

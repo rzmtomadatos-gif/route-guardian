@@ -25,6 +25,7 @@ export function loadState(): AppState {
     activeSegmentId: null,
     navigationActive: false,
     currentPosition: null,
+    base: null,
   };
 }
 

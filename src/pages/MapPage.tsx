@@ -7,7 +7,7 @@ import { MapControlPanel } from '@/components/MapControlPanel';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
-import type { AppState, IncidentCategory, LatLng } from '@/types/route';
+import type { AppState, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -21,6 +21,7 @@ interface Props {
   onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
   onReoptimize: (pos?: LatLng | null) => void;
   onSetActiveSegment: (segmentId: string) => void;
+  onSetBase: (base: BaseLocation) => void;
 }
 
 export default function MapPage({
@@ -33,6 +34,7 @@ export default function MapPage({
   onAddIncident,
   onReoptimize,
   onSetActiveSegment,
+  onSetBase,
 }: Props) {
   const navigate = useNavigate();
   const [gpsEnabled, setGpsEnabled] = useState(false);
@@ -140,6 +142,7 @@ export default function MapPage({
         gpsSpeed={geo.speed}
         gpsError={geo.error}
         navigationActive={state.navigationActive}
+        base={state.base}
         onToggleGps={setGpsEnabled}
         onConfirmStart={onConfirmStart}
         onComplete={onComplete}
@@ -150,6 +153,7 @@ export default function MapPage({
         onStopNavigation={onStopNavigation}
         onExportToGoogleMaps={handleExportToGoogleMaps}
         onSegmentSelect={onSetActiveSegment}
+        onSetBase={onSetBase}
       />
     </div>
   );
