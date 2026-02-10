@@ -82,13 +82,16 @@ export default function MapPage({
 
     if (itinerary.length === 0) return;
 
-    const waypoints = itinerary.map((id) => {
+    // 2 waypoints per segment: start + end
+    const waypoints: string[] = [];
+    for (const id of itinerary) {
       const seg = route.segments.find((s) => s.id === id)!;
       const start = seg.coordinates[0];
-      return `${start.lat},${start.lng}`;
-    });
+      const end = seg.coordinates[seg.coordinates.length - 1];
+      waypoints.push(`${start.lat},${start.lng}`);
+      waypoints.push(`${end.lat},${end.lng}`);
+    }
 
-    // First waypoint is origin, last is destination, rest are waypoints
     const origin = waypoints[0];
     const destination = waypoints[waypoints.length - 1];
     const middle = waypoints.slice(1, -1).join('|');
