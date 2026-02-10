@@ -70,12 +70,33 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  const completedCountRef = { current: 0 };
+
   const completeSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
       const segments = s.route.segments.map((seg) =>
         seg.id === segmentId ? { ...seg, status: 'completado' as const } : seg
       );
+
+      // Track completed count for auto-reoptimize every 6
+      completedCountRef.current += 1;
+      const shouldReoptimize = completedCountRef.current % 6 === 0;
+
+      const pending = segments.filter((seg) => seg.status === 'pendiente');
+
+      if (shouldReoptimize && pending.length > 0) {
+        const newOrder = [
+          ...segments.filter((seg) => seg.status !== 'pendiente').map((seg) => seg.id),
+          ...optimizeRoute(pending, s.currentPosition),
+        ];
+        return {
+          ...s,
+          route: { ...s.route, segments, optimizedOrder: newOrder },
+          activeSegmentId: pending.length > 0 ? newOrder.find((id) => pending.some((p) => p.id === id)) || null : null,
+        };
+      }
+
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
       const remaining = s.route.optimizedOrder.slice(currentIdx + 1).filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
