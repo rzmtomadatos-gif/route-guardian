@@ -7,6 +7,16 @@ export interface LatLng {
   lng: number;
 }
 
+export interface SegmentKmlMeta {
+  carretera?: string;
+  identtramo?: string;
+  tipo?: string;
+  calzada?: string;
+  sentido?: string;
+  pkInicial?: string;
+  pkFinal?: string;
+}
+
 export interface Segment {
   id: string;
   routeId: string;
@@ -19,6 +29,7 @@ export interface Segment {
   direction: SegmentDirection;
   type: SegmentType;
   status: SegmentStatus;
+  kmlMeta: SegmentKmlMeta;
 }
 
 export interface Route {
