@@ -1,10 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, Navigation, List, Settings } from 'lucide-react';
+import { Upload, Map, List, Settings } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: Upload, label: 'Cargar' },
   { to: '/map', icon: Map, label: 'Mapa' },
-  { to: '/navigate', icon: Navigation, label: 'Navegar' },
   { to: '/segments', icon: List, label: 'Tramos' },
   { to: '/settings', icon: Settings, label: 'Config' },
 ];

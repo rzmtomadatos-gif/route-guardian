@@ -139,6 +139,10 @@ export function useRouteState() {
     }));
   }, [setState]);
 
+  const setActiveSegment = useCallback((segmentId: string) => {
+    setState((s) => ({ ...s, activeSegmentId: segmentId }));
+  }, [setState]);
+
   return {
     state,
     setRoute,
@@ -150,5 +154,6 @@ export function useRouteState() {
     reoptimize,
     resetSegment,
     clearRoute,
+    setActiveSegment,
   };
 }
