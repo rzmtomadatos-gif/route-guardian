@@ -10,8 +10,7 @@ export function generateSampleRoute(): Route {
     {
       id: 'seg_01',
       routeId,
-      trackNumber: null,
-      trackHistory: [],
+      trackNumber: 1,
       kmlId: 'M-30-N-T1',
       name: 'M-30 Norte - Tramo 1',
       notes: '',
@@ -29,8 +28,7 @@ export function generateSampleRoute(): Route {
     {
       id: 'seg_02',
       routeId,
-      trackNumber: null,
-      trackHistory: [],
+      trackNumber: 2,
       kmlId: 'M-30-N-T2',
       name: 'M-30 Norte - Tramo 2',
       notes: '',
@@ -47,8 +45,7 @@ export function generateSampleRoute(): Route {
     {
       id: 'seg_03',
       routeId,
-      trackNumber: null,
-      trackHistory: [],
+      trackNumber: 3,
       kmlId: 'A-2-SAL',
       name: 'A-2 Salida Madrid',
       notes: '',
@@ -67,8 +64,7 @@ export function generateSampleRoute(): Route {
     {
       id: 'seg_04',
       routeId,
-      trackNumber: null,
-      trackHistory: [],
+      trackNumber: 4,
       kmlId: 'ROT-CASTILLA',
       name: 'Rotonda Plaza Castilla',
       notes: '',
@@ -90,8 +86,7 @@ export function generateSampleRoute(): Route {
     {
       id: 'seg_05',
       routeId,
-      trackNumber: null,
-      trackHistory: [],
+      trackNumber: 5,
       kmlId: 'M-40-S-VLV',
       name: 'M-40 Sur - Tramo Villaverde',
       notes: '',

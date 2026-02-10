@@ -24,8 +24,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[]) {
   const segData = route.segments.map((seg) => {
     const segIncidents = incidents.filter((i) => i.segmentId === seg.id);
     return {
-      'Track': seg.trackNumber ?? 'Sin asignar',
-      'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
+      'Track': seg.trackNumber,
       'ID Tramo': seg.kmlId,
       'Nombre': seg.name,
       'Tipo': TYPE_LABELS[seg.type] || seg.type,
