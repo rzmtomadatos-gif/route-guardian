@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export default function MapPage({
   const navigate = useNavigate();
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<string>>(new Set());
   const geo = useGeolocation(gpsEnabled);
   const lastDeviationRef = useRef(0);
 
@@ -104,7 +105,19 @@ export default function MapPage({
     window.open(url, '_blank');
   }, [state.route]);
 
-  if (!state.route) {
+  const route = state.route;
+
+  const visibleSegments = useMemo(() => {
+    if (!route || selectedSegmentIds.size === 0) return route?.segments ?? [];
+    return route.segments.filter((s) => selectedSegmentIds.has(s.id));
+  }, [route, selectedSegmentIds]);
+
+  const visibleOrder = useMemo(() => {
+    if (!route || selectedSegmentIds.size === 0) return route?.optimizedOrder ?? [];
+    return route.optimizedOrder.filter((id) => selectedSegmentIds.has(id));
+  }, [route, selectedSegmentIds]);
+
+  if (!route) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6">
         <p className="text-muted-foreground mb-4">No hay ruta cargada</p>
@@ -116,17 +129,14 @@ export default function MapPage({
     );
   }
 
-  const { route } = state;
-
   return (
     <div className="flex flex-col h-full relative">
-      {/* Map fills all space */}
       <div className="flex-1">
         <GoogleMapDisplay
-          segments={route.segments}
+          segments={visibleSegments}
           activeSegmentId={state.activeSegmentId}
           currentPosition={geo.position}
-          optimizedOrder={route.optimizedOrder}
+          optimizedOrder={visibleOrder}
           onSegmentClick={onSetActiveSegment}
         />
       </div>
@@ -154,6 +164,8 @@ export default function MapPage({
         onExportToGoogleMaps={handleExportToGoogleMaps}
         onSegmentSelect={onSetActiveSegment}
         onSetBase={onSetBase}
+        selectedSegmentIds={selectedSegmentIds}
+        onSelectedSegmentsChange={setSelectedSegmentIds}
       />
     </div>
   );
