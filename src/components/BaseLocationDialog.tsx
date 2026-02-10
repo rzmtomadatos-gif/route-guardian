@@ -46,19 +46,42 @@ export function BaseLocationDialog({ currentBase, currentPosition, onSetBase, ch
     setError(null);
 
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address.trim())}&key=${apiKey}`
-      );
-      const data = await response.json();
+      // Try Google Geocoding first
+      let found = false;
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address.trim())}&key=${apiKey}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results.length > 0) {
+          const { lat, lng } = data.results[0].geometry.location;
+          const label = data.results[0].formatted_address || address.trim();
+          onSetBase({ position: { lat, lng }, label });
+          setOpen(false);
+          setAddress('');
+          found = true;
+        }
+      } catch {
+        // Google failed, will try fallback
+      }
 
-      if (data.status === 'OK' && data.results.length > 0) {
-        const { lat, lng } = data.results[0].geometry.location;
-        const label = data.results[0].formatted_address || address.trim();
-        onSetBase({ position: { lat, lng }, label });
-        setOpen(false);
-        setAddress('');
-      } else {
-        setError('No se encontró la dirección');
+      // Fallback to Nominatim (OpenStreetMap)
+      if (!found) {
+        const nomResponse = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address.trim())}&limit=1`,
+          { headers: { 'Accept-Language': 'es' } }
+        );
+        const nomData = await nomResponse.json();
+        if (nomData.length > 0) {
+          const lat = parseFloat(nomData[0].lat);
+          const lng = parseFloat(nomData[0].lon);
+          const label = nomData[0].display_name || address.trim();
+          onSetBase({ position: { lat, lng }, label });
+          setOpen(false);
+          setAddress('');
+        } else {
+          setError('No se encontró la dirección');
+        }
       }
     } catch {
       setError('Error al buscar la dirección');
