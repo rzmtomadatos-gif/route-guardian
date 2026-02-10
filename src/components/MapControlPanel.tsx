@@ -138,6 +138,96 @@ export function MapControlPanel({
           </div>
         </div>
 
+        {/* Always-visible: active segment controls + next segment */}
+        {!expanded && (
+          <div className="px-4 pb-4 space-y-2">
+            {activeSegment && activeSegment.status === 'en_progreso' && (
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-primary font-medium">Grabando</p>
+                    <h3 className="text-base font-bold text-foreground truncate">{activeSegment.name}</h3>
+                  </div>
+                  <StatusBadge status={activeSegment.status} />
+                </div>
+                <div className="flex gap-2">
+                  {confirmAction === 'end' ? (
+                    <>
+                      <Button onClick={() => handleComplete(activeSegment.id)} className="flex-1 driving-button bg-success text-success-foreground">
+                        <Check className="w-5 h-5 mr-2" />
+                        Confirmar Fin
+                      </Button>
+                      <Button onClick={() => setConfirmAction(null)} variant="outline" className="driving-button border-border text-foreground">
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button onClick={() => setConfirmAction('end')} className="flex-1 driving-button bg-success text-success-foreground">
+                        <Square className="w-5 h-5 mr-2" />
+                        Finalizar
+                      </Button>
+                      <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
+                        <Button variant="outline" className="driving-button border-destructive/40 text-destructive">
+                          <AlertTriangle className="w-5 h-5" />
+                        </Button>
+                      </IncidentDialog>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onReoptimize} className="flex-1 min-h-[48px] border-border text-foreground">
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reoptimizar
+              </Button>
+              {navigationActive ? (
+                <Button onClick={onStopNavigation} variant="outline" className="flex-1 min-h-[48px] border-destructive/40 text-destructive">
+                  <Square className="w-4 h-4 mr-2" />
+                  Detener
+                </Button>
+              ) : (
+                <Button onClick={onStartNavigation} disabled={pending === 0} className="flex-1 min-h-[48px] bg-primary text-primary-foreground">
+                  <Navigation className="w-4 h-4 mr-2" />
+                  Navegar
+                </Button>
+              )}
+            </div>
+
+            {/* Next pending segment */}
+            {(() => {
+              const nextSeg = orderedSegments.find((s) => s.status === 'pendiente');
+              if (!nextSeg) return null;
+              const canStart = nextSeg.id === activeSegmentId;
+              return (
+                <div
+                  className={`flex items-center gap-3 p-2.5 rounded-lg ${
+                    nextSeg.id === activeSegmentId ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/50 border border-transparent'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-muted text-muted-foreground">
+                    {nextSeg.trackNumber ?? '—'}
+                  </span>
+                  <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(nextSeg.id)}>
+                    <span className="text-[9px] font-mono text-muted-foreground">{nextSeg.kmlId || nextSeg.name}</span>
+                    {nextSeg.trackNumber !== null && <p className="text-[10px] text-primary font-medium">Track {nextSeg.trackNumber}</p>}
+                  </button>
+                  <StatusBadge status={nextSeg.status} />
+                  {canStart && (
+                    <Button size="sm" onClick={() => handleConfirmStart(nextSeg.id)} className="h-8 px-3 bg-primary text-primary-foreground text-xs">
+                      <Play className="w-3.5 h-3.5 mr-1" />
+                      Iniciar
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {expanded && (
           <div className="px-4 pb-4 space-y-3 max-h-[45vh] overflow-y-auto">
             {/* Active segment controls */}
