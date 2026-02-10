@@ -275,13 +275,16 @@ export function MapControlPanel({
                       : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
                       : 'bg-muted text-muted-foreground'
                     }`}>
-                      {seg.trackNumber}
+                      {seg.trackNumber ?? '—'}
                     </span>
                     <div className="flex-1 min-w-0">
-                      {seg.kmlId && (
-                        <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId}</span>
+                      <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId || seg.name}</span>
+                      {seg.trackNumber !== null && (
+                        <p className="text-[10px] text-primary font-medium">Track {seg.trackNumber}</p>
                       )}
-                      <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
+                      {seg.trackHistory.length > 0 && (
+                        <p className="text-[9px] text-muted-foreground">Hist: {seg.trackHistory.join(', ')}</p>
+                      )}
                     </div>
                     <StatusBadge status={seg.status} />
                   </button>
