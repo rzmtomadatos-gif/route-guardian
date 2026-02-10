@@ -31,7 +31,10 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
       <DialogContent className="bg-card border-border max-w-sm mx-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">
-            Editar Track {segment.trackNumber}
+            Editar Tramo — {segment.name}
+            {segment.trackNumber !== null && (
+              <span className="text-sm font-normal text-primary ml-2">Track {segment.trackNumber}</span>
+            )}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">

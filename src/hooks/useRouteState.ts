@@ -68,8 +68,14 @@ export function useRouteState() {
   const confirmStartSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
+      // Calculate next track number: max of all assigned + all history + 1
+      const allTrackNumbers = s.route.segments.flatMap((seg) => [
+        ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
+        ...seg.trackHistory,
+      ]);
+      const nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
       const segments = s.route.segments.map((seg) =>
-        seg.id === segmentId ? { ...seg, status: 'en_progreso' as const } : seg
+        seg.id === segmentId ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack } : seg
       );
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
     });
@@ -147,9 +153,14 @@ export function useRouteState() {
   const resetSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
-      const segments = s.route.segments.map((seg) =>
-        seg.id === segmentId ? { ...seg, status: 'pendiente' as const } : seg
-      );
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        // Save current track to history if it was assigned
+        const newHistory = seg.trackNumber !== null
+          ? [...seg.trackHistory, seg.trackNumber]
+          : seg.trackHistory;
+        return { ...seg, status: 'pendiente' as const, trackNumber: null, trackHistory: newHistory };
+      });
       return { ...s, route: { ...s.route, segments } };
     });
   }, [setState]);

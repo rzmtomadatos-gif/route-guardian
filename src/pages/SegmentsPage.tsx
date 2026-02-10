@@ -61,7 +61,13 @@ export default function SegmentsPage({
   const { route, incidents } = state;
 
   // Sort by trackNumber
-  const allSegments = [...route.segments].sort((a, b) => a.trackNumber - b.trackNumber);
+  const allSegments = [...route.segments].sort((a, b) => {
+    // Sort: assigned tracks first (by trackNumber), then unassigned
+    if (a.trackNumber !== null && b.trackNumber !== null) return a.trackNumber - b.trackNumber;
+    if (a.trackNumber !== null) return -1;
+    if (b.trackNumber !== null) return 1;
+    return 0;
+  });
 
   // Filter
   const filtered = allSegments.filter((seg) => {
@@ -215,7 +221,7 @@ export default function SegmentsPage({
                     {isSelected && <Check className="w-3 h-3" />}
                   </button>
                   <div className="flex-shrink-0 w-7 h-7 rounded-full bg-secondary flex items-center justify-center">
-                    <span className="text-xs font-bold text-secondary-foreground">{seg.trackNumber}</span>
+                    <span className="text-xs font-bold text-secondary-foreground">{seg.trackNumber ?? '—'}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -224,11 +230,21 @@ export default function SegmentsPage({
                           {seg.kmlId}
                         </span>
                       )}
+                      {seg.trackNumber !== null && (
+                        <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium">
+                          Track {seg.trackNumber}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <StatusBadge status={seg.status} />
                       <span className="text-[10px] text-muted-foreground capitalize">{seg.type} · {seg.direction}</span>
+                      {seg.trackHistory.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Tracks ant: {seg.trackHistory.join(', ')}
+                        </span>
+                      )}
                       {segIncidents.length > 0 && (
                         <button
                           onClick={() => setExpandedIncidents(isExpanded ? null : seg.id)}
