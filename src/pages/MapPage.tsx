@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay } from '@/components/GoogleMapDisplay';
@@ -37,9 +37,14 @@ export default function MapPage({
   onSetBase,
 }: Props) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
-  const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<string>>(new Set());
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<string>>(() => {
+    const param = searchParams.get('selected');
+    if (param) return new Set(param.split(',').filter(Boolean));
+    return new Set();
+  });
   const geo = useGeolocation(gpsEnabled);
   const lastDeviationRef = useRef(0);
 

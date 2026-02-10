@@ -6,8 +6,9 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import {
   MapPin, RotateCcw, XCircle, Download, Pencil, Filter, Trash2,
-  AlertTriangle, ChevronDown, ChevronUp,
+  AlertTriangle, ChevronDown, ChevronUp, Check, Eye,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { exportRouteToExcel } from '@/utils/excel-export';
 import type { AppState, Incident, Segment, SegmentStatus } from '@/types/route';
 
@@ -44,6 +45,7 @@ export default function SegmentsPage({
   const [expandedIncidents, setExpandedIncidents] = useState<string | null>(null);
   const [editingIncident, setEditingIncident] = useState<string | null>(null);
   const [incidentNote, setIncidentNote] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   if (!state.route) {
     return (
@@ -96,16 +98,47 @@ export default function SegmentsPage({
   const inProgress = route.segments.filter((s) => s.status === 'en_progreso').length;
   const completed = route.segments.filter((s) => s.status === 'completado').length;
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((s) => s.id)));
+    }
+  };
+
+  const handleViewSelectedOnMap = () => {
+    // Set each selected segment as active and navigate
+    selectedIds.forEach((id) => onSetActiveSegment(id));
+    navigate('/map?selected=' + Array.from(selectedIds).join(','));
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 bg-card border-b border-border">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-foreground">Tramos</h2>
-          <Button size="sm" variant="outline" onClick={handleExport} className="border-border text-foreground">
-            <Download className="w-4 h-4 mr-1" />
-            Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <Button size="sm" onClick={handleViewSelectedOnMap} className="bg-accent text-accent-foreground text-xs h-8">
+                <Eye className="w-3.5 h-3.5 mr-1" />
+                Ver {selectedIds.size} en mapa
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={handleExport} className="border-border text-foreground">
+              <Download className="w-4 h-4 mr-1" />
+              Excel
+            </Button>
+          </div>
         </div>
         <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
           <span>{pending} pendientes</span>
@@ -142,12 +175,45 @@ export default function SegmentsPage({
       {/* Segment list */}
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-border">
+          {/* Select all header */}
+          <div className="px-4 py-2 flex items-center gap-3 bg-secondary/30">
+            <button
+              onClick={toggleSelectAll}
+              className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                selectedIds.size === filtered.length && filtered.length > 0
+                  ? 'bg-accent border-accent text-accent-foreground'
+                  : 'border-muted-foreground/40 text-transparent hover:border-muted-foreground'
+              }`}
+            >
+              {selectedIds.size === filtered.length && filtered.length > 0 && <Check className="w-3 h-3" />}
+            </button>
+            <span className="text-[10px] text-muted-foreground">
+              {selectedIds.size > 0 ? `${selectedIds.size} seleccionados` : 'Seleccionar todos'}
+            </span>
+            {selectedIds.size > 0 && (
+              <button onClick={() => setSelectedIds(new Set())} className="text-[10px] text-primary hover:underline ml-auto">
+                Limpiar
+              </button>
+            )}
+          </div>
           {filtered.map((seg) => {
             const segIncidents = getIncidents(seg.id);
             const isExpanded = expandedIncidents === seg.id;
+            const isSelected = selectedIds.has(seg.id);
             return (
-              <div key={seg.id}>
+              <div key={seg.id} className={isSelected ? 'bg-accent/5' : ''}>
                 <div className="px-4 py-3 flex items-center gap-3">
+                  {/* Selection checkbox */}
+                  <button
+                    onClick={() => toggleSelect(seg.id)}
+                    className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? 'bg-accent border-accent text-accent-foreground'
+                        : 'border-muted-foreground/40 text-transparent hover:border-muted-foreground'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3" />}
+                  </button>
                   <div className="flex-shrink-0 w-7 h-7 rounded-full bg-secondary flex items-center justify-center">
                     <span className="text-xs font-bold text-secondary-foreground">{seg.trackNumber}</span>
                   </div>
