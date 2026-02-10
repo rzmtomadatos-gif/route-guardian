@@ -138,180 +138,181 @@ export function MapControlPanel({
           </div>
         </div>
 
-        {expanded && (
-          <div className="px-4 pb-4 space-y-3 max-h-[45vh] overflow-y-auto">
-            {/* Active segment controls */}
-            {activeSegment && activeSegment.status === 'en_progreso' && (
-              <div className="bg-primary/10 border border-primary/30 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-primary font-medium">Grabando</p>
-                    <h3 className="text-base font-bold text-foreground truncate">{activeSegment.name}</h3>
-                  </div>
-                  <StatusBadge status={activeSegment.status} />
+        {/* Always-visible controls */}
+        <div className="px-4 pb-3 space-y-3">
+          {/* Active segment controls */}
+          {activeSegment && activeSegment.status === 'en_progreso' && (
+            <div className="bg-primary/10 border border-primary/30 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-primary font-medium">Grabando</p>
+                  <h3 className="text-base font-bold text-foreground truncate">{activeSegment.name}</h3>
                 </div>
-                <div className="flex gap-2">
-                  {confirmAction === 'end' ? (
-                    <>
-                      <Button onClick={() => handleComplete(activeSegment.id)} className="flex-1 driving-button bg-success text-success-foreground">
-                        <Check className="w-5 h-5 mr-2" />
-                        Confirmar Fin
-                      </Button>
-                      <Button onClick={() => setConfirmAction(null)} variant="outline" className="driving-button border-border text-foreground">
-                        Cancelar
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button onClick={() => setConfirmAction('end')} className="flex-1 driving-button bg-success text-success-foreground">
-                        <Square className="w-5 h-5 mr-2" />
-                        Finalizar
-                      </Button>
-                      <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
-                        <Button variant="outline" className="driving-button border-destructive/40 text-destructive">
-                          <AlertTriangle className="w-5 h-5" />
-                        </Button>
-                      </IncidentDialog>
-                    </>
-                  )}
-                </div>
+                <StatusBadge status={activeSegment.status} />
               </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={onReoptimize}
-                className="flex-1 min-h-[48px] border-border text-foreground"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reoptimizar
-              </Button>
-              {navigationActive ? (
-                <Button
-                  onClick={onStopNavigation}
-                  variant="outline"
-                  className="flex-1 min-h-[48px] border-destructive/40 text-destructive"
-                >
-                  <Square className="w-4 h-4 mr-2" />
-                  Detener
-                </Button>
-              ) : (
-                <Button
-                  onClick={onStartNavigation}
-                  disabled={pending === 0}
-                  className="flex-1 min-h-[48px] bg-primary text-primary-foreground"
-                >
-                  <Navigation className="w-4 h-4 mr-2" />
-                  Navegar
-                </Button>
-              )}
-            </div>
-
-            {navigationActive && (
-              <Button
-                variant="outline"
-                onClick={onExportToGoogleMaps}
-                className="w-full min-h-[44px] border-border text-foreground"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Abrir en Google Maps
-              </Button>
-            )}
-
-            {/* Segment list */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between px-1">
-                <p className="text-xs font-medium text-muted-foreground">Itinerario</p>
-                {selectedSegmentIds.size > 0 && (
-                  <button
-                    onClick={() => onSelectedSegmentsChange(new Set())}
-                    className="text-[10px] text-primary hover:underline"
-                  >
-                    Mostrar todos ({selectedSegmentIds.size} sel.)
-                  </button>
+              <div className="flex gap-2">
+                {confirmAction === 'end' ? (
+                  <>
+                    <Button onClick={() => handleComplete(activeSegment.id)} className="flex-1 driving-button bg-success text-success-foreground">
+                      <Check className="w-5 h-5 mr-2" />
+                      Confirmar Fin
+                    </Button>
+                    <Button onClick={() => setConfirmAction(null)} variant="outline" className="driving-button border-border text-foreground">
+                      Cancelar
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => setConfirmAction('end')} className="flex-1 driving-button bg-success text-success-foreground">
+                      <Square className="w-5 h-5 mr-2" />
+                      Finalizar
+                    </Button>
+                    <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
+                      <Button variant="outline" className="driving-button border-destructive/40 text-destructive">
+                        <AlertTriangle className="w-5 h-5" />
+                      </Button>
+                    </IncidentDialog>
+                  </>
                 )}
               </div>
-              {orderedSegments.map((seg) => {
-                const firstPendingId = orderedSegments.find((s) => s.status === 'pendiente')?.id;
-                const canStart = seg.status === 'pendiente' && seg.id === activeSegmentId && seg.id === firstPendingId;
-                const isSelected = selectedSegmentIds.has(seg.id);
-                return (
-                <div
-                  key={seg.id}
-                  className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors ${
-                    seg.id === activeSegmentId
-                      ? 'bg-primary/10 border border-primary/30'
-                      : isSelected
-                        ? 'bg-accent/10 border border-accent/30'
-                        : 'bg-secondary/50 border border-transparent hover:border-border'
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={onReoptimize}
+              className="flex-1 min-h-[48px] border-border text-foreground"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reoptimizar
+            </Button>
+            {navigationActive ? (
+              <Button
+                onClick={onStopNavigation}
+                variant="outline"
+                className="flex-1 min-h-[48px] border-destructive/40 text-destructive"
+              >
+                <Square className="w-4 h-4 mr-2" />
+                Detener
+              </Button>
+            ) : (
+              <Button
+                onClick={onStartNavigation}
+                disabled={pending === 0}
+                className="flex-1 min-h-[48px] bg-primary text-primary-foreground"
+              >
+                <Navigation className="w-4 h-4 mr-2" />
+                Navegar
+              </Button>
+            )}
+          </div>
+
+          {navigationActive && (
+            <Button
+              variant="outline"
+              onClick={onExportToGoogleMaps}
+              className="w-full min-h-[44px] border-border text-foreground"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Abrir en Google Maps
+            </Button>
+          )}
+        </div>
+
+        {/* Collapsible segment list */}
+        {expanded && (
+          <div className="px-4 pb-4 space-y-1.5 max-h-[35vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs font-medium text-muted-foreground">Itinerario</p>
+              {selectedSegmentIds.size > 0 && (
+                <button
+                  onClick={() => onSelectedSegmentsChange(new Set())}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Mostrar todos ({selectedSegmentIds.size} sel.)
+                </button>
+              )}
+            </div>
+            {orderedSegments.map((seg) => {
+              const firstPendingId = orderedSegments.find((s) => s.status === 'pendiente')?.id;
+              const canStart = seg.status === 'pendiente' && seg.id === activeSegmentId && seg.id === firstPendingId;
+              const isSelected = selectedSegmentIds.has(seg.id);
+              return (
+              <div
+                key={seg.id}
+                className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors ${
+                  seg.id === activeSegmentId
+                    ? 'bg-primary/10 border border-primary/30'
+                    : isSelected
+                      ? 'bg-accent/10 border border-accent/30'
+                      : 'bg-secondary/50 border border-transparent hover:border-border'
+                }`}
+              >
+                {/* Selection checkbox */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = new Set(selectedSegmentIds);
+                    if (isSelected) next.delete(seg.id);
+                    else next.add(seg.id);
+                    onSelectedSegmentsChange(next);
+                  }}
+                  className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                    isSelected
+                      ? 'bg-accent border-accent text-accent-foreground'
+                      : 'border-muted-foreground/40 text-transparent hover:border-muted-foreground'
                   }`}
                 >
-                  {/* Selection checkbox */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const next = new Set(selectedSegmentIds);
-                      if (isSelected) next.delete(seg.id);
-                      else next.add(seg.id);
-                      onSelectedSegmentsChange(next);
-                    }}
-                    className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                      isSelected
-                        ? 'bg-accent border-accent text-accent-foreground'
-                        : 'border-muted-foreground/40 text-transparent hover:border-muted-foreground'
-                    }`}
+                  {isSelected && <Check className="w-3 h-3" />}
+                </button>
+                {/* Rest of row - clickable to select/focus */}
+                <button
+                  className="flex-1 flex items-center gap-3 min-w-0"
+                  onClick={() => onSegmentSelect(seg.id)}
+                >
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    seg.status === 'completado' ? 'bg-success/20 text-success'
+                    : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
+                    : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {seg.trackNumber ?? '—'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId || seg.name}</span>
+                    {seg.trackNumber !== null && (
+                      <p className="text-[10px] text-primary font-medium">Track {seg.trackNumber}</p>
+                    )}
+                    {seg.trackHistory.length > 0 && (
+                      <p className="text-[9px] text-muted-foreground">Hist: {seg.trackHistory.join(', ')}</p>
+                    )}
+                  </div>
+                  <StatusBadge status={seg.status} />
+                </button>
+                {canStart && (
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleConfirmStart(seg.id); }}
+                    className="h-8 px-3 bg-primary text-primary-foreground text-xs"
                   >
-                    {isSelected && <Check className="w-3 h-3" />}
-                  </button>
-                  {/* Rest of row - clickable to select/focus */}
-                  <button
-                    className="flex-1 flex items-center gap-3 min-w-0"
-                    onClick={() => onSegmentSelect(seg.id)}
+                    <Play className="w-3.5 h-3.5 mr-1" />
+                    Iniciar
+                  </Button>
+                )}
+                {seg.status === 'completado' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); onResetSegment(seg.id); }}
+                    className="h-8 px-2 text-muted-foreground hover:text-foreground text-xs"
                   >
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                      seg.status === 'completado' ? 'bg-success/20 text-success'
-                      : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
-                      : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {seg.trackNumber ?? '—'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId || seg.name}</span>
-                      {seg.trackNumber !== null && (
-                        <p className="text-[10px] text-primary font-medium">Track {seg.trackNumber}</p>
-                      )}
-                      {seg.trackHistory.length > 0 && (
-                        <p className="text-[9px] text-muted-foreground">Hist: {seg.trackHistory.join(', ')}</p>
-                      )}
-                    </div>
-                    <StatusBadge status={seg.status} />
-                  </button>
-                  {canStart && (
-                    <Button
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleConfirmStart(seg.id); }}
-                      className="h-8 px-3 bg-primary text-primary-foreground text-xs"
-                    >
-                      <Play className="w-3.5 h-3.5 mr-1" />
-                      Iniciar
-                    </Button>
-                  )}
-                  {seg.status === 'completado' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => { e.stopPropagation(); onResetSegment(seg.id); }}
-                      className="h-8 px-2 text-muted-foreground hover:text-foreground text-xs"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                </div>
-                );
-              })}
-            </div>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+              );
+            })}
           </div>
         )}
       </div>
