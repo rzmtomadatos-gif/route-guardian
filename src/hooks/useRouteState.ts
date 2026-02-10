@@ -6,6 +6,7 @@ import { optimizeWithDirections } from '@/utils/google-directions';
 
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
+  const completedCountRef = useRef(0);
 
   const setState = useCallback((updater: (prev: AppState) => AppState) => {
     setStateRaw((prev) => {
@@ -27,17 +28,21 @@ export function useRouteState() {
     }));
 
     // Try Google Directions API optimization
-    const endpoints = route.segments.map((seg) => ({
-      id: seg.id,
-      start: seg.coordinates[0],
-      end: seg.coordinates[seg.coordinates.length - 1],
-    }));
-    const directionsOrder = await optimizeWithDirections(endpoints);
-    if (directionsOrder) {
-      setState((s) => {
-        if (!s.route || s.route.id !== route.id) return s;
-        return { ...s, route: { ...s.route, optimizedOrder: directionsOrder } };
-      });
+    try {
+      const endpoints = route.segments.map((seg) => ({
+        id: seg.id,
+        start: seg.coordinates[0],
+        end: seg.coordinates[seg.coordinates.length - 1],
+      }));
+      const directionsOrder = await optimizeWithDirections(endpoints);
+      if (directionsOrder) {
+        setState((s) => {
+          if (!s.route || s.route.id !== route.id) return s;
+          return { ...s, route: { ...s.route, optimizedOrder: directionsOrder } };
+        });
+      }
+    } catch (e) {
+      console.warn('Google Directions optimization failed, using local algorithm:', e);
     }
   }, [setState]);
 
@@ -69,8 +74,6 @@ export function useRouteState() {
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
     });
   }, [setState]);
-
-  const completedCountRef = { current: 0 };
 
   const completeSegment = useCallback((segmentId: string) => {
     setState((s) => {

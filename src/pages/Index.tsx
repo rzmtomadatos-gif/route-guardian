@@ -30,8 +30,9 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
         const route = await parseKMLFile(file);
         onRouteLoaded(route);
         navigate('/map');
-      } catch (e: any) {
-        setError(e.message || 'Error al procesar el archivo');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Error al procesar el archivo';
+        setError(msg);
       } finally {
         setLoading(false);
       }
