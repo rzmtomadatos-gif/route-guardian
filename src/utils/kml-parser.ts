@@ -118,7 +118,7 @@ export async function parseKMLFile(file: File): Promise<ParsedKmlResult> {
       (feature.properties?.name as string) ||
       (feature.properties?.Name as string) ||
       '';
-    const name = meta.carretera || meta.identtramo || kmlId || `Tramo ${segments.length + 1}`;
+    const name = meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`;
 
     segments.push({
       id: generateId(),
