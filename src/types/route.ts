@@ -10,7 +10,10 @@ export interface LatLng {
 export interface Segment {
   id: string;
   routeId: string;
+  trackNumber: number;
+  kmlId: string;
   name: string;
+  notes: string;
   coordinates: LatLng[];
   direction: SegmentDirection;
   type: SegmentType;

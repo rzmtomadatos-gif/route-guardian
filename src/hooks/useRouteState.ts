@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Route, AppState, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
+import type { Route, AppState, Segment, Incident, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
@@ -173,6 +173,32 @@ export function useRouteState() {
     setState((s) => ({ ...s, base }));
   }, [setState]);
 
+  const updateSegment = useCallback((segmentId: string, updates: Partial<Segment>) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) =>
+        seg.id === segmentId ? { ...seg, ...updates } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const updateIncident = useCallback((incidentId: string, updates: Partial<Incident>) => {
+    setState((s) => ({
+      ...s,
+      incidents: s.incidents.map((inc) =>
+        inc.id === incidentId ? { ...inc, ...updates } : inc
+      ),
+    }));
+  }, [setState]);
+
+  const deleteIncident = useCallback((incidentId: string) => {
+    setState((s) => ({
+      ...s,
+      incidents: s.incidents.filter((inc) => inc.id !== incidentId),
+    }));
+  }, [setState]);
+
   return {
     state,
     setRoute,
@@ -186,5 +212,8 @@ export function useRouteState() {
     clearRoute,
     setActiveSegment,
     setBase,
+    updateSegment,
+    updateIncident,
+    deleteIncident,
   };
 }

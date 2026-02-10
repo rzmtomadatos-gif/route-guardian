@@ -53,15 +53,20 @@ export async function parseKMLFile(file: File): Promise<Route> {
     const coords = extractCoordinates(feature.geometry);
     if (coords.length < 2) continue;
 
-    const name =
+    const kmlId =
       (feature.properties?.name as string) ||
       (feature.properties?.Name as string) ||
-      `Tramo ${segments.length + 1}`;
+      '';
+    const trackNum = segments.length + 1;
+    const name = kmlId || `Tramo ${trackNum}`;
 
     segments.push({
       id: generateId(),
       routeId,
+      trackNumber: trackNum,
+      kmlId,
       name,
+      notes: '',
       coordinates: coords,
       direction: 'ambos',
       type: 'tramo',
