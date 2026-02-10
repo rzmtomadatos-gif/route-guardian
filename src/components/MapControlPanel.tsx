@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Play, Square, Check, AlertTriangle, ChevronDown, ChevronUp,
   MapPin, RotateCcw, Navigation, ExternalLink, LocateFixed, LocateOff,
-  RefreshCw, Home,
+  RefreshCw, Home, CheckSquare, Square as SquareIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -35,6 +35,8 @@ interface Props {
   onExportToGoogleMaps: () => void;
   onSegmentSelect: (segmentId: string) => void;
   onSetBase: (base: BaseLocation) => void;
+  selectedSegmentIds: Set<string>;
+  onSelectedSegmentsChange: (ids: Set<string>) => void;
 }
 
 export function MapControlPanel({
@@ -59,6 +61,8 @@ export function MapControlPanel({
   onExportToGoogleMaps,
   onSegmentSelect,
   onSetBase,
+  selectedSegmentIds,
+  onSelectedSegmentsChange,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [confirmAction, setConfirmAction] = useState<'start' | 'end' | null>(null);
@@ -218,36 +222,69 @@ export function MapControlPanel({
 
             {/* Segment list */}
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground px-1">Itinerario</p>
-              {orderedSegments.map((seg, idx) => {
-                // Enforce sequential: only allow starting the first pending segment
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs font-medium text-muted-foreground">Itinerario</p>
+                {selectedSegmentIds.size > 0 && (
+                  <button
+                    onClick={() => onSelectedSegmentsChange(new Set())}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    Mostrar todos ({selectedSegmentIds.size} sel.)
+                  </button>
+                )}
+              </div>
+              {orderedSegments.map((seg) => {
                 const firstPendingId = orderedSegments.find((s) => s.status === 'pendiente')?.id;
                 const canStart = seg.status === 'pendiente' && seg.id === activeSegmentId && seg.id === firstPendingId;
+                const isSelected = selectedSegmentIds.has(seg.id);
                 return (
-                <button
+                <div
                   key={seg.id}
-                  onClick={() => onSegmentSelect(seg.id)}
-                  className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors ${
+                  className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-left transition-colors ${
                     seg.id === activeSegmentId
                       ? 'bg-primary/10 border border-primary/30'
-                      : 'bg-secondary/50 border border-transparent hover:border-border'
+                      : isSelected
+                        ? 'bg-accent/10 border border-accent/30'
+                        : 'bg-secondary/50 border border-transparent hover:border-border'
                   }`}
                 >
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    seg.status === 'completado' ? 'bg-success/20 text-success'
-                    : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
-                    : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {seg.trackNumber}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    {seg.kmlId && (
-                      <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId}</span>
-                    )}
-                    <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
-                  </div>
-                  <StatusBadge status={seg.status} />
-                  {/* Quick action - only first pending */}
+                  {/* Selection checkbox */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = new Set(selectedSegmentIds);
+                      if (isSelected) next.delete(seg.id);
+                      else next.add(seg.id);
+                      onSelectedSegmentsChange(next);
+                    }}
+                    className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? 'bg-accent border-accent text-accent-foreground'
+                        : 'border-muted-foreground/40 text-transparent hover:border-muted-foreground'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3" />}
+                  </button>
+                  {/* Rest of row - clickable to select/focus */}
+                  <button
+                    className="flex-1 flex items-center gap-3 min-w-0"
+                    onClick={() => onSegmentSelect(seg.id)}
+                  >
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                      seg.status === 'completado' ? 'bg-success/20 text-success'
+                      : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {seg.trackNumber}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      {seg.kmlId && (
+                        <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId}</span>
+                      )}
+                      <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
+                    </div>
+                    <StatusBadge status={seg.status} />
+                  </button>
                   {canStart && (
                     <Button
                       size="sm"
@@ -268,7 +305,7 @@ export function MapControlPanel({
                       <RefreshCw className="w-3.5 h-3.5" />
                     </Button>
                   )}
-                </button>
+                </div>
                 );
               })}
             </div>
