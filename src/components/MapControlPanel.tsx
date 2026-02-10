@@ -219,7 +219,11 @@ export function MapControlPanel({
             {/* Segment list */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground px-1">Itinerario</p>
-              {orderedSegments.map((seg, idx) => (
+              {orderedSegments.map((seg, idx) => {
+                // Enforce sequential: only allow starting the first pending segment
+                const firstPendingId = orderedSegments.find((s) => s.status === 'pendiente')?.id;
+                const canStart = seg.status === 'pendiente' && seg.id === activeSegmentId && seg.id === firstPendingId;
+                return (
                 <button
                   key={seg.id}
                   onClick={() => onSegmentSelect(seg.id)}
@@ -234,14 +238,17 @@ export function MapControlPanel({
                     : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
                     : 'bg-muted text-muted-foreground'
                   }`}>
-                    {idx + 1}
+                    {seg.trackNumber}
                   </span>
                   <div className="flex-1 min-w-0">
+                    {seg.kmlId && (
+                      <span className="text-[9px] font-mono text-muted-foreground">{seg.kmlId}</span>
+                    )}
                     <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
                   </div>
                   <StatusBadge status={seg.status} />
-                  {/* Quick action */}
-                  {seg.status === 'pendiente' && seg.id === activeSegmentId && (
+                  {/* Quick action - only first pending */}
+                  {canStart && (
                     <Button
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); handleConfirmStart(seg.id); }}
@@ -262,7 +269,8 @@ export function MapControlPanel({
                     </Button>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

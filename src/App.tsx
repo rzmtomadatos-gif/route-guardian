@@ -27,6 +27,9 @@ function AppRoutes() {
     clearRoute,
     setActiveSegment,
     setBase,
+    updateSegment,
+    updateIncident,
+    deleteIncident,
   } = useRouteState();
 
   return (
@@ -65,6 +68,10 @@ function AppRoutes() {
               state={state}
               onResetSegment={resetSegment}
               onCompleteSegment={completeSegment}
+              onUpdateSegment={updateSegment}
+              onUpdateIncident={updateIncident}
+              onDeleteIncident={deleteIncident}
+              onSetActiveSegment={setActiveSegment}
             />
           }
         />
