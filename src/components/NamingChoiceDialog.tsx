@@ -33,11 +33,14 @@ export function NamingChoiceDialog({ open, sampleCarretera, sampleIdenttramo, on
           </Button>
           <Button
             variant="outline"
-            className="w-full justify-start text-left h-auto py-3 border-border"
+            className="w-full justify-start text-left h-auto py-3 border-primary bg-primary/5 ring-1 ring-primary/30"
             onClick={() => onChoice('identtramo')}
           >
             <div>
-              <div className="font-medium text-foreground">Ident. Tramo</div>
+              <div className="font-medium text-foreground flex items-center gap-2">
+                Ident. Tramo
+                <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded">Recomendado</span>
+              </div>
               <div className="text-xs text-muted-foreground mt-0.5">Ej: {sampleIdenttramo}</div>
             </div>
           </Button>
