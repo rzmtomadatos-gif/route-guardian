@@ -1,4 +1,5 @@
-import { kml } from '@tmcw/togeojson';
+import { kmlWithFolders } from '@tmcw/togeojson';
+import type { Folder } from '@tmcw/togeojson';
 import JSZip from 'jszip';
 import type { Segment, LatLng, Route, SegmentKmlMeta } from '@/types/route';
 
@@ -37,7 +38,6 @@ function getProp(props: Record<string, unknown>, key: string): string | undefine
 
 function extractDescriptionFields(descriptionHtml: string): Record<string, string> {
   const fields: Record<string, string> = {};
-  // Match table rows like <td>KEY</td><td>VALUE</td>
   const rowRegex = /<td[^>]*>\s*(.*?)\s*<\/td>\s*<td[^>]*>\s*(.*?)\s*<\/td>/gi;
   let match;
   while ((match = rowRegex.exec(descriptionHtml)) !== null) {
@@ -49,7 +49,6 @@ function extractDescriptionFields(descriptionHtml: string): Record<string, strin
 }
 
 function extractKmlMeta(props: Record<string, unknown>): SegmentKmlMeta {
-  // First try direct properties (ExtendedData)
   let carretera = getProp(props, 'carretera');
   let identtramo = getProp(props, 'identtramo');
   let tipo = getProp(props, 'tipo');
@@ -58,7 +57,6 @@ function extractKmlMeta(props: Record<string, unknown>): SegmentKmlMeta {
   let pkInicial = getProp(props, 'pkinicial');
   let pkFinal = getProp(props, 'pkfinal');
 
-  // Fallback: parse HTML description table
   const desc = getProp(props, 'description');
   if (desc) {
     const descFields = extractDescriptionFields(desc);
@@ -99,48 +97,68 @@ export interface ParsedKmlResult {
   sampleIdenttramo: string;
 }
 
+type FolderOrFeature = GeoJSON.Feature | Folder;
+
+/** Recursively walk the kmlWithFolders tree and collect segments */
+function collectSegments(
+  children: FolderOrFeature[],
+  routeId: string,
+  segments: Segment[],
+  currentLayer?: string
+): void {
+  for (const child of children) {
+    if ('type' in child && (child as Folder).type === 'folder') {
+      const folder = child as Folder;
+      const folderName = (folder.meta?.name as string) || currentLayer;
+      collectSegments(folder.children, routeId, segments, folderName);
+    } else {
+      // It's a GeoJSON Feature
+      const feature = child as GeoJSON.Feature;
+      if (!feature.geometry) return;
+      const coords = extractCoordinates(feature.geometry);
+      if (coords.length < 2) continue;
+
+      const props = (feature.properties || {}) as Record<string, unknown>;
+      const meta = extractKmlMeta(props);
+
+      const kmlId =
+        (feature.properties?.name as string) ||
+        (feature.properties?.Name as string) ||
+        '';
+      const name = meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`;
+
+      segments.push({
+        id: generateId(),
+        routeId,
+        trackNumber: null,
+        trackHistory: [],
+        kmlId,
+        name,
+        notes: '',
+        coordinates: coords,
+        direction: 'ambos',
+        type: 'tramo',
+        status: 'pendiente',
+        kmlMeta: meta,
+        layer: currentLayer,
+      });
+    }
+  }
+}
+
 export async function parseKMLFile(file: File): Promise<ParsedKmlResult> {
   const xmlDoc = await readKMLFromFile(file);
-  const geojson = kml(xmlDoc);
+  const root = kmlWithFolders(xmlDoc);
 
   const routeId = generateId();
   const segments: Segment[] = [];
 
-  for (const feature of geojson.features) {
-    if (!feature.geometry) continue;
-    const coords = extractCoordinates(feature.geometry);
-    if (coords.length < 2) continue;
-
-    const props = (feature.properties || {}) as Record<string, unknown>;
-    const meta = extractKmlMeta(props);
-
-    const kmlId =
-      (feature.properties?.name as string) ||
-      (feature.properties?.Name as string) ||
-      '';
-    const name = meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`;
-
-    segments.push({
-      id: generateId(),
-      routeId,
-      trackNumber: null,
-      trackHistory: [],
-      kmlId,
-      name,
-      notes: '',
-      coordinates: coords,
-      direction: 'ambos',
-      type: 'tramo',
-      status: 'pendiente',
-      kmlMeta: meta,
-    });
-  }
+  collectSegments(root.children, routeId, segments);
 
   if (segments.length === 0) {
     throw new Error('No se encontraron tramos válidos en el archivo');
   }
 
-  // Check if both naming fields exist in any segment
   const hasBothNamingFields = segments.some(
     (s) => s.kmlMeta.carretera && s.kmlMeta.identtramo
   );
