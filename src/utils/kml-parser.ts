@@ -114,7 +114,7 @@ function collectSegments(
     } else {
       // It's a GeoJSON Feature
       const feature = child as GeoJSON.Feature;
-      if (!feature.geometry) return;
+      if (!feature.geometry) continue;
       const coords = extractCoordinates(feature.geometry);
       if (coords.length < 2) continue;
 
@@ -149,6 +149,23 @@ function collectSegments(
 export async function parseKMLFile(file: File): Promise<ParsedKmlResult> {
   const xmlDoc = await readKMLFromFile(file);
   const root = kmlWithFolders(xmlDoc);
+
+  // Debug: log the tree structure
+  const describeTree = (children: any[], depth = 0): string[] => {
+    const lines: string[] = [];
+    for (const c of children) {
+      if (c.type === 'folder') {
+        lines.push(`${'  '.repeat(depth)}📁 Folder: "${c.meta?.name || '(sin nombre)'}"`);
+        lines.push(...describeTree(c.children || [], depth + 1));
+      } else {
+        const name = c.properties?.name || c.properties?.Name || '(feature)';
+        const geomType = c.geometry?.type || 'null';
+        lines.push(`${'  '.repeat(depth)}📄 Feature: "${name}" [${geomType}]`);
+      }
+    }
+    return lines;
+  };
+  console.log('[KML Parser] Tree structure:\n' + describeTree(root.children).join('\n'));
 
   const routeId = generateId();
   const segments: Segment[] = [];
