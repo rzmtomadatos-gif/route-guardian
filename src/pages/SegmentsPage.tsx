@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   MapPin, RotateCcw, XCircle, Download, Pencil, Filter, Trash2,
-  AlertTriangle, ChevronDown, ChevronUp, Check, Eye,
+  AlertTriangle, ChevronDown, ChevronUp, Check, Eye, Layers,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { exportRouteToExcel } from '@/utils/excel-export';
@@ -41,13 +43,24 @@ export default function SegmentsPage({
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SegmentStatus | 'todos'>('todos');
+  const [layerFilter, setLayerFilter] = useState<string>('todas');
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
   const [expandedIncidents, setExpandedIncidents] = useState<string | null>(null);
   const [editingIncident, setEditingIncident] = useState<string | null>(null);
   const [incidentNote, setIncidentNote] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  if (!state.route) {
+  const route = state.route;
+  const incidents = state.incidents;
+
+  const layers = useMemo(() => {
+    if (!route) return [];
+    const set = new Set<string>();
+    route.segments.forEach((s) => { if (s.layer) set.add(s.layer); });
+    return Array.from(set).sort();
+  }, [route]);
+
+  if (!route) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6">
         <p className="text-muted-foreground mb-4">No hay ruta cargada</p>
@@ -57,8 +70,6 @@ export default function SegmentsPage({
       </div>
     );
   }
-
-  const { route, incidents } = state;
 
   // Sort by trackNumber
   const allSegments = [...route.segments].sort((a, b) => {
@@ -72,6 +83,7 @@ export default function SegmentsPage({
   // Filter
   const filtered = allSegments.filter((seg) => {
     if (statusFilter !== 'todos' && seg.status !== statusFilter) return false;
+    if (layerFilter !== 'todas' && (seg.layer || '') !== layerFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -160,6 +172,20 @@ export default function SegmentsPage({
             placeholder="Buscar tramo..."
             className="h-8 text-xs flex-1"
           />
+          {layers.length > 0 && (
+            <Select value={layerFilter} onValueChange={setLayerFilter}>
+              <SelectTrigger className="h-8 text-xs w-32 bg-secondary border-border">
+                <Layers className="w-3 h-3 mr-1 flex-shrink-0" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                {layers.map((l) => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex gap-1">
             {STATUS_OPTIONS.map((opt) => (
               <button
@@ -234,6 +260,12 @@ export default function SegmentsPage({
                         <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium">
                           Track {seg.trackNumber}
                         </span>
+                      )}
+                      {seg.layer && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          <Layers className="w-2.5 h-2.5 mr-0.5" />
+                          {seg.layer}
+                        </Badge>
                       )}
                     </div>
                     <p className="text-sm font-medium text-foreground truncate">{seg.name}</p>
