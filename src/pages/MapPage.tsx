@@ -221,7 +221,7 @@ export default function MapPage({
     return areaPoints;
   }, [areaMode, areaPoints]);
 
-  const handleGenerateSegments = useCallback(async (categories: RoadCategory[], layerName: string) => {
+  const handleGenerateSegments = useCallback(async (categories: RoadCategory[], layerName: string, generateReverse: boolean) => {
     setIsLoadingArea(true);
     try {
       const polygon = getAreaPolygon();
@@ -233,6 +233,7 @@ export default function MapPage({
         return;
       }
 
+      // Generate "creciente" segments
       for (const way of ways) {
         const segment: Segment = {
           id: Math.random().toString(36).substring(2, 10),
@@ -243,7 +244,7 @@ export default function MapPage({
           name: way.name,
           notes: `Tipo: ${way.highway}`,
           coordinates: way.coordinates,
-          direction: 'ambos',
+          direction: 'creciente',
           type: 'tramo',
           status: 'pendiente',
           kmlMeta: { carretera: way.name, tipo: way.highway },
@@ -252,7 +253,32 @@ export default function MapPage({
         onAddSegment(segment);
       }
 
-      toast.success(`Se generaron ${ways.length} tramos en la zona`);
+      // Generate reverse ("decreciente") segments in a separate layer
+      if (generateReverse) {
+        const reverseLayerName = layerName ? `${layerName} (decreciente)` : 'Decreciente';
+        for (const way of ways) {
+          const segment: Segment = {
+            id: Math.random().toString(36).substring(2, 10),
+            routeId: state.route?.id || 'area',
+            trackNumber: null,
+            trackHistory: [],
+            kmlId: `osm-${way.id}-rev`,
+            name: `${way.name} (dec.)`,
+            notes: `Tipo: ${way.highway} | Sentido decreciente`,
+            coordinates: [...way.coordinates].reverse(),
+            direction: 'creciente',
+            type: 'tramo',
+            status: 'pendiente',
+            kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
+            layer: reverseLayerName,
+          };
+          onAddSegment(segment);
+        }
+        toast.success(`Se generaron ${ways.length} tramos (+ ${ways.length} en sentido inverso)`);
+      } else {
+        toast.success(`Se generaron ${ways.length} tramos en sentido creciente`);
+      }
+
       handleCancelArea();
     } catch (err) {
       console.error('Overpass error:', err);
