@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, List, Settings, Save } from 'lucide-react';
+import { Upload, Map, List, Settings, Save, X } from 'lucide-react';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
 import { toast } from '@/hooks/use-toast';
 import type { Route } from '@/types/route';
@@ -16,9 +16,11 @@ interface Props {
   route?: Route | null;
   isDirty?: boolean;
   onMarkClean?: () => void;
+  selectedCount?: number;
+  onClearSelection?: () => void;
 }
 
-export function AppLayout({ children, route, isDirty, onMarkClean }: Props) {
+export function AppLayout({ children, route, isDirty, onMarkClean, selectedCount = 0, onClearSelection }: Props) {
   const location = useLocation();
 
   const handleSave = () => {
@@ -41,6 +43,20 @@ export function AppLayout({ children, route, isDirty, onMarkClean }: Props) {
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">
       <main className="flex-1 overflow-y-auto">{children}</main>
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-accent/15 border-t border-accent/20">
+          <span className="text-[10px] font-medium text-accent-foreground">
+            {selectedCount} tramo{selectedCount > 1 ? 's' : ''} seleccionado{selectedCount > 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={onClearSelection}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Limpiar selección
+          </button>
+        </div>
+      )}
       <nav className="flex-shrink-0 border-t border-border bg-card safe-area-bottom">
         <div className="flex justify-around py-2">
           {navItems.map(({ to, icon: Icon, label }) => {

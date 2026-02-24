@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +15,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 function AppRoutes() {
+  const routeState = useRouteState();
   const {
     state,
     isDirty,
@@ -44,13 +46,18 @@ function AppRoutes() {
     bulkSetColor,
     duplicateSegments,
     reorderSegment,
-  } = useRouteState();
+    simplifySegments,
+  } = routeState;
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   return (
     <AppLayout
       route={state.route}
       isDirty={isDirty}
       onMarkClean={markClean}
+      selectedCount={selectedIds.size}
+      onClearSelection={() => setSelectedIds(new Set())}
     >
       <Routes>
         <Route
@@ -89,6 +96,8 @@ function AppRoutes() {
           element={
             <SegmentsPage
               state={state}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
               onResetSegment={resetSegment}
               onCompleteSegment={completeSegment}
               onUpdateSegment={updateSegment}
@@ -106,6 +115,7 @@ function AppRoutes() {
               onBulkColor={bulkSetColor}
               onDuplicate={duplicateSegments}
               onReorder={reorderSegment}
+              onSimplify={simplifySegments}
             />
           }
         />
