@@ -233,8 +233,13 @@ export default function MapPage({
         return;
       }
 
-      // Generate "creciente" segments
+      // Generate segments respecting oneway direction
       for (const way of ways) {
+        // If oneway=-1, the digitized direction is reversed, so "creciente" = reversed coords
+        const isReversed = way.onewayReverse;
+        const coords = isReversed ? [...way.coordinates].reverse() : way.coordinates;
+        const direction = isReversed ? 'creciente' : 'creciente'; // always creciente, coords are adjusted
+
         const segment: Segment = {
           id: Math.random().toString(36).substring(2, 10),
           routeId: state.route?.id || 'area',
@@ -242,21 +247,23 @@ export default function MapPage({
           trackHistory: [],
           kmlId: `osm-${way.id}`,
           name: way.name,
-          notes: `Tipo: ${way.highway}`,
-          coordinates: way.coordinates,
+          notes: `Tipo: ${way.highway}${way.oneway ? ' | Sentido único' : ''}`,
+          coordinates: coords,
           direction: 'creciente',
           type: 'tramo',
           status: 'pendiente',
-          kmlMeta: { carretera: way.name, tipo: way.highway },
+          kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
           layer: layerName || undefined,
         };
         onAddSegment(segment);
       }
 
       // Generate reverse ("decreciente") segments in a separate layer
+      // Generate reverse ("decreciente") segments only for non-oneway roads
       if (generateReverse) {
         const reverseLayerName = layerName ? `${layerName} (decreciente)` : 'Decreciente';
-        for (const way of ways) {
+        const reversibleWays = ways.filter((w) => !w.oneway);
+        for (const way of reversibleWays) {
           const segment: Segment = {
             id: Math.random().toString(36).substring(2, 10),
             routeId: state.route?.id || 'area',
@@ -274,7 +281,9 @@ export default function MapPage({
           };
           onAddSegment(segment);
         }
-        toast.success(`Se generaron ${ways.length} tramos (+ ${ways.length} en sentido inverso)`);
+        const skipped = ways.length - reversibleWays.length;
+        const skippedMsg = skipped > 0 ? ` (${skipped} vías de sentido único excluidas)` : '';
+        toast.success(`Se generaron ${ways.length} tramos (+ ${reversibleWays.length} en sentido inverso)${skippedMsg}`);
       } else {
         toast.success(`Se generaron ${ways.length} tramos en sentido creciente`);
       }
