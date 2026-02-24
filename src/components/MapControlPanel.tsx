@@ -372,7 +372,7 @@ export function MapControlPanel({
                       {seg.trackNumber !== null && (
                         <p className="text-[10px] text-primary font-medium">Track {seg.trackNumber}</p>
                       )}
-                      {seg.trackHistory.length > 0 && (
+                      {seg.trackHistory?.length > 0 && (
                         <p className="text-[9px] text-muted-foreground">Hist: {seg.trackHistory.join(', ')}</p>
                       )}
                     </div>
