@@ -24,6 +24,8 @@ interface Props {
   areaSelectionMode?: AreaSelectionMode;
   areaPoints?: LatLng[];
   onAreaClick?: (latlng: LatLng) => void;
+  /** When true, zoom/fit map to the active segment */
+  fitToActiveSegment?: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -74,6 +76,7 @@ export function GoogleMapDisplay({
   areaSelectionMode = 'none',
   areaPoints = [],
   onAreaClick,
+  fitToActiveSegment = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -487,6 +490,23 @@ export function GoogleMapDisplay({
     }
   }, [areaPoints, areaSelectionMode, mapReady]);
 
+  // Fit map to active segment when recording
+  useEffect(() => {
+    if (!fitToActiveSegment || !mapReady || !mapRef.current || !activeSegmentId) return;
+    const seg = segments.find((s) => s.id === activeSegmentId);
+    if (!seg || seg.coordinates.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    seg.coordinates.forEach((c) => bounds.extend(new google.maps.LatLng(c.lat, c.lng)));
+
+    if (!bounds.isEmpty()) {
+      try {
+        mapRef.current.fitBounds(bounds, { top: 40, bottom: 160, left: 40, right: 40 });
+      } catch (e) {
+        console.warn('fitBounds to active segment failed:', e);
+      }
+    }
+  }, [fitToActiveSegment, activeSegmentId, segments, mapReady]);
 
   if (fallbackToLeaflet) {
     return (
