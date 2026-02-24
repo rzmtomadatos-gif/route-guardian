@@ -23,6 +23,7 @@ interface Props {
   selectedCount: number;
   selectedIds: Set<string>;
   availableLayers: string[];
+  totalDistanceKm?: number;
   onMerge: (ids: string[]) => void;
   onBulkDelete: (ids: string[]) => void;
   onBulkMove: (ids: string[], layer: string | undefined) => void;
@@ -36,6 +37,7 @@ export function SelectionToolbar({
   selectedCount,
   selectedIds,
   availableLayers,
+  totalDistanceKm,
   onMerge,
   onBulkDelete,
   onBulkMove,
@@ -58,6 +60,9 @@ export function SelectionToolbar({
       <div className="flex items-center gap-1 px-3 py-2 bg-accent/10 border-b border-accent/20">
         <span className="text-[10px] font-medium text-accent-foreground mr-1">
           {selectedCount} seleccionado{selectedCount > 1 ? 's' : ''}
+          {totalDistanceKm != null && totalDistanceKm > 0 && (
+            <span className="ml-1 text-muted-foreground font-normal">· {totalDistanceKm.toFixed(1)} km</span>
+          )}
         </span>
 
         <Button

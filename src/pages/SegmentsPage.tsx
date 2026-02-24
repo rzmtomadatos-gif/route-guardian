@@ -110,6 +110,14 @@ export default function SegmentsPage({
     return filtered.reduce((sum, s) => sum + (distanceMap.get(s.id) || 0), 0);
   }, [filtered, distanceMap]);
 
+  // Distance of selected segments
+  const selectedDistanceKm = useMemo(() => {
+    if (selectedIds.size === 0) return 0;
+    let total = 0;
+    selectedIds.forEach((id) => { total += distanceMap.get(id) || 0; });
+    return total;
+  }, [selectedIds, distanceMap]);
+
   if (!route) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6">
@@ -133,6 +141,12 @@ export default function SegmentsPage({
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
+    onSelectedIdsChange(next);
+  };
+
+  const selectMultiple = (ids: string[]) => {
+    const next = new Set(selectedIds);
+    ids.forEach((id) => next.add(id));
     onSelectedIdsChange(next);
   };
 
@@ -235,6 +249,7 @@ export default function SegmentsPage({
           selectedCount={selectedIds.size}
           selectedIds={selectedIds}
           availableLayers={route.availableLayers || []}
+          totalDistanceKm={selectedDistanceKm}
           onMerge={onMergeSegments}
           onBulkDelete={onBulkDelete}
           onBulkMove={onBulkMove}
@@ -253,6 +268,7 @@ export default function SegmentsPage({
           selectedIds={selectedIds}
           availableLayers={route.availableLayers}
           onToggleSelect={toggleSelect}
+          onSelectMultiple={selectMultiple}
           onEditSegment={setEditingSeg}
           onViewOnMap={(segId) => {
             onSetActiveSegment(segId);
