@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Upload, Plus } from 'lucide-react';
+import { Upload, Plus, Square, Pentagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { GoogleMapDisplay } from '@/components/GoogleMapDisplay';
+import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
 import { SegmentCreatorPanel } from '@/components/SegmentCreatorPanel';
+import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
+import { fetchRoadsInArea, type RoadCategory } from '@/utils/overpass-api';
+import { toast } from 'sonner';
 import type { AppState, IncidentCategory, LatLng, BaseLocation, Segment } from '@/types/route';
 
 const DEVIATION_THRESHOLD = 100;
@@ -56,6 +59,12 @@ export default function MapPage({
   const [creationEnd, setCreationEnd] = useState<LatLng | null>(null);
   const [creationRoute, setCreationRoute] = useState<LatLng[] | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+
+  // Area selection state
+  const [areaMode, setAreaMode] = useState<AreaSelectionMode>('none');
+  const [areaPoints, setAreaPoints] = useState<LatLng[]>([]);
+  const [showAreaDialog, setShowAreaDialog] = useState(false);
+  const [isLoadingArea, setIsLoadingArea] = useState(false);
 
   const geo = useGeolocation(gpsEnabled);
   const lastDeviationRef = useRef(0);
@@ -170,6 +179,89 @@ export default function MapPage({
     setCreationRoute(null);
   }, []);
 
+  // Area selection handlers
+  const handleAreaClick = useCallback((latlng: LatLng) => {
+    if (areaMode === 'rectangle') {
+      setAreaPoints((prev) => {
+        if (prev.length >= 2) return prev;
+        const next = [...prev, latlng];
+        if (next.length === 2) {
+          // Auto-show dialog when rectangle is complete
+          setTimeout(() => setShowAreaDialog(true), 100);
+        }
+        return next;
+      });
+    } else if (areaMode === 'polygon') {
+      setAreaPoints((prev) => [...prev, latlng]);
+    }
+  }, [areaMode]);
+
+  const handleFinishPolygon = useCallback(() => {
+    if (areaPoints.length >= 3) {
+      setShowAreaDialog(true);
+    }
+  }, [areaPoints]);
+
+  const handleCancelArea = useCallback(() => {
+    setAreaMode('none');
+    setAreaPoints([]);
+    setShowAreaDialog(false);
+  }, []);
+
+  const getAreaPolygon = useCallback((): LatLng[] => {
+    if (areaMode === 'rectangle' && areaPoints.length >= 2) {
+      const [a, b] = areaPoints;
+      return [
+        { lat: Math.min(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
+        { lat: Math.min(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
+        { lat: Math.max(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
+        { lat: Math.max(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
+      ];
+    }
+    return areaPoints;
+  }, [areaMode, areaPoints]);
+
+  const handleGenerateSegments = useCallback(async (categories: RoadCategory[], layerName: string) => {
+    setIsLoadingArea(true);
+    try {
+      const polygon = getAreaPolygon();
+      const ways = await fetchRoadsInArea(polygon, categories);
+
+      if (ways.length === 0) {
+        toast.warning('No se encontraron vías en la zona seleccionada');
+        setIsLoadingArea(false);
+        return;
+      }
+
+      for (const way of ways) {
+        const segment: Segment = {
+          id: Math.random().toString(36).substring(2, 10),
+          routeId: state.route?.id || 'area',
+          trackNumber: null,
+          trackHistory: [],
+          kmlId: `osm-${way.id}`,
+          name: way.name,
+          notes: `Tipo: ${way.highway}`,
+          coordinates: way.coordinates,
+          direction: 'ambos',
+          type: 'tramo',
+          status: 'pendiente',
+          kmlMeta: { carretera: way.name, tipo: way.highway },
+          layer: layerName || undefined,
+        };
+        onAddSegment(segment);
+      }
+
+      toast.success(`Se generaron ${ways.length} tramos en la zona`);
+      handleCancelArea();
+    } catch (err) {
+      console.error('Overpass error:', err);
+      toast.error('Error al consultar las vías. Intenta con una zona más pequeña.');
+    } finally {
+      setIsLoadingArea(false);
+    }
+  }, [getAreaPolygon, state.route?.id, onAddSegment, handleCancelArea]);
+
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     onReoptimize(geo.position);
@@ -257,6 +349,9 @@ export default function MapPage({
           creationStartPoint={creationStart}
           creationEndPoint={creationEnd}
           creationRoutePreview={creationRoute}
+          areaSelectionMode={areaMode}
+          areaPoints={areaPoints}
+          onAreaClick={handleAreaClick}
         />
       </div>
 
@@ -273,19 +368,70 @@ export default function MapPage({
         />
       )}
 
-      {/* FAB to enter creation mode */}
-      {!creationMode && (
-        <button
-          onClick={() => setCreationMode(true)}
-          className="absolute top-3 right-3 z-20 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
-          title="Crear tramo"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+      {/* Area selection panel */}
+      {areaMode !== 'none' && !showAreaDialog && (
+        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
+              {areaMode === 'rectangle' ? 'Selección rectangular' : 'Selección por polígono'}
+            </h3>
+            <button onClick={handleCancelArea} className="text-xs text-muted-foreground hover:text-foreground">
+              Cancelar
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            {areaMode === 'rectangle'
+              ? `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)`
+              : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
+          </p>
+          {areaMode === 'polygon' && areaPoints.length >= 3 && (
+            <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
+              Cerrar polígono y generar
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Area selection dialog */}
+      <AreaSelectionDialog
+        open={showAreaDialog}
+        onClose={handleCancelArea}
+        onConfirm={handleGenerateSegments}
+        pointCount={areaPoints.length}
+        isLoading={isLoadingArea}
+        layers={layers}
+      />
+
+      {/* FAB buttons */}
+      {!creationMode && areaMode === 'none' && (
+        <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+          <button
+            onClick={() => setCreationMode(true)}
+            className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+            title="Crear tramo manual"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setAreaMode('rectangle')}
+            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
+            title="Selección rectangular"
+          >
+            <Square className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setAreaMode('polygon')}
+            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
+            title="Selección por polígono"
+          >
+            <Pentagon className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* Control panel overlay */}
-      {!creationMode && (
+      {!creationMode && areaMode === 'none' && (
         <MapControlPanel
           segments={route.segments}
           optimizedOrder={route.optimizedOrder}

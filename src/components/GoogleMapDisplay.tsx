@@ -4,6 +4,8 @@ import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 
+export type AreaSelectionMode = 'none' | 'rectangle' | 'polygon';
+
 interface Props {
   segments: Segment[];
   activeSegmentId?: string | null;
@@ -18,6 +20,10 @@ interface Props {
   creationStartPoint?: LatLng | null;
   creationEndPoint?: LatLng | null;
   creationRoutePreview?: LatLng[] | null;
+  /** Area selection mode */
+  areaSelectionMode?: AreaSelectionMode;
+  areaPoints?: LatLng[];
+  onAreaClick?: (latlng: LatLng) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,6 +71,9 @@ export function GoogleMapDisplay({
   creationStartPoint,
   creationEndPoint,
   creationRoutePreview,
+  areaSelectionMode = 'none',
+  areaPoints = [],
+  onAreaClick,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -74,6 +83,9 @@ export function GoogleMapDisplay({
   const connectionLinesRef = useRef<google.maps.Polyline[]>([]);
   const creationMarkersRef = useRef<google.maps.Marker[]>([]);
   const creationPolylineRef = useRef<google.maps.Polyline | null>(null);
+  const areaOverlayRef = useRef<google.maps.Polygon | google.maps.Rectangle | null>(null);
+  const areaMarkersRef = useRef<google.maps.Marker[]>([]);
+  const areaClickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
@@ -363,6 +375,97 @@ export function GoogleMapDisplay({
       });
     }
   }, [creationStartPoint, creationEndPoint, creationRoutePreview, mapReady]);
+
+  // Area selection: click listener
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    if (areaClickListenerRef.current) {
+      areaClickListenerRef.current.remove();
+      areaClickListenerRef.current = null;
+    }
+
+    if (areaSelectionMode !== 'none' && onAreaClick) {
+      mapRef.current.setOptions({ draggableCursor: 'crosshair' });
+      areaClickListenerRef.current = mapRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (e.latLng) {
+          onAreaClick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+        }
+      });
+    } else if (!creationMode) {
+      mapRef.current.setOptions({ draggableCursor: undefined });
+    }
+
+    return () => {
+      if (areaClickListenerRef.current) {
+        areaClickListenerRef.current.remove();
+        areaClickListenerRef.current = null;
+      }
+    };
+  }, [areaSelectionMode, onAreaClick, mapReady, creationMode]);
+
+  // Area selection: draw overlay
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    // Clear previous
+    if (areaOverlayRef.current) {
+      areaOverlayRef.current.setMap(null);
+      areaOverlayRef.current = null;
+    }
+    areaMarkersRef.current.forEach((m) => m.setMap(null));
+    areaMarkersRef.current = [];
+
+    if (areaPoints.length === 0) return;
+
+    // Draw point markers
+    areaPoints.forEach((pt, i) => {
+      const marker = new google.maps.Marker({
+        position: { lat: pt.lat, lng: pt.lng },
+        map,
+        label: { text: `${i + 1}`, color: '#fff', fontSize: '10px', fontWeight: 'bold' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#8b5cf6',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+        },
+        zIndex: 1001,
+      });
+      areaMarkersRef.current.push(marker);
+    });
+
+    if (areaSelectionMode === 'rectangle' && areaPoints.length >= 2) {
+      const lats = areaPoints.map((p) => p.lat);
+      const lngs = areaPoints.map((p) => p.lng);
+      areaOverlayRef.current = new google.maps.Rectangle({
+        bounds: {
+          north: Math.max(...lats),
+          south: Math.min(...lats),
+          east: Math.max(...lngs),
+          west: Math.min(...lngs),
+        },
+        map,
+        fillColor: '#8b5cf6',
+        fillOpacity: 0.15,
+        strokeColor: '#8b5cf6',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+      });
+    } else if (areaSelectionMode === 'polygon' && areaPoints.length >= 3) {
+      areaOverlayRef.current = new google.maps.Polygon({
+        paths: areaPoints.map((p) => ({ lat: p.lat, lng: p.lng })),
+        map,
+        fillColor: '#8b5cf6',
+        fillOpacity: 0.15,
+        strokeColor: '#8b5cf6',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+      });
+    }
+  }, [areaPoints, areaSelectionMode, mapReady]);
 
 
   if (fallbackToLeaflet) {
