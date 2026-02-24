@@ -31,6 +31,7 @@ export interface Segment {
   status: SegmentStatus;
   kmlMeta: SegmentKmlMeta;
   layer?: string;
+  color?: string;
 }
 
 export interface Route {
