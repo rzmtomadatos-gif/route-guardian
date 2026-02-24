@@ -207,7 +207,7 @@ export function MapControlPanel({
 
         {/* EXPANDED: full panel */}
         {expanded && (
-          <div className="px-3 pb-3 space-y-2 max-h-[40vh] overflow-y-auto">
+          <div className="px-3 pb-3 space-y-2 max-h-[30vh] overflow-y-auto">
             {/* Summary bar */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
