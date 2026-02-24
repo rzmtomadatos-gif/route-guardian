@@ -122,7 +122,7 @@ export function MapControlPanel({
         {/* COLLAPSED: minimal controls only */}
         {!expanded && (
           <div className="px-3 pb-3 space-y-1.5">
-            {/* Recording: show finalizar/confirmar */}
+            {/* Active segment: en_progreso → Finalizar/Confirmar */}
             {activeSegment && activeSegment.status === 'en_progreso' && (
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
@@ -152,8 +152,34 @@ export function MapControlPanel({
               </div>
             )}
 
-            {/* Next pending: show siguiente/iniciar */}
-            {nextPending && nextPending.id !== activeSegment?.id && (
+            {/* Active segment: pendiente + selected → Iniciar/Confirmar */}
+            {activeSegment && activeSegment.status === 'pendiente' && activeSegment.id === activeSegmentId && (
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
+                  {activeSegment.trackNumber ?? '—'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground truncate">{activeSegment.name}</p>
+                </div>
+                {confirmAction === 'start' ? (
+                  <>
+                    <Button size="sm" onClick={() => handleConfirmStart(activeSegment.id)} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      Confirmar
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmAction(null)} className="h-8 px-2 text-xs text-muted-foreground">✕</Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={() => setConfirmAction('start')} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
+                    <Play className="w-3.5 h-3.5 mr-1" />
+                    Iniciar
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Next pending: only show if different from active */}
+            {nextPending && nextPending.id !== activeSegmentId && (
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
                   {nextPending.trackNumber ?? '—'}
@@ -161,18 +187,10 @@ export function MapControlPanel({
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(nextPending.id)}>
                   <p className="text-xs text-foreground truncate">{nextPending.name}</p>
                 </button>
-                {nextPending.id === activeSegmentId && (
-                  <Button size="sm" onClick={() => handleConfirmStart(nextPending.id)} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    Iniciar
-                  </Button>
-                )}
-                {nextPending.id !== activeSegmentId && (
-                  <Button size="sm" variant="outline" onClick={() => onSegmentSelect(nextPending.id)} className="h-8 px-3 text-xs border-border text-foreground">
-                    <MapPin className="w-3.5 h-3.5 mr-1" />
-                    Siguiente
-                  </Button>
-                )}
+                <Button size="sm" variant="outline" onClick={() => onSegmentSelect(nextPending.id)} className="h-8 px-3 text-xs border-border text-foreground">
+                  <MapPin className="w-3.5 h-3.5 mr-1" />
+                  Siguiente
+                </Button>
               </div>
             )}
 
