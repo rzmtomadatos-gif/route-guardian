@@ -67,7 +67,7 @@ export function MapControlPanel({
   onMergeSegments,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
-  // Confirmation step removed – actions are now direct
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendiente' | 'completado'>('todos');
 
   const activeSegment = segments.find((s) => s.id === activeSegmentId);
   const pending = segments.filter((s) => s.status === 'pendiente').length;
@@ -280,13 +280,28 @@ export function MapControlPanel({
             <div className="space-y-1">
               <div className="flex items-center justify-between px-0.5">
                 <p className="text-[10px] font-medium text-muted-foreground">Itinerario</p>
-                {selectedSegmentIds.size > 0 && (
-                  <button onClick={() => onSelectedSegmentsChange(new Set())} className="text-[9px] text-primary hover:underline">
-                    Mostrar todos ({selectedSegmentIds.size} sel.)
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {(['todos', 'pendiente', 'completado'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setStatusFilter(f)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
+                        statusFilter === f
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {f === 'todos' ? 'Todos' : f === 'pendiente' ? 'Pend.' : 'Compl.'}
+                    </button>
+                  ))}
+                  {selectedSegmentIds.size > 0 && (
+                    <button onClick={() => onSelectedSegmentsChange(new Set())} className="text-[9px] text-primary hover:underline ml-1">
+                      ({selectedSegmentIds.size} sel.)
+                    </button>
+                  )}
+                </div>
               </div>
-              {orderedSegments.map((seg) => {
+              {orderedSegments.filter((seg) => statusFilter === 'todos' || seg.status === statusFilter).map((seg) => {
                 const firstPendingId = orderedSegments.find((s) => s.status === 'pendiente')?.id;
                 const canStart = seg.status === 'pendiente' && seg.id === activeSegmentId && seg.id === firstPendingId;
                 const isSelected = selectedSegmentIds.has(seg.id);
