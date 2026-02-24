@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Upload, Plus, Square, Pentagon } from 'lucide-react';
+import { Upload, Plus, Square, Pentagon, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -10,7 +10,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
-import { fetchRoadsInArea, type RoadCategory } from '@/utils/overpass-api';
+import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, type RoadCategory } from '@/utils/overpass-api';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -188,13 +188,21 @@ export default function MapPage({
         if (prev.length >= 2) return prev;
         const next = [...prev, latlng];
         if (next.length === 2) {
-          // Auto-show dialog when rectangle is complete
           setTimeout(() => setShowAreaDialog(true), 100);
         }
         return next;
       });
     } else if (areaMode === 'polygon') {
       setAreaPoints((prev) => [...prev, latlng]);
+    } else if (areaMode === 'circle') {
+      setAreaPoints((prev) => {
+        if (prev.length >= 2) return prev;
+        const next = [...prev, latlng];
+        if (next.length === 2) {
+          setTimeout(() => setShowAreaDialog(true), 100);
+        }
+        return next;
+      });
     }
   }, [areaMode]);
 
@@ -210,6 +218,18 @@ export default function MapPage({
     setShowAreaDialog(false);
   }, []);
 
+  const getCircleParams = useCallback((): { center: LatLng; radiusMeters: number } | null => {
+    if (areaMode !== 'circle' || areaPoints.length < 2) return null;
+    const center = areaPoints[0];
+    const edge = areaPoints[1];
+    const R = 6371000;
+    const dLat = (edge.lat - center.lat) * Math.PI / 180;
+    const dLng = (edge.lng - center.lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(center.lat * Math.PI / 180) * Math.cos(edge.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const radiusMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return { center, radiusMeters };
+  }, [areaMode, areaPoints]);
+
   const getAreaPolygon = useCallback((): LatLng[] => {
     if (areaMode === 'rectangle' && areaPoints.length >= 2) {
       const [a, b] = areaPoints;
@@ -220,16 +240,62 @@ export default function MapPage({
         { lat: Math.max(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
       ];
     }
+    if (areaMode === 'circle' && areaPoints.length >= 2) {
+      // Approximate circle as polygon for fallback
+      const params = getCircleParams();
+      if (!params) return areaPoints;
+      const { center, radiusMeters } = params;
+      const points: LatLng[] = [];
+      const n = 32;
+      for (let i = 0; i < n; i++) {
+        const angle = (2 * Math.PI * i) / n;
+        const dLat = (radiusMeters / 6371000) * (180 / Math.PI);
+        const dLng = dLat / Math.cos(center.lat * Math.PI / 180);
+        points.push({
+          lat: center.lat + dLat * Math.cos(angle),
+          lng: center.lng + dLng * Math.sin(angle),
+        });
+      }
+      return points;
+    }
     return areaPoints;
-  }, [areaMode, areaPoints]);
+  }, [areaMode, areaPoints, getCircleParams]);
 
   const handleGenerateSegments = useCallback(async (categories: RoadCategory[], layerName: string, generateReverse: boolean) => {
     setIsLoadingArea(true);
     try {
-      const polygon = getAreaPolygon();
-      const ways = await fetchRoadsInArea(polygon, categories);
+      let ways;
+      const circleParams = getCircleParams();
 
-      if (ways.length === 0) {
+      if (areaMode === 'circle' && circleParams) {
+        // Circle mode: fetch roads in circle, then complete them
+        const initialWays = await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories);
+        
+        if (initialWays.length === 0) {
+          toast.warning('No se encontraron vías en la zona seleccionada');
+          setIsLoadingArea(false);
+          return;
+        }
+
+        // Get unique road names that have real names (not "Vía XXXX")
+        const realNames = [...new Set(initialWays.filter((w) => w.name && !w.name.startsWith('Vía ')).map((w) => w.name))];
+        
+        if (realNames.length > 0) {
+          toast.info(`Completando ${realNames.length} vías...`);
+          const completeWays = await fetchCompleteRoads(circleParams.center, circleParams.radiusMeters, realNames, categories);
+          // Merge ways with same name into single continuous segments
+          const unnamedWays = initialWays.filter((w) => w.name.startsWith('Vía '));
+          ways = [...mergeWaysByName(completeWays), ...unnamedWays];
+        } else {
+          ways = initialWays;
+        }
+      } else {
+        // Rectangle/polygon mode
+        const polygon = getAreaPolygon();
+        ways = await fetchRoadsInArea(polygon, categories);
+      }
+
+      if (!ways || ways.length === 0) {
         toast.warning('No se encontraron vías en la zona seleccionada');
         setIsLoadingArea(false);
         return;
@@ -237,10 +303,8 @@ export default function MapPage({
 
       // Generate segments respecting oneway direction
       for (const way of ways) {
-        // If oneway=-1, the digitized direction is reversed, so "creciente" = reversed coords
         const isReversed = way.onewayReverse;
         const coords = isReversed ? [...way.coordinates].reverse() : way.coordinates;
-        const direction = isReversed ? 'creciente' : 'creciente'; // always creciente, coords are adjusted
 
         const segment: Segment = {
           id: Math.random().toString(36).substring(2, 10),
@@ -260,8 +324,6 @@ export default function MapPage({
         onAddSegment(segment);
       }
 
-      // Generate reverse ("decreciente") segments in a separate layer
-      // Generate reverse ("decreciente") segments only for non-oneway roads
       if (generateReverse) {
         const reverseLayerName = layerName ? `${layerName} (decreciente)` : 'Decreciente';
         const reversibleWays = ways.filter((w) => !w.oneway);
@@ -297,7 +359,7 @@ export default function MapPage({
     } finally {
       setIsLoadingArea(false);
     }
-  }, [getAreaPolygon, state.route?.id, onAddSegment, handleCancelArea]);
+  }, [getAreaPolygon, getCircleParams, areaMode, state.route?.id, onAddSegment, handleCancelArea]);
 
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
@@ -410,8 +472,8 @@ export default function MapPage({
         <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
-              {areaMode === 'rectangle' ? 'Selección rectangular' : 'Selección por polígono'}
+              {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : areaMode === 'circle' ? <Circle className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
+              {areaMode === 'rectangle' ? 'Selección rectangular' : areaMode === 'circle' ? 'Selección circular' : 'Selección por polígono'}
             </h3>
             <button onClick={handleCancelArea} className="text-xs text-muted-foreground hover:text-foreground">
               Cancelar
@@ -420,8 +482,15 @@ export default function MapPage({
           <p className="text-xs text-muted-foreground mb-2">
             {areaMode === 'rectangle'
               ? `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)`
-              : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
+              : areaMode === 'circle'
+                ? `Haz click en el centro y luego en el borde del círculo. (${areaPoints.length}/2)`
+                : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
           </p>
+          {areaMode === 'circle' && areaPoints.length >= 2 && (
+            <p className="text-[10px] text-accent mb-2">
+              ⓘ Las vías se completarán de inicio a fin, incluso si se extienden fuera del círculo.
+            </p>
+          )}
           {areaMode === 'polygon' && areaPoints.length >= 3 && (
             <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
               Cerrar polígono y generar
@@ -457,12 +526,19 @@ export default function MapPage({
           >
             <Square className="w-4 h-4" />
           </button>
-          <button
+           <button
             onClick={() => setAreaMode('polygon')}
             className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
             title="Selección por polígono"
           >
             <Pentagon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setAreaMode('circle')}
+            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
+            title="Selección circular (vías completas)"
+          >
+            <Circle className="w-4 h-4" />
           </button>
         </div>
       )}
