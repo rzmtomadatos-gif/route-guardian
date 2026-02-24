@@ -28,6 +28,7 @@ interface Props {
   onSetActiveSegment: (segmentId: string) => void;
   onSetBase: (base: BaseLocation) => void;
   onAddSegment: (segment: Segment) => void;
+  onMergeSegments: (ids: string[]) => void;
 }
 
 export default function MapPage({
@@ -42,6 +43,7 @@ export default function MapPage({
   onSetActiveSegment,
   onSetBase,
   onAddSegment,
+  onMergeSegments,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -491,6 +493,7 @@ export default function MapPage({
           onSetBase={onSetBase}
           selectedSegmentIds={selectedSegmentIds}
           onSelectedSegmentsChange={setSelectedSegmentIds}
+          onMergeSegments={onMergeSegments}
         />
       )}
     </div>

@@ -75,6 +75,7 @@ function AppRoutes() {
               onSetActiveSegment={setActiveSegment}
               onSetBase={setBase}
               onAddSegment={addSegment}
+              onMergeSegments={mergeSegments}
             />
           }
         />

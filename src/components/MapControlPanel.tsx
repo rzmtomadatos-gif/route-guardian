@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Play, Square, Check, AlertTriangle, ChevronDown, ChevronUp,
   MapPin, RotateCcw, Navigation, ExternalLink, LocateFixed, LocateOff,
-  RefreshCw, Home, CheckSquare, Square as SquareIcon,
+  RefreshCw, Home, CheckSquare, Square as SquareIcon, Merge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -37,6 +37,7 @@ interface Props {
   onSetBase: (base: BaseLocation) => void;
   selectedSegmentIds: Set<string>;
   onSelectedSegmentsChange: (ids: Set<string>) => void;
+  onMergeSegments: (ids: string[]) => void;
 }
 
 export function MapControlPanel({
@@ -63,6 +64,7 @@ export function MapControlPanel({
   onSetBase,
   selectedSegmentIds,
   onSelectedSegmentsChange,
+  onMergeSegments,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [confirmAction, setConfirmAction] = useState<'start' | 'end' | null>(null);
@@ -118,6 +120,24 @@ export function MapControlPanel({
         >
           <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
         </button>
+
+        {/* Merge button when segments selected */}
+        {selectedSegmentIds.size >= 2 && (
+          <div className="px-3 pb-1">
+            <Button
+              size="sm"
+              onClick={() => {
+                onMergeSegments(Array.from(selectedSegmentIds));
+                onSelectedSegmentsChange(new Set());
+              }}
+              className="h-7 text-[10px] gap-1 w-full border-primary/30 text-primary hover:bg-primary/10"
+              variant="outline"
+            >
+              <Merge className="w-3 h-3" />
+              Unir {selectedSegmentIds.size} tramos
+            </Button>
+          </div>
+        )}
 
         {/* COLLAPSED: minimal controls only */}
         {!expanded && (
