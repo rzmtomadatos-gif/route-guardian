@@ -5,6 +5,8 @@ export interface OverpassWay {
   name: string;
   highway: string;
   coordinates: LatLng[];
+  oneway: boolean;
+  onewayReverse: boolean; // oneway=-1 means reverse direction
 }
 
 export type RoadCategory = 'highway' | 'primary' | 'secondary' | 'tertiary' | 'residential' | 'track' | 'path';
@@ -107,11 +109,17 @@ export async function fetchRoadsInArea(
     }
     if (coords.length < 2) continue;
 
+    const onewayTag = el.tags?.oneway;
+    const isOneway = onewayTag === 'yes' || onewayTag === '1' || onewayTag === '-1';
+    const isOnewayReverse = onewayTag === '-1';
+
     ways.push({
       id: el.id,
       name: el.tags?.name || el.tags?.ref || `Vía ${el.id}`,
       highway: el.tags?.highway || 'unknown',
       coordinates: coords,
+      oneway: isOneway,
+      onewayReverse: isOnewayReverse,
     });
   }
 
