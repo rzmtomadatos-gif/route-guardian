@@ -6,11 +6,12 @@ import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMap
 import { MapControlPanel } from '@/components/MapControlPanel';
 import { SegmentCreatorPanel } from '@/components/SegmentCreatorPanel';
 import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
+import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
-import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, type RoadCategory } from '@/utils/overpass-api';
+import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -67,7 +68,9 @@ export default function MapPage({
   const [areaPoints, setAreaPoints] = useState<LatLng[]>([]);
   const [showAreaDialog, setShowAreaDialog] = useState(false);
   const [isLoadingArea, setIsLoadingArea] = useState(false);
-
+  const [fetchedWays, setFetchedWays] = useState<OverpassWay[]>([]);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [pendingLayerName, setPendingLayerName] = useState('');
   const geo = useGeolocation(gpsEnabled);
   const lastDeviationRef = useRef(0);
 
@@ -261,14 +264,14 @@ export default function MapPage({
     return areaPoints;
   }, [areaMode, areaPoints, getCircleParams]);
 
-  const handleGenerateSegments = useCallback(async (categories: RoadCategory[], layerName: string, generateReverse: boolean) => {
+  const handleFetchRoads = useCallback(async (categories: RoadCategory[], layerName: string) => {
     setIsLoadingArea(true);
+    setPendingLayerName(layerName);
     try {
-      let ways;
+      let ways: OverpassWay[];
       const circleParams = getCircleParams();
 
       if (areaMode === 'circle' && circleParams) {
-        // Circle mode: fetch roads in circle, then complete them
         const initialWays = await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories);
         
         if (initialWays.length === 0) {
@@ -277,20 +280,17 @@ export default function MapPage({
           return;
         }
 
-        // Get unique road names that have real names (not "Vía XXXX")
         const realNames = [...new Set(initialWays.filter((w) => w.name && !w.name.startsWith('Vía ')).map((w) => w.name))];
         
         if (realNames.length > 0) {
           toast.info(`Completando ${realNames.length} vías...`);
           const completeWays = await fetchCompleteRoads(circleParams.center, circleParams.radiusMeters, realNames, categories);
-          // Merge ways with same name into single continuous segments
           const unnamedWays = initialWays.filter((w) => w.name.startsWith('Vía '));
           ways = [...mergeWaysByName(completeWays), ...unnamedWays];
         } else {
           ways = initialWays;
         }
       } else {
-        // Rectangle/polygon mode
         const polygon = getAreaPolygon();
         ways = await fetchRoadsInArea(polygon, categories);
       }
@@ -301,65 +301,75 @@ export default function MapPage({
         return;
       }
 
-      // Generate segments respecting oneway direction
-      for (const way of ways) {
-        const isReversed = way.onewayReverse;
-        const coords = isReversed ? [...way.coordinates].reverse() : way.coordinates;
-
-        const segment: Segment = {
-          id: Math.random().toString(36).substring(2, 10),
-          routeId: state.route?.id || 'area',
-          trackNumber: null,
-          trackHistory: [],
-          kmlId: `osm-${way.id}`,
-          name: way.name,
-          notes: `Tipo: ${way.highway}${way.oneway ? ' | Sentido único' : ''}`,
-          coordinates: coords,
-          direction: 'creciente',
-          type: 'tramo',
-          status: 'pendiente',
-          kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
-          layer: layerName || undefined,
-        };
-        onAddSegment(segment);
-      }
-
-      if (generateReverse) {
-        const reverseLayerName = layerName ? `${layerName} (decreciente)` : 'Decreciente';
-        const reversibleWays = ways.filter((w) => !w.oneway);
-        for (const way of reversibleWays) {
-          const segment: Segment = {
-            id: Math.random().toString(36).substring(2, 10),
-            routeId: state.route?.id || 'area',
-            trackNumber: null,
-            trackHistory: [],
-            kmlId: `osm-${way.id}-rev`,
-            name: `${way.name} (dec.)`,
-            notes: `Tipo: ${way.highway} | Sentido decreciente`,
-            coordinates: [...way.coordinates].reverse(),
-            direction: 'creciente',
-            type: 'tramo',
-            status: 'pendiente',
-            kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
-            layer: reverseLayerName,
-          };
-          onAddSegment(segment);
-        }
-        const skipped = ways.length - reversibleWays.length;
-        const skippedMsg = skipped > 0 ? ` (${skipped} vías de sentido único excluidas)` : '';
-        toast.success(`Se generaron ${ways.length} tramos (+ ${reversibleWays.length} en sentido inverso)${skippedMsg}`);
-      } else {
-        toast.success(`Se generaron ${ways.length} tramos en sentido creciente`);
-      }
-
-      handleCancelArea();
+      setFetchedWays(ways);
+      setShowAreaDialog(false);
+      setShowResultsDialog(true);
     } catch (err) {
       console.error('Overpass error:', err);
       toast.error('Error al consultar las vías. Intenta con una zona más pequeña.');
     } finally {
       setIsLoadingArea(false);
     }
-  }, [getAreaPolygon, getCircleParams, areaMode, state.route?.id, onAddSegment, handleCancelArea]);
+  }, [getAreaPolygon, getCircleParams, areaMode]);
+
+  const handleConfirmGeneration = useCallback((generateReverse: boolean) => {
+    const ways = fetchedWays;
+    const layerName = pendingLayerName;
+
+    for (const way of ways) {
+      const isReversed = way.onewayReverse;
+      const coords = isReversed ? [...way.coordinates].reverse() : way.coordinates;
+
+      const segment: Segment = {
+        id: Math.random().toString(36).substring(2, 10),
+        routeId: state.route?.id || 'area',
+        trackNumber: null,
+        trackHistory: [],
+        kmlId: `osm-${way.id}`,
+        name: way.name,
+        notes: `Tipo: ${way.highway}${way.oneway ? ' | Sentido único' : ''}`,
+        coordinates: coords,
+        direction: 'creciente',
+        type: 'tramo',
+        status: 'pendiente',
+        kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
+        layer: layerName || undefined,
+      };
+      onAddSegment(segment);
+    }
+
+    if (generateReverse) {
+      const reverseLayerName = layerName ? `${layerName} (decreciente)` : 'Decreciente';
+      const reversibleWays = ways.filter((w) => !w.oneway);
+      for (const way of reversibleWays) {
+        const segment: Segment = {
+          id: Math.random().toString(36).substring(2, 10),
+          routeId: state.route?.id || 'area',
+          trackNumber: null,
+          trackHistory: [],
+          kmlId: `osm-${way.id}-rev`,
+          name: `${way.name} (dec.)`,
+          notes: `Tipo: ${way.highway} | Sentido decreciente`,
+          coordinates: [...way.coordinates].reverse(),
+          direction: 'creciente',
+          type: 'tramo',
+          status: 'pendiente',
+          kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
+          layer: reverseLayerName,
+        };
+        onAddSegment(segment);
+      }
+      const skipped = ways.length - reversibleWays.length;
+      const skippedMsg = skipped > 0 ? ` (${skipped} vías de sentido único excluidas)` : '';
+      toast.success(`Se generaron ${ways.length} tramos (+ ${reversibleWays.length} en sentido inverso)${skippedMsg}`);
+    } else {
+      toast.success(`Se generaron ${ways.length} tramos en sentido creciente`);
+    }
+
+    setShowResultsDialog(false);
+    setFetchedWays([]);
+    handleCancelArea();
+  }, [fetchedWays, pendingLayerName, state.route?.id, onAddSegment, handleCancelArea]);
 
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
@@ -504,10 +514,18 @@ export default function MapPage({
       <AreaSelectionDialog
         open={showAreaDialog}
         onClose={handleCancelArea}
-        onConfirm={handleGenerateSegments}
+        onConfirm={handleFetchRoads}
         pointCount={areaPoints.length}
         isLoading={isLoadingArea}
         layers={layers}
+      />
+
+      {/* Area results dialog */}
+      <AreaResultsDialog
+        open={showResultsDialog}
+        onClose={() => { setShowResultsDialog(false); setFetchedWays([]); handleCancelArea(); }}
+        onConfirm={handleConfirmGeneration}
+        ways={fetchedWays}
       />
 
       {/* FAB buttons */}

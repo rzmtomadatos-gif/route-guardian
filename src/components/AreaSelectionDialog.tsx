@@ -23,7 +23,7 @@ import { ROAD_CATEGORIES, type RoadCategory } from '@/utils/overpass-api';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onConfirm: (categories: RoadCategory[], layerName: string, generateReverse: boolean) => void;
+  onConfirm: (categories: RoadCategory[], layerName: string) => void;
   pointCount: number;
   isLoading: boolean;
   layers: string[];
@@ -46,7 +46,6 @@ export function AreaSelectionDialog({
   );
   const [layer, setLayer] = useState('__new__');
   const [newLayerName, setNewLayerName] = useState('');
-  const [generateReverse, setGenerateReverse] = useState(false);
 
   const toggle = (cat: RoadCategory) => {
     setSelected((prev) => {
@@ -64,7 +63,7 @@ export function AreaSelectionDialog({
       : layer === '__none__'
         ? ''
         : layer;
-    onConfirm(cats, ln, generateReverse);
+    onConfirm(cats, ln);
   };
 
   return (
@@ -104,22 +103,6 @@ export function AreaSelectionDialog({
                 </label>
               );
             })}
-          </div>
-
-          <div className="pt-2 border-t border-border space-y-2">
-            <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-secondary/50 cursor-pointer transition-colors">
-              <Checkbox
-                checked={generateReverse}
-                onCheckedChange={(v) => setGenerateReverse(!!v)}
-                className="mt-0.5"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">Generar sentido decreciente</p>
-                <p className="text-xs text-muted-foreground">
-                  Crea tramos en sentido inverso en una capa separada
-                </p>
-              </div>
-            </label>
           </div>
 
           <div className="pt-2 border-t border-border space-y-2">
