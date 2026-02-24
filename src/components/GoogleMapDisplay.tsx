@@ -490,9 +490,30 @@ export function GoogleMapDisplay({
     }
   }, [areaPoints, areaSelectionMode, mapReady]);
 
+  // Track previous fitToActiveSegment to detect end-of-recording
+  const prevFitRef = useRef(fitToActiveSegment);
+
   // Fit map to active segment when recording
   useEffect(() => {
-    if (!fitToActiveSegment || !mapReady || !mapRef.current || !activeSegmentId) return;
+    if (!mapReady || !mapRef.current) return;
+
+    // Recording just ended → zoom out to show ALL segments
+    if (prevFitRef.current && !fitToActiveSegment) {
+      prevFitRef.current = false;
+      if (segments.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        segments.forEach((s) => s.coordinates.forEach((c) => bounds.extend(new google.maps.LatLng(c.lat, c.lng))));
+        if (!bounds.isEmpty()) {
+          try {
+            mapRef.current.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+          } catch (e) { /* ignore */ }
+        }
+      }
+      return;
+    }
+    prevFitRef.current = fitToActiveSegment;
+
+    if (!fitToActiveSegment || !activeSegmentId) return;
     const seg = segments.find((s) => s.id === activeSegmentId);
     if (!seg || seg.coordinates.length === 0) return;
 
