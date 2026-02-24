@@ -451,7 +451,7 @@ export default function MapPage({
           areaSelectionMode={areaMode}
           areaPoints={areaPoints}
           onAreaClick={handleAreaClick}
-          fitToActiveSegment={activeSegment?.status === 'en_progreso'}
+          fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
         />
       </div>
 
