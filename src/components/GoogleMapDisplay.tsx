@@ -4,7 +4,7 @@ import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 
-export type AreaSelectionMode = 'none' | 'rectangle' | 'polygon';
+export type AreaSelectionMode = 'none' | 'rectangle' | 'polygon' | 'circle';
 
 interface Props {
   segments: Segment[];
@@ -464,6 +464,26 @@ export function GoogleMapDisplay({
         strokeWeight: 2,
         strokeOpacity: 0.8,
       });
+    } else if (areaSelectionMode === 'circle' && areaPoints.length >= 2) {
+      // Calculate radius in meters from center to edge point
+      const center = areaPoints[0];
+      const edge = areaPoints[1];
+      const R = 6371000;
+      const dLat = (edge.lat - center.lat) * Math.PI / 180;
+      const dLng = (edge.lng - center.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(center.lat * Math.PI / 180) * Math.cos(edge.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const radiusMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      areaOverlayRef.current = new google.maps.Circle({
+        center: { lat: center.lat, lng: center.lng },
+        radius: radiusMeters,
+        map,
+        fillColor: '#8b5cf6',
+        fillOpacity: 0.15,
+        strokeColor: '#8b5cf6',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+      }) as any; // Circle has setMap like Polygon
     }
   }, [areaPoints, areaSelectionMode, mapReady]);
 
