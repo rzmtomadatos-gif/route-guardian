@@ -46,6 +46,7 @@ interface LayerPanelProps {
   selectedIds: Set<string>;
   availableLayers?: string[];
   onToggleSelect: (id: string) => void;
+  onSelectMultiple: (ids: string[]) => void;
   onEditSegment: (seg: Segment) => void;
   onViewOnMap: (segId: string) => void;
   onResetSegment: (segId: string) => void;
@@ -68,6 +69,7 @@ export function LayerPanel({
   selectedIds,
   availableLayers = [],
   onToggleSelect,
+  onSelectMultiple,
   onEditSegment,
   onViewOnMap,
   onResetSegment,
@@ -468,9 +470,7 @@ export function LayerPanel({
               size="sm"
               onClick={() => {
                 if (sameNamePrompt) {
-                  sameNamePrompt.ids.forEach((id) => {
-                    if (!selectedIds.has(id)) onToggleSelect(id);
-                  });
+                  onSelectMultiple(sameNamePrompt.ids);
                   setSameNamePrompt(null);
                 }
               }}
