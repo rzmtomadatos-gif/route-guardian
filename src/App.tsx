@@ -30,6 +30,13 @@ function AppRoutes() {
     updateSegment,
     updateIncident,
     deleteIncident,
+    addLayer,
+    renameLayer,
+    deleteLayer,
+    moveSegmentToLayer,
+    mergeSegments,
+    addSegment,
+    deleteSegment,
   } = useRouteState();
 
   return (
@@ -72,6 +79,12 @@ function AppRoutes() {
               onUpdateIncident={updateIncident}
               onDeleteIncident={deleteIncident}
               onSetActiveSegment={setActiveSegment}
+              onRenameLayer={renameLayer}
+              onDeleteLayer={deleteLayer}
+              onMoveToLayer={moveSegmentToLayer}
+              onMergeSegments={mergeSegments}
+              onAddLayer={addLayer}
+              onDeleteSegment={deleteSegment}
             />
           }
         />
