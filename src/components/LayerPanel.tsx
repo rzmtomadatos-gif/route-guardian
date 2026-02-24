@@ -87,7 +87,7 @@ export function LayerPanel({
   const [moveDialogSeg, setMoveDialogSeg] = useState<Segment | null>(null);
   const [moveTargetLayer, setMoveTargetLayer] = useState<string>('');
   const [sameNamePrompt, setSameNamePrompt] = useState<{ name: string; ids: string[] } | null>(null);
-
+  const [deleteLayerConfirm, setDeleteLayerConfirm] = useState<string | null>(null);
   const handleToggleWithSameNameCheck = (seg: Segment) => {
     // If already selected, just deselect
     if (selectedIds.has(seg.id)) {
@@ -311,7 +311,7 @@ export function LayerPanel({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => onDeleteLayer(group.name)}
+                          onClick={() => setDeleteLayerConfirm(group.name)}
                         >
                           <Trash2 className="w-3 h-3 mr-2" /> Eliminar capa
                         </DropdownMenuItem>
@@ -476,6 +476,35 @@ export function LayerPanel({
               }}
             >
               Todos ({sameNamePrompt?.ids.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete layer confirmation */}
+      <Dialog open={!!deleteLayerConfirm} onOpenChange={(open) => { if (!open) setDeleteLayerConfirm(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Eliminar capa</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            ¿Eliminar la capa <strong className="text-foreground">"{deleteLayerConfirm}"</strong>? Los tramos dentro quedarán sin capa asignada.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button size="sm" variant="outline" onClick={() => setDeleteLayerConfirm(null)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                if (deleteLayerConfirm) {
+                  onDeleteLayer(deleteLayerConfirm);
+                  setDeleteLayerConfirm(null);
+                }
+              }}
+            >
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
