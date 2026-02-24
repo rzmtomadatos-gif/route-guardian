@@ -16,6 +16,8 @@ const queryClient = new QueryClient();
 function AppRoutes() {
   const {
     state,
+    isDirty,
+    markClean,
     setRoute,
     startNavigation,
     stopNavigation,
@@ -40,7 +42,11 @@ function AppRoutes() {
   } = useRouteState();
 
   return (
-    <AppLayout>
+    <AppLayout
+      route={state.route}
+      isDirty={isDirty}
+      onMarkClean={markClean}
+    >
       <Routes>
         <Route
           path="/"
@@ -48,6 +54,9 @@ function AppRoutes() {
             <UploadPage
               onRouteLoaded={setRoute}
               hasRoute={!!state.route}
+              isDirty={isDirty}
+              route={state.route}
+              onMarkClean={markClean}
             />
           }
         />

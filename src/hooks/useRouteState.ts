@@ -7,11 +7,14 @@ import { optimizeWithDirections } from '@/utils/google-directions';
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
   const completedCountRef = useRef(0);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
 
   const setState = useCallback((updater: (prev: AppState) => AppState) => {
     setStateRaw((prev) => {
       const next = updater(prev);
       saveState(next);
+      setIsDirty(true);
       return next;
     });
   }, []);
@@ -317,8 +320,14 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  const markClean = useCallback(() => {
+    setIsDirty(false);
+  }, []);
+
   return {
     state,
+    isDirty,
+    markClean,
     setRoute,
     startNavigation,
     stopNavigation,
