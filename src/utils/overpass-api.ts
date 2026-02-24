@@ -263,3 +263,32 @@ async function executeOverpassQuery(query: string): Promise<OverpassWay[]> {
 
   return ways;
 }
+
+/** Fetch the nearest road to a point using Overpass around query */
+export async function fetchNearestRoad(
+  point: LatLng,
+  radiusMeters: number = 50
+): Promise<{ name: string; highway: string; oneway: boolean } | null> {
+  const query = `[out:json][timeout:10];
+way(around:${radiusMeters},${point.lat},${point.lng})["highway"];
+out tags 1;`;
+
+  const response = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: `data=${encodeURIComponent(query)}`,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  const way = data.elements?.[0];
+  if (!way?.tags) return null;
+
+  const onewayTag = way.tags.oneway;
+  return {
+    name: way.tags.name || way.tags.ref || `Vía ${way.id}`,
+    highway: way.tags.highway || 'unknown',
+    oneway: onewayTag === 'yes' || onewayTag === '1' || onewayTag === '-1',
+  };
+}

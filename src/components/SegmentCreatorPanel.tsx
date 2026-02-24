@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-  Plus, X, Check, MapPin, Route, Loader2, ChevronDown,
+  Plus, X, Check, MapPin, Route, Loader2, ChevronDown, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,12 @@ interface Props {
   layers: string[];
   onCreateSegment: (segment: Segment) => void;
   onCancel: () => void;
-  /** Called to tell GoogleMapDisplay to enter/exit click mode */
   startPoint: LatLng | null;
   endPoint: LatLng | null;
   routePreview: LatLng[] | null;
   isLoadingRoute: boolean;
+  roadInfo?: { name: string; highway: string; oneway: boolean } | null;
+  isLoadingRoadInfo?: boolean;
 }
 
 export function SegmentCreatorPanel({
@@ -29,9 +30,19 @@ export function SegmentCreatorPanel({
   endPoint,
   routePreview,
   isLoadingRoute,
+  roadInfo,
+  isLoadingRoadInfo,
 }: Props) {
   const [name, setName] = useState('');
+  const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [layer, setLayer] = useState<string>('__none__');
+
+  // Auto-fill name from road info
+  useEffect(() => {
+    if (roadInfo && !nameManuallyEdited) {
+      setName(roadInfo.name);
+    }
+  }, [roadInfo, nameManuallyEdited]);
 
   const canCreate = startPoint && endPoint && routePreview && routePreview.length >= 2 && !isLoadingRoute;
 
@@ -44,13 +55,13 @@ export function SegmentCreatorPanel({
       trackNumber: null,
       trackHistory: [],
       kmlId: '',
-      name: name.trim() || `Tramo manual ${Date.now()}`,
-      notes: '',
+      name: name.trim() || roadInfo?.name || `Tramo manual ${Date.now()}`,
+      notes: roadInfo ? `Tipo: ${roadInfo.highway}${roadInfo.oneway ? ' | Sentido único' : ''}` : '',
       coordinates: routePreview,
-      direction: 'ambos',
+      direction: roadInfo?.oneway ? 'creciente' : 'ambos',
       type: 'tramo',
       status: 'pendiente',
-      kmlMeta: {},
+      kmlMeta: roadInfo ? { carretera: roadInfo.name, tipo: roadInfo.highway, sentido: roadInfo.oneway ? 'único' : undefined } : {},
       layer: layer === '__none__' ? undefined : layer,
     };
 
@@ -103,6 +114,22 @@ export function SegmentCreatorPanel({
               Ruta calculada ({routePreview.length} puntos)
             </div>
           )}
+          {isLoadingRoadInfo && (
+            <div className="flex items-center gap-2 text-xs text-primary">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Consultando información de la vía...
+            </div>
+          )}
+
+          {roadInfo && !isLoadingRoadInfo && (
+            <div className="flex items-center gap-2 text-xs text-accent-foreground bg-accent/50 rounded-md px-2 py-1.5">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                <strong>{roadInfo.name}</strong> · {roadInfo.highway}
+                {roadInfo.oneway ? ' · 🔶 Sentido único' : ' · 🟢 Doble sentido'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Form fields (shown after route is calculated) */}
@@ -110,7 +137,7 @@ export function SegmentCreatorPanel({
           <div className="space-y-2 pt-1 border-t border-border">
             <Input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setNameManuallyEdited(true); }}
               placeholder="Nombre del tramo..."
               className="h-8 text-xs"
             />
