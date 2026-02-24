@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
-import { Download, Search, Plus, MapPin } from 'lucide-react';
+import { Download, Search, Plus, MapPin, Wand2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { exportRouteToExcel } from '@/utils/excel-export';
 import type { AppState, Incident, Segment, SegmentStatus } from '@/types/route';
@@ -19,6 +19,8 @@ const STATUS_OPTIONS: { value: SegmentStatus | 'todos'; label: string }[] = [
 
 interface Props {
   state: AppState;
+  selectedIds: Set<string>;
+  onSelectedIdsChange: (ids: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
   onCompleteSegment: (segmentId: string) => void;
   onUpdateSegment: (segmentId: string, updates: Partial<Segment>) => void;
@@ -36,10 +38,13 @@ interface Props {
   onBulkColor: (ids: string[], color: string) => void;
   onDuplicate: (ids: string[]) => void;
   onReorder: (id: string, dir: 'up' | 'down') => void;
+  onSimplify: () => void;
 }
 
 export default function SegmentsPage({
   state,
+  selectedIds,
+  onSelectedIdsChange,
   onResetSegment,
   onCompleteSegment,
   onUpdateSegment,
@@ -57,12 +62,12 @@ export default function SegmentsPage({
   onBulkColor,
   onDuplicate,
   onReorder,
+  onSimplify,
 }: Props) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SegmentStatus | 'todos'>('todos');
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const route = state.route;
   const incidents = state.incidents;
@@ -107,12 +112,10 @@ export default function SegmentsPage({
   const handleExport = () => exportRouteToExcel(route, incidents);
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectedIdsChange(next);
   };
 
   const handleViewSelectedOnMap = () => {
@@ -131,6 +134,10 @@ export default function SegmentsPage({
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-bold text-foreground">{route.name}</h2>
           <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={onSimplify} className="h-7 text-[10px] gap-1">
+              <Wand2 className="w-3 h-3" />
+              Simplificar
+            </Button>
             {selectedIds.size > 0 && (
               <Button size="sm" onClick={handleViewSelectedOnMap} className="h-7 text-[10px] gap-1">
                 <MapPin className="w-3 h-3" />
@@ -206,7 +213,7 @@ export default function SegmentsPage({
           onBulkColor={onBulkColor}
           onDuplicate={onDuplicate}
           onReorder={onReorder}
-          onClearSelection={() => setSelectedIds(new Set())}
+          onClearSelection={() => onSelectedIdsChange(new Set())}
         />
       )}
 

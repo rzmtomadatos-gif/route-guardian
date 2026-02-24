@@ -411,6 +411,62 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  const simplifySegments = useCallback(() => {
+    setState((s) => {
+      if (!s.route) return s;
+      // Group segments by (name, direction)
+      const groups = new Map<string, Segment[]>();
+      for (const seg of s.route.segments) {
+        const key = `${seg.name}|||${seg.direction}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(seg);
+      }
+
+      const newSegments: Segment[] = [];
+      const removedIds = new Set<string>();
+
+      for (const [, group] of groups) {
+        if (group.length < 2) {
+          newSegments.push(group[0]);
+          continue;
+        }
+        // Merge all in group into one
+        const first = group[0];
+        const mergedCoords = group.flatMap((seg) => seg.coordinates);
+        const merged: Segment = {
+          ...first,
+          id: Math.random().toString(36).substring(2, 10),
+          coordinates: mergedCoords,
+          notes: group.map((s) => s.notes).filter(Boolean).join(' | '),
+          trackNumber: null,
+          trackHistory: [],
+          status: 'pendiente',
+        };
+        newSegments.push(merged);
+        group.forEach((seg) => removedIds.add(seg.id));
+      }
+
+      const optimizedOrder = s.route.optimizedOrder
+        .filter((id) => !removedIds.has(id))
+        .concat(newSegments.filter((seg) => !s.route!.optimizedOrder.includes(seg.id)).map((seg) => seg.id));
+
+      return {
+        ...s,
+        route: { ...s.route, segments: newSegments, optimizedOrder },
+        incidents: s.incidents.map((inc) => {
+          if (!removedIds.has(inc.segmentId)) return inc;
+          // Find the merged segment that replaced this one
+          const orig = s.route!.segments.find((seg) => seg.id === inc.segmentId);
+          if (!orig) return inc;
+          const replacement = newSegments.find(
+            (seg) => seg.name === orig.name && seg.direction === orig.direction && !s.route!.segments.some((o) => o.id === seg.id)
+          );
+          return replacement ? { ...inc, segmentId: replacement.id } : inc;
+        }),
+      };
+    });
+  }, [setState]);
+
   const markClean = useCallback(() => {
     setIsDirty(false);
   }, []);
@@ -445,5 +501,6 @@ export function useRouteState() {
     bulkSetColor,
     duplicateSegments,
     reorderSegment,
+    simplifySegments,
   };
 }
