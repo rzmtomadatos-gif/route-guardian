@@ -11,7 +11,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
-import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
+import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -93,11 +93,13 @@ export default function MapPage({
   }, [geo.position, activeSegment]);
 
   // Auto-calculate route when both points are set
+  const [creationRoadInfo, setCreationRoadInfo] = useState<{ name: string; highway: string; oneway: boolean } | null>(null);
+  const [isLoadingRoadInfo, setIsLoadingRoadInfo] = useState(false);
+
   useEffect(() => {
     if (!creationStart || !creationEnd) return;
     const apiKey = getGoogleMapsApiKey();
     if (!apiKey) {
-      // Fallback: straight line
       setCreationRoute([creationStart, creationEnd]);
       return;
     }
@@ -106,11 +108,8 @@ export default function MapPage({
     computeDirectionsRoute([creationStart, creationEnd], apiKey)
       .then((result) => {
         if (result) {
-          // We need to decode the route from the Directions response
-          // computeDirectionsRoute doesn't return the path, so we use a direct approach
           fetchDirectionsRoute(creationStart, creationEnd, apiKey);
         } else {
-          // Fallback to straight line
           setCreationRoute([creationStart, creationEnd]);
           setIsLoadingRoute(false);
         }
@@ -119,6 +118,20 @@ export default function MapPage({
         setCreationRoute([creationStart, creationEnd]);
         setIsLoadingRoute(false);
       });
+
+    // Query Overpass for road info at midpoint
+    setIsLoadingRoadInfo(true);
+    setCreationRoadInfo(null);
+    const mid: LatLng = {
+      lat: (creationStart.lat + creationEnd.lat) / 2,
+      lng: (creationStart.lng + creationEnd.lng) / 2,
+    };
+    fetchNearestRoad(mid)
+      .then((info) => {
+        if (info) setCreationRoadInfo(info);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingRoadInfo(false));
   }, [creationStart, creationEnd]);
 
   const fetchDirectionsRoute = useCallback(async (start: LatLng, end: LatLng, apiKey: string) => {
@@ -170,11 +183,11 @@ export default function MapPage({
 
   const handleCreateSegment = useCallback((segment: Segment) => {
     onAddSegment(segment);
-    // Reset creation state
     setCreationMode(false);
     setCreationStart(null);
     setCreationEnd(null);
     setCreationRoute(null);
+    setCreationRoadInfo(null);
   }, [onAddSegment]);
 
   const handleCancelCreation = useCallback(() => {
@@ -182,6 +195,7 @@ export default function MapPage({
     setCreationStart(null);
     setCreationEnd(null);
     setCreationRoute(null);
+    setCreationRoadInfo(null);
   }, []);
 
   // Area selection handlers
@@ -475,6 +489,8 @@ export default function MapPage({
           endPoint={creationEnd}
           routePreview={creationRoute}
           isLoadingRoute={isLoadingRoute}
+          roadInfo={creationRoadInfo}
+          isLoadingRoadInfo={isLoadingRoadInfo}
         />
       )}
 
