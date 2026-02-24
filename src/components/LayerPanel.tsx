@@ -86,6 +86,25 @@ export function LayerPanel({
   const [newLayerName, setNewLayerName] = useState('');
   const [moveDialogSeg, setMoveDialogSeg] = useState<Segment | null>(null);
   const [moveTargetLayer, setMoveTargetLayer] = useState<string>('');
+  const [sameNamePrompt, setSameNamePrompt] = useState<{ name: string; ids: string[] } | null>(null);
+
+  const handleToggleWithSameNameCheck = (seg: Segment) => {
+    // If already selected, just deselect
+    if (selectedIds.has(seg.id)) {
+      onToggleSelect(seg.id);
+      return;
+    }
+    // Find all segments with same name
+    const sameNameSegs = segments.filter((s) => s.name === seg.name && s.id !== seg.id);
+    if (sameNameSegs.length > 0) {
+      setSameNamePrompt({
+        name: seg.name,
+        ids: [seg.id, ...sameNameSegs.map((s) => s.id)],
+      });
+    } else {
+      onToggleSelect(seg.id);
+    }
+  };
 
   // Group segments by layer
   const layerGroups: LayerGroup[] = [];
@@ -314,7 +333,7 @@ export function LayerPanel({
                         className={`flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md transition-colors cursor-pointer hover:bg-secondary/60 ${
                           isSelected ? 'bg-accent/10 ring-1 ring-accent/30' : ''
                         }`}
-                        onClick={() => onToggleSelect(seg.id)}
+                        onClick={() => handleToggleWithSameNameCheck(seg)}
                       >
                         <div
                           className="w-1 h-8 rounded-full flex-shrink-0"
@@ -418,6 +437,45 @@ export function LayerPanel({
               }}
             >
               Mover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Same-name selection dialog */}
+      <Dialog open={!!sameNamePrompt} onOpenChange={(open) => { if (!open) setSameNamePrompt(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Seleccionar tramos</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Hay {sameNamePrompt?.ids.length} tramos con el nombre <strong className="text-foreground">"{sameNamePrompt?.name}"</strong>. ¿Deseas seleccionarlos todos?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (sameNamePrompt) {
+                  onToggleSelect(sameNamePrompt.ids[0]);
+                  setSameNamePrompt(null);
+                }
+              }}
+            >
+              Solo este
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (sameNamePrompt) {
+                  sameNamePrompt.ids.forEach((id) => {
+                    if (!selectedIds.has(id)) onToggleSelect(id);
+                  });
+                  setSameNamePrompt(null);
+                }
+              }}
+            >
+              Todos ({sameNamePrompt?.ids.length})
             </Button>
           </DialogFooter>
         </DialogContent>
