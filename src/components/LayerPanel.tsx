@@ -1,0 +1,419 @@
+import { useState } from 'react';
+import {
+  Layers, ChevronDown, ChevronRight, Plus, Pencil, Trash2,
+  MoreVertical, Eye, EyeOff, Merge, MapPin, AlertTriangle,
+  Check, X, GripVertical,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { StatusBadge } from '@/components/StatusBadge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Segment, Incident } from '@/types/route';
+
+// Color palette for layers (Google My Maps style)
+const LAYER_COLORS = [
+  'hsl(210 80% 55%)',  // blue
+  'hsl(0 75% 55%)',    // red
+  'hsl(142 70% 40%)',  // green
+  'hsl(38 95% 50%)',   // amber
+  'hsl(280 70% 55%)',  // purple
+  'hsl(174 72% 40%)',  // teal
+  'hsl(25 90% 55%)',   // orange
+  'hsl(330 70% 55%)',  // pink
+];
+
+function getLayerColor(index: number): string {
+  return LAYER_COLORS[index % LAYER_COLORS.length];
+}
+
+interface LayerPanelProps {
+  segments: Segment[];
+  incidents: Incident[];
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onEditSegment: (seg: Segment) => void;
+  onViewOnMap: (segId: string) => void;
+  onResetSegment: (segId: string) => void;
+  onDeleteSegment: (segId: string) => void;
+  onRenameLayer: (oldName: string, newName: string) => void;
+  onDeleteLayer: (name: string) => void;
+  onMoveToLayer: (segId: string, layer: string | undefined) => void;
+  onMergeSegments: (ids: string[]) => void;
+  onAddLayer: (name: string) => void;
+}
+
+interface LayerGroup {
+  name: string;
+  segments: Segment[];
+}
+
+export function LayerPanel({
+  segments,
+  incidents,
+  selectedIds,
+  onToggleSelect,
+  onEditSegment,
+  onViewOnMap,
+  onResetSegment,
+  onDeleteSegment,
+  onRenameLayer,
+  onDeleteLayer,
+  onMoveToLayer,
+  onMergeSegments,
+  onAddLayer,
+}: LayerPanelProps) {
+  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [renamingLayer, setRenamingLayer] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [showAddLayer, setShowAddLayer] = useState(false);
+  const [newLayerName, setNewLayerName] = useState('');
+  const [moveDialogSeg, setMoveDialogSeg] = useState<Segment | null>(null);
+  const [moveTargetLayer, setMoveTargetLayer] = useState<string>('');
+
+  // Group segments by layer
+  const layerGroups: LayerGroup[] = [];
+  const layerMap = new Map<string, Segment[]>();
+  const noLayer: Segment[] = [];
+
+  segments.forEach((seg) => {
+    if (seg.layer) {
+      if (!layerMap.has(seg.layer)) layerMap.set(seg.layer, []);
+      layerMap.get(seg.layer)!.push(seg);
+    } else {
+      noLayer.push(seg);
+    }
+  });
+
+  // Sort layers alphabetically
+  const layerNames = Array.from(layerMap.keys()).sort();
+  layerNames.forEach((name) => {
+    layerGroups.push({ name, segments: layerMap.get(name)! });
+  });
+  if (noLayer.length > 0) {
+    layerGroups.push({ name: 'Sin capa', segments: noLayer });
+  }
+
+  const allLayerNames = layerNames; // for move dialog
+
+  const toggleCollapse = (name: string) => {
+    setCollapsedLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleVisibility = (name: string) => {
+    setHiddenLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const startRename = (name: string) => {
+    setRenamingLayer(name);
+    setRenameValue(name);
+  };
+
+  const confirmRename = () => {
+    if (renamingLayer && renameValue.trim() && renameValue !== renamingLayer) {
+      onRenameLayer(renamingLayer, renameValue.trim());
+    }
+    setRenamingLayer(null);
+  };
+
+  const handleAddLayer = () => {
+    if (newLayerName.trim()) {
+      onAddLayer(newLayerName.trim());
+      setNewLayerName('');
+      setShowAddLayer(false);
+    }
+  };
+
+  const handleMerge = () => {
+    if (selectedIds.size >= 2) {
+      onMergeSegments(Array.from(selectedIds));
+    }
+  };
+
+  const getIncidentCount = (segId: string) =>
+    incidents.filter((i) => i.segmentId === segId).length;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header toolbar */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
+        <div className="flex items-center gap-2">
+          <Layers className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-foreground">Capas</span>
+          <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
+            {layerGroups.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {selectedIds.size >= 2 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleMerge}
+              className="h-7 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <Merge className="w-3 h-3" />
+              Unir ({selectedIds.size})
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowAddLayer(true)}
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Add layer inline */}
+      {showAddLayer && (
+        <div className="flex items-center gap-1 px-3 py-2 bg-secondary/50 border-b border-border">
+          <Input
+            value={newLayerName}
+            onChange={(e) => setNewLayerName(e.target.value)}
+            placeholder="Nombre de la capa..."
+            className="h-7 text-xs flex-1"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddLayer();
+              if (e.key === 'Escape') setShowAddLayer(false);
+            }}
+          />
+          <Button size="sm" className="h-7 w-7 p-0" onClick={handleAddLayer}>
+            <Check className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setShowAddLayer(false)}>
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Layer groups */}
+      <div className="flex-1 overflow-y-auto">
+        {layerGroups.map((group, groupIdx) => {
+          const isCollapsed = collapsedLayers.has(group.name);
+          const isHidden = hiddenLayers.has(group.name);
+          const isNoLayer = group.name === 'Sin capa';
+          const color = getLayerColor(groupIdx);
+          const completedCount = group.segments.filter((s) => s.status === 'completado').length;
+          const totalCount = group.segments.length;
+
+          return (
+            <div key={group.name} className="border-b border-border">
+              {/* Layer header */}
+              <div
+                className="flex items-center gap-1 px-3 py-2 hover:bg-secondary/50 transition-colors cursor-pointer group"
+                onClick={() => toggleCollapse(group.name)}
+              >
+                <button className="p-0.5 text-muted-foreground">
+                  {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+                <div
+                  className="w-3 h-3 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                {renamingLayer === group.name ? (
+                  <div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      className="h-6 text-xs flex-1"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmRename();
+                        if (e.key === 'Escape') setRenamingLayer(null);
+                      }}
+                    />
+                    <button onClick={confirmRename} className="p-0.5 text-primary"><Check className="w-3 h-3" /></button>
+                    <button onClick={() => setRenamingLayer(null)} className="p-0.5 text-muted-foreground"><X className="w-3 h-3" /></button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-xs font-medium text-foreground flex-1 truncate">
+                      {group.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {completedCount}/{totalCount}
+                    </span>
+                  </>
+                )}
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => toggleVisibility(group.name)}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground"
+                  >
+                    {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  </button>
+                  {!isNoLayer && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1 rounded text-muted-foreground hover:text-foreground">
+                          <MoreVertical className="w-3 h-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => startRename(group.name)}>
+                          <Pencil className="w-3 h-3 mr-2" /> Renombrar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => onDeleteLayer(group.name)}
+                        >
+                          <Trash2 className="w-3 h-3 mr-2" /> Eliminar capa
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </div>
+
+              {/* Segments in this layer */}
+              {!isCollapsed && !isHidden && (
+                <div className="pb-1">
+                  {group.segments.map((seg) => {
+                    const isSelected = selectedIds.has(seg.id);
+                    const incCount = getIncidentCount(seg.id);
+                    return (
+                      <div
+                        key={seg.id}
+                        className={`flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md transition-colors cursor-pointer hover:bg-secondary/60 ${
+                          isSelected ? 'bg-accent/10 ring-1 ring-accent/30' : ''
+                        }`}
+                        onClick={() => onToggleSelect(seg.id)}
+                      >
+                        <div
+                          className="w-1 h-8 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: color }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
+                            {seg.trackNumber !== null && (
+                              <span className="text-[9px] bg-primary/15 text-primary px-1 py-0.5 rounded font-mono">
+                                T{seg.trackNumber}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <StatusBadge status={seg.status} />
+                            {seg.kmlMeta?.pkInicial && (
+                              <span className="text-[9px] text-muted-foreground">
+                                PK {seg.kmlMeta.pkInicial}→{seg.kmlMeta.pkFinal}
+                              </span>
+                            )}
+                            {incCount > 0 && (
+                              <span className="text-[9px] text-destructive flex items-center gap-0.5">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {incCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => onViewOnMap(seg.id)}
+                            className="p-1 rounded text-muted-foreground hover:text-accent"
+                            title="Ver en mapa"
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-1 rounded text-muted-foreground hover:text-foreground">
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => onEditSegment(seg)}>
+                                <Pencil className="w-3 h-3 mr-2" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setMoveDialogSeg(seg)}>
+                                <Layers className="w-3 h-3 mr-2" /> Mover a capa...
+                              </DropdownMenuItem>
+                              {seg.status === 'completado' && (
+                                <DropdownMenuItem onClick={() => onResetSegment(seg.id)}>
+                                  Repetir tramo
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => onDeleteSegment(seg.id)}
+                              >
+                                <Trash2 className="w-3 h-3 mr-2" /> Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Move to layer dialog */}
+      <Dialog open={!!moveDialogSeg} onOpenChange={(open) => { if (!open) setMoveDialogSeg(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Mover a capa</DialogTitle>
+          </DialogHeader>
+          <Select value={moveTargetLayer} onValueChange={setMoveTargetLayer}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Selecciona capa..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sin capa</SelectItem>
+              {allLayerNames.map((l) => (
+                <SelectItem key={l} value={l}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (moveDialogSeg) {
+                  onMoveToLayer(moveDialogSeg.id, moveTargetLayer === '__none__' ? undefined : moveTargetLayer);
+                  setMoveDialogSeg(null);
+                }
+              }}
+            >
+              Mover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -210,6 +210,113 @@ export function useRouteState() {
     }));
   }, [setState]);
 
+  const addLayer = useCallback((layerName: string) => {
+    // Layers are implicit (derived from segments), nothing to store separately.
+    // This is a no-op placeholder; segments are assigned via moveSegmentToLayer.
+  }, []);
+
+  const renameLayer = useCallback((oldName: string, newName: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) =>
+        seg.layer === oldName ? { ...seg, layer: newName } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const deleteLayer = useCallback((layerName: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) =>
+        seg.layer === layerName ? { ...seg, layer: undefined } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const moveSegmentToLayer = useCallback((segmentId: string, layerName: string | undefined) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) =>
+        seg.id === segmentId ? { ...seg, layer: layerName } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const mergeSegments = useCallback((segmentIds: string[]) => {
+    setState((s) => {
+      if (!s.route || segmentIds.length < 2) return s;
+      const toMerge = segmentIds
+        .map((id) => s.route!.segments.find((seg) => seg.id === id))
+        .filter(Boolean) as import('@/types/route').Segment[];
+      if (toMerge.length < 2) return s;
+
+      // Merge coordinates in order
+      const mergedCoords = toMerge.flatMap((seg) => seg.coordinates);
+      const first = toMerge[0];
+      const merged: import('@/types/route').Segment = {
+        ...first,
+        id: Math.random().toString(36).substring(2, 10),
+        name: toMerge.map((s) => s.name).join(' + '),
+        coordinates: mergedCoords,
+        notes: toMerge.map((s) => s.notes).filter(Boolean).join(' | '),
+        trackNumber: null,
+        trackHistory: [],
+        status: 'pendiente',
+      };
+
+      const mergeSet = new Set(segmentIds);
+      const segments = s.route.segments.filter((seg) => !mergeSet.has(seg.id));
+      // Insert merged segment at position of first original
+      const insertIdx = s.route.segments.findIndex((seg) => seg.id === segmentIds[0]);
+      segments.splice(Math.max(0, insertIdx), 0, merged);
+
+      const optimizedOrder = s.route.optimizedOrder
+        .filter((id) => !mergeSet.has(id))
+        .concat(merged.id);
+
+      return {
+        ...s,
+        route: { ...s.route, segments, optimizedOrder },
+        incidents: s.incidents.map((inc) =>
+          mergeSet.has(inc.segmentId) ? { ...inc, segmentId: merged.id } : inc
+        ),
+      };
+    });
+  }, [setState]);
+
+  const addSegment = useCallback((segment: import('@/types/route').Segment) => {
+    setState((s) => {
+      if (!s.route) return s;
+      return {
+        ...s,
+        route: {
+          ...s.route,
+          segments: [...s.route.segments, segment],
+          optimizedOrder: [...s.route.optimizedOrder, segment.id],
+        },
+      };
+    });
+  }, [setState]);
+
+  const deleteSegment = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      return {
+        ...s,
+        route: {
+          ...s.route,
+          segments: s.route.segments.filter((seg) => seg.id !== segmentId),
+          optimizedOrder: s.route.optimizedOrder.filter((id) => id !== segmentId),
+        },
+        incidents: s.incidents.filter((inc) => inc.segmentId !== segmentId),
+        activeSegmentId: s.activeSegmentId === segmentId ? null : s.activeSegmentId,
+      };
+    });
+  }, [setState]);
+
   return {
     state,
     setRoute,
@@ -226,5 +333,12 @@ export function useRouteState() {
     updateSegment,
     updateIncident,
     deleteIncident,
+    addLayer,
+    renameLayer,
+    deleteLayer,
+    moveSegmentToLayer,
+    mergeSegments,
+    addSegment,
+    deleteSegment,
   };
 }
