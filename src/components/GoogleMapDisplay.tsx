@@ -501,7 +501,13 @@ export function GoogleMapDisplay({
 
     if (!bounds.isEmpty()) {
       try {
-        mapRef.current.fitBounds(bounds, { top: 40, bottom: 160, left: 40, right: 40 });
+        // Smooth animated transition: first pan to center, then zoom
+        const map = mapRef.current;
+        const targetCenter = bounds.getCenter();
+        map.panTo(targetCenter);
+        setTimeout(() => {
+          map.fitBounds(bounds, { top: 40, bottom: 160, left: 40, right: 40 });
+        }, 400);
       } catch (e) {
         console.warn('fitBounds to active segment failed:', e);
       }

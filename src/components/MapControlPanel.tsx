@@ -67,7 +67,7 @@ export function MapControlPanel({
   onMergeSegments,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
-  const [confirmAction, setConfirmAction] = useState<'start' | 'end' | null>(null);
+  // Confirmation step removed – actions are now direct
 
   const activeSegment = segments.find((s) => s.id === activeSegmentId);
   const pending = segments.filter((s) => s.status === 'pendiente').length;
@@ -82,13 +82,11 @@ export function MapControlPanel({
   const handleConfirmStart = (segId: string) => {
     playStartSound();
     onConfirmStart(segId);
-    setConfirmAction(null);
   };
 
   const handleComplete = (segId: string) => {
     playEndSound();
     onComplete(segId);
-    setConfirmAction(null);
   };
 
   // Next pending segment
@@ -148,31 +146,19 @@ export function MapControlPanel({
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-primary font-medium truncate">● {activeSegment.name}</p>
                 </div>
-                {confirmAction === 'end' ? (
-                  <>
-                    <Button size="sm" onClick={() => handleComplete(activeSegment.id)} className="h-8 px-3 text-xs bg-success text-success-foreground">
-                      <Check className="w-3.5 h-3.5 mr-1" />
-                      Confirmar
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirmAction(null)} className="h-8 px-2 text-xs text-muted-foreground">✕</Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="sm" onClick={() => setConfirmAction('end')} className="h-8 px-3 text-xs bg-success text-success-foreground">
-                      <Square className="w-3.5 h-3.5 mr-1" />
-                      Finalizar
-                    </Button>
-                    <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
-                      <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                      </Button>
-                    </IncidentDialog>
-                  </>
-                )}
+                <Button size="sm" onClick={() => handleComplete(activeSegment.id)} className="h-8 px-3 text-xs bg-success text-success-foreground">
+                  <Square className="w-3.5 h-3.5 mr-1" />
+                  Finalizar
+                </Button>
+                <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  </Button>
+                </IncidentDialog>
               </div>
             )}
 
-            {/* Active segment: pendiente + selected → Iniciar/Confirmar */}
+            {/* Active segment: pendiente + selected → Iniciar directamente */}
             {activeSegment && activeSegment.status === 'pendiente' && activeSegment.id === activeSegmentId && (
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
@@ -181,20 +167,10 @@ export function MapControlPanel({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-foreground truncate">{activeSegment.name}</p>
                 </div>
-                {confirmAction === 'start' ? (
-                  <>
-                    <Button size="sm" onClick={() => handleConfirmStart(activeSegment.id)} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
-                      <Check className="w-3.5 h-3.5 mr-1" />
-                      Confirmar
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirmAction(null)} className="h-8 px-2 text-xs text-muted-foreground">✕</Button>
-                  </>
-                ) : (
-                  <Button size="sm" onClick={() => setConfirmAction('start')} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    Iniciar
-                  </Button>
-                )}
+                <Button size="sm" onClick={() => handleConfirmStart(activeSegment.id)} className="h-8 px-3 text-xs bg-primary text-primary-foreground">
+                  <Play className="w-3.5 h-3.5 mr-1" />
+                  Iniciar
+                </Button>
               </div>
             )}
 
@@ -261,29 +237,15 @@ export function MapControlPanel({
                   <StatusBadge status={activeSegment.status} />
                 </div>
                 <div className="flex gap-2">
-                  {confirmAction === 'end' ? (
-                    <>
-                      <Button size="sm" onClick={() => handleComplete(activeSegment.id)} className="flex-1 h-9 text-xs bg-success text-success-foreground">
-                        <Check className="w-4 h-4 mr-1" />
-                        Confirmar Fin
-                      </Button>
-                      <Button size="sm" onClick={() => setConfirmAction(null)} variant="outline" className="h-9 text-xs border-border text-foreground">
-                        Cancelar
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button size="sm" onClick={() => setConfirmAction('end')} className="flex-1 h-9 text-xs bg-success text-success-foreground">
-                        <Square className="w-4 h-4 mr-1" />
-                        Finalizar
-                      </Button>
-                      <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
-                        <Button size="sm" variant="outline" className="h-9 text-xs border-destructive/40 text-destructive">
-                          <AlertTriangle className="w-4 h-4" />
-                        </Button>
-                      </IncidentDialog>
-                    </>
-                  )}
+                  <Button size="sm" onClick={() => handleComplete(activeSegment.id)} className="flex-1 h-9 text-xs bg-success text-success-foreground">
+                    <Square className="w-4 h-4 mr-1" />
+                    Finalizar
+                  </Button>
+                  <IncidentDialog onSubmit={(cat, note) => onAddIncident(activeSegment.id, cat, note, currentPosition ?? undefined)}>
+                    <Button size="sm" variant="outline" className="h-9 text-xs border-destructive/40 text-destructive">
+                      <AlertTriangle className="w-4 h-4" />
+                    </Button>
+                  </IncidentDialog>
                 </div>
               </div>
             )}
