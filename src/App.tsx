@@ -39,6 +39,11 @@ function AppRoutes() {
     mergeSegments,
     addSegment,
     deleteSegment,
+    bulkDeleteSegments,
+    bulkMoveToLayer,
+    bulkSetColor,
+    duplicateSegments,
+    reorderSegment,
   } = useRouteState();
 
   return (
@@ -96,6 +101,11 @@ function AppRoutes() {
               onMergeSegments={mergeSegments}
               onAddLayer={addLayer}
               onDeleteSegment={deleteSegment}
+              onBulkDelete={bulkDeleteSegments}
+              onBulkMove={bulkMoveToLayer}
+              onBulkColor={bulkSetColor}
+              onDuplicate={duplicateSegments}
+              onReorder={reorderSegment}
             />
           }
         />

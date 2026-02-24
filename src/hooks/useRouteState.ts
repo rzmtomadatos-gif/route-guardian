@@ -331,6 +331,86 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  const bulkDeleteSegments = useCallback((segmentIds: string[]) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const idSet = new Set(segmentIds);
+      return {
+        ...s,
+        route: {
+          ...s.route,
+          segments: s.route.segments.filter((seg) => !idSet.has(seg.id)),
+          optimizedOrder: s.route.optimizedOrder.filter((id) => !idSet.has(id)),
+        },
+        incidents: s.incidents.filter((inc) => !idSet.has(inc.segmentId)),
+        activeSegmentId: s.activeSegmentId && idSet.has(s.activeSegmentId) ? null : s.activeSegmentId,
+      };
+    });
+  }, [setState]);
+
+  const bulkMoveToLayer = useCallback((segmentIds: string[], layerName: string | undefined) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const idSet = new Set(segmentIds);
+      const segments = s.route.segments.map((seg) =>
+        idSet.has(seg.id) ? { ...seg, layer: layerName } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const bulkSetColor = useCallback((segmentIds: string[], color: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const idSet = new Set(segmentIds);
+      const segments = s.route.segments.map((seg) =>
+        idSet.has(seg.id) ? { ...seg, color } : seg
+      );
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
+  const duplicateSegments = useCallback((segmentIds: string[]) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const newSegments: import('@/types/route').Segment[] = [];
+      segmentIds.forEach((id) => {
+        const orig = s.route!.segments.find((seg) => seg.id === id);
+        if (orig) {
+          newSegments.push({
+            ...orig,
+            id: Math.random().toString(36).substring(2, 10),
+            name: orig.name + ' (copia)',
+            trackNumber: null,
+            trackHistory: [],
+            status: 'pendiente',
+          });
+        }
+      });
+      return {
+        ...s,
+        route: {
+          ...s.route,
+          segments: [...s.route.segments, ...newSegments],
+          optimizedOrder: [...s.route.optimizedOrder, ...newSegments.map((seg) => seg.id)],
+        },
+      };
+    });
+  }, [setState]);
+
+  const reorderSegment = useCallback((segmentId: string, direction: 'up' | 'down') => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segs = [...s.route.segments];
+      const idx = segs.findIndex((seg) => seg.id === segmentId);
+      if (idx < 0) return s;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= segs.length) return s;
+      [segs[idx], segs[newIdx]] = [segs[newIdx], segs[idx]];
+      return { ...s, route: { ...s.route, segments: segs } };
+    });
+  }, [setState]);
+
   const markClean = useCallback(() => {
     setIsDirty(false);
   }, []);
@@ -360,5 +440,10 @@ export function useRouteState() {
     mergeSegments,
     addSegment,
     deleteSegment,
+    bulkDeleteSegments,
+    bulkMoveToLayer,
+    bulkSetColor,
+    duplicateSegments,
+    reorderSegment,
   };
 }

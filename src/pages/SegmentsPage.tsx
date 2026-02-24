@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import { LayerPanel } from '@/components/LayerPanel';
+import { SelectionToolbar } from '@/components/SelectionToolbar';
 import { Download, Search, Plus, MapPin } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { exportRouteToExcel } from '@/utils/excel-export';
@@ -30,6 +31,11 @@ interface Props {
   onMergeSegments: (ids: string[]) => void;
   onAddLayer: (name: string) => void;
   onDeleteSegment: (segId: string) => void;
+  onBulkDelete: (ids: string[]) => void;
+  onBulkMove: (ids: string[], layer: string | undefined) => void;
+  onBulkColor: (ids: string[], color: string) => void;
+  onDuplicate: (ids: string[]) => void;
+  onReorder: (id: string, dir: 'up' | 'down') => void;
 }
 
 export default function SegmentsPage({
@@ -46,6 +52,11 @@ export default function SegmentsPage({
   onMergeSegments,
   onAddLayer,
   onDeleteSegment,
+  onBulkDelete,
+  onBulkMove,
+  onBulkColor,
+  onDuplicate,
+  onReorder,
 }: Props) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -182,6 +193,22 @@ export default function SegmentsPage({
           </div>
         </div>
       </div>
+
+      {/* Selection toolbar */}
+      {selectedIds.size > 0 && (
+        <SelectionToolbar
+          selectedCount={selectedIds.size}
+          selectedIds={selectedIds}
+          availableLayers={route.availableLayers || []}
+          onMerge={onMergeSegments}
+          onBulkDelete={onBulkDelete}
+          onBulkMove={onBulkMove}
+          onBulkColor={onBulkColor}
+          onDuplicate={onDuplicate}
+          onReorder={onReorder}
+          onClearSelection={() => setSelectedIds(new Set())}
+        />
+      )}
 
       {/* Layer panel – main content */}
       <div className="flex-1 overflow-hidden">
