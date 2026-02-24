@@ -214,9 +214,19 @@ export function useRouteState() {
   }, [setState]);
 
   const addLayer = useCallback((layerName: string) => {
-    // Layers are implicit (derived from segments), nothing to store separately.
-    // This is a no-op placeholder; segments are assigned via moveSegmentToLayer.
-  }, []);
+    // Create a layer by ensuring at least one segment references it.
+    // If no segments exist with this layer name, we add a placeholder marker
+    // by storing available layers in the route metadata.
+    setState((s) => {
+      if (!s.route) return s;
+      // Check if any segment already has this layer
+      const exists = s.route.segments.some((seg) => seg.layer === layerName);
+      if (exists) return s;
+      // Store available layer names on the route so empty layers persist
+      const availableLayers = [...(s.route.availableLayers || []), layerName];
+      return { ...s, route: { ...s.route, availableLayers } };
+    });
+  }, [setState]);
 
   const renameLayer = useCallback((oldName: string, newName: string) => {
     setState((s) => {
@@ -234,7 +244,8 @@ export function useRouteState() {
       const segments = s.route.segments.map((seg) =>
         seg.layer === layerName ? { ...seg, layer: undefined } : seg
       );
-      return { ...s, route: { ...s.route, segments } };
+      const availableLayers = (s.route.availableLayers || []).filter((l) => l !== layerName);
+      return { ...s, route: { ...s.route, segments, availableLayers } };
     });
   }, [setState]);
 

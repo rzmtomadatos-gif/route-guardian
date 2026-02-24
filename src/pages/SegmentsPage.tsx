@@ -189,6 +189,7 @@ export default function SegmentsPage({
           segments={filtered}
           incidents={incidents}
           selectedIds={selectedIds}
+          availableLayers={route.availableLayers}
           onToggleSelect={toggleSelect}
           onEditSegment={setEditingSeg}
           onViewOnMap={(segId) => {

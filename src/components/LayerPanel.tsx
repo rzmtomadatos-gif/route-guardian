@@ -44,6 +44,7 @@ interface LayerPanelProps {
   segments: Segment[];
   incidents: Incident[];
   selectedIds: Set<string>;
+  availableLayers?: string[];
   onToggleSelect: (id: string) => void;
   onEditSegment: (seg: Segment) => void;
   onViewOnMap: (segId: string) => void;
@@ -65,6 +66,7 @@ export function LayerPanel({
   segments,
   incidents,
   selectedIds,
+  availableLayers = [],
   onToggleSelect,
   onEditSegment,
   onViewOnMap,
@@ -104,11 +106,17 @@ export function LayerPanel({
   layerNames.forEach((name) => {
     layerGroups.push({ name, segments: layerMap.get(name)! });
   });
+  // Add empty layers from availableLayers that have no segments
+  availableLayers.forEach((name) => {
+    if (!layerMap.has(name)) {
+      layerGroups.push({ name, segments: [] });
+    }
+  });
   if (noLayer.length > 0) {
     layerGroups.push({ name: 'Sin capa', segments: noLayer });
   }
 
-  const allLayerNames = layerNames; // for move dialog
+  const allLayerNames = [...new Set([...layerNames, ...availableLayers])].sort();
 
   const toggleCollapse = (name: string) => {
     setCollapsedLayers((prev) => {

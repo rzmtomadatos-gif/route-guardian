@@ -40,6 +40,7 @@ export interface Route {
   fileName: string;
   segments: Segment[];
   optimizedOrder: string[];
+  availableLayers?: string[];
 }
 
 export type IncidentCategory =
