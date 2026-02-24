@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
-import { Download, Search, Plus, MapPin, Wand2 } from 'lucide-react';
+import { Download, Search, Plus, MapPin, Wand2, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { exportRouteToExcel } from '@/utils/excel-export';
+import { segmentDistanceKm } from '@/utils/geo-distance';
 import type { AppState, Incident, Segment, SegmentStatus } from '@/types/route';
 
 const STATUS_OPTIONS: { value: SegmentStatus | 'todos'; label: string }[] = [
@@ -68,9 +69,18 @@ export default function SegmentsPage({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SegmentStatus | 'todos'>('todos');
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
+  const [sortByDistance, setSortByDistance] = useState(false);
 
   const route = state.route;
   const incidents = state.incidents;
+
+  // Cache distances
+  const distanceMap = useMemo(() => {
+    if (!route) return new Map<string, number>();
+    const m = new Map<string, number>();
+    route.segments.forEach((s) => m.set(s.id, segmentDistanceKm(s.coordinates)));
+    return m;
+  }, [route]);
 
   // Filter segments (hook before early return)
   const filtered = useMemo(() => {
@@ -89,8 +99,16 @@ export default function SegmentsPage({
           (s.layer || '').toLowerCase().includes(q)
       );
     }
+    if (sortByDistance) {
+      segs.sort((a, b) => (distanceMap.get(b.id) || 0) - (distanceMap.get(a.id) || 0));
+    }
     return segs;
-  }, [route, statusFilter, search]);
+  }, [route, statusFilter, search, sortByDistance, distanceMap]);
+
+  // Total distance of filtered segments
+  const totalDistanceKm = useMemo(() => {
+    return filtered.reduce((sum, s) => sum + (distanceMap.get(s.id) || 0), 0);
+  }, [filtered, distanceMap]);
 
   if (!route) {
     return (
@@ -168,7 +186,7 @@ export default function SegmentsPage({
             </div>
           </div>
           <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-            {completed}/{route.segments.length} completados
+            {completed}/{route.segments.length} completados · {totalDistanceKm.toFixed(1)} km
           </span>
         </div>
 
@@ -183,6 +201,16 @@ export default function SegmentsPage({
               className="h-7 text-xs pl-6"
             />
           </div>
+          <Button
+            size="sm"
+            variant={sortByDistance ? 'default' : 'outline'}
+            onClick={() => setSortByDistance((v) => !v)}
+            className="h-7 text-[10px] gap-1 px-2"
+            title="Ordenar por km"
+          >
+            <ArrowUpDown className="w-3 h-3" />
+            km
+          </Button>
           <div className="flex gap-0.5">
             {STATUS_OPTIONS.map((opt) => (
               <button
