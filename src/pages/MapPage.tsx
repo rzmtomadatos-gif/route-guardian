@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Upload, Plus, Square, Pentagon, Circle } from 'lucide-react';
+import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -63,6 +63,11 @@ export default function MapPage({
       if (ids.size > 0) setSelectedSegmentIds(ids);
     }
   }, []);
+
+  // Selection mode state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [zoneSelectMode, setZoneSelectMode] = useState<AreaSelectionMode>('none');
+  const [zoneSelectPoints, setZoneSelectPoints] = useState<LatLng[]>([]);
 
   // Creation mode state
   const [creationMode, setCreationMode] = useState(false);
@@ -186,8 +191,111 @@ export default function MapPage({
     } else if (!creationEnd) {
       setCreationEnd(latlng);
     }
-    // If both are set, ignore further clicks until reset
   }, [creationMode, creationStart, creationEnd]);
+
+  // Handle segment click: selection mode vs active mode
+  const handleSegmentClick = useCallback((segId: string) => {
+    if (selectionMode) {
+      const next = new Set(selectedSegmentIds);
+      if (next.has(segId)) next.delete(segId);
+      else next.add(segId);
+      setSelectedSegmentIds(next);
+    } else {
+      onSetActiveSegment(segId);
+    }
+  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds]);
+
+  // Zone selection for selecting existing segments
+  const handleZoneSelectClick = useCallback((latlng: LatLng) => {
+    if (zoneSelectMode === 'rectangle') {
+      setZoneSelectPoints((prev) => {
+        if (prev.length >= 2) return prev;
+        const next = [...prev, latlng];
+        if (next.length === 2) {
+          setTimeout(() => selectSegmentsInZone(next), 100);
+        }
+        return next;
+      });
+    } else if (zoneSelectMode === 'polygon') {
+      setZoneSelectPoints((prev) => [...prev, latlng]);
+    } else if (zoneSelectMode === 'circle') {
+      setZoneSelectPoints((prev) => {
+        if (prev.length >= 2) return prev;
+        const next = [...prev, latlng];
+        if (next.length === 2) {
+          setTimeout(() => selectSegmentsInZone(next), 100);
+        }
+        return next;
+      });
+    }
+  }, [zoneSelectMode]);
+
+  const finishZonePolygon = useCallback(() => {
+    if (zoneSelectPoints.length >= 3) {
+      selectSegmentsInZone(zoneSelectPoints);
+    }
+  }, [zoneSelectPoints]);
+
+  const cancelZoneSelect = useCallback(() => {
+    setZoneSelectMode('none');
+    setZoneSelectPoints([]);
+  }, []);
+
+  const selectSegmentsInZone = useCallback((points: LatLng[]) => {
+    const segs = state.route?.segments;
+    if (!segs) return;
+    const isInZone = (coord: LatLng): boolean => {
+      if (zoneSelectMode === 'rectangle' && points.length >= 2) {
+        const minLat = Math.min(points[0].lat, points[1].lat);
+        const maxLat = Math.max(points[0].lat, points[1].lat);
+        const minLng = Math.min(points[0].lng, points[1].lng);
+        const maxLng = Math.max(points[0].lng, points[1].lng);
+        return coord.lat >= minLat && coord.lat <= maxLat && coord.lng >= minLng && coord.lng <= maxLng;
+      }
+      if (zoneSelectMode === 'circle' && points.length >= 2) {
+        const center = points[0];
+        const edge = points[1];
+        const R = 6371000;
+        const dLat1 = (edge.lat - center.lat) * Math.PI / 180;
+        const dLng1 = (edge.lng - center.lng) * Math.PI / 180;
+        const a1 = Math.sin(dLat1 / 2) ** 2 + Math.cos(center.lat * Math.PI / 180) * Math.cos(edge.lat * Math.PI / 180) * Math.sin(dLng1 / 2) ** 2;
+        const radius = R * 2 * Math.atan2(Math.sqrt(a1), Math.sqrt(1 - a1));
+        const dLat2 = (coord.lat - center.lat) * Math.PI / 180;
+        const dLng2 = (coord.lng - center.lng) * Math.PI / 180;
+        const a2 = Math.sin(dLat2 / 2) ** 2 + Math.cos(center.lat * Math.PI / 180) * Math.cos(coord.lat * Math.PI / 180) * Math.sin(dLng2 / 2) ** 2;
+        const dist = R * 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+        return dist <= radius;
+      }
+      if (zoneSelectMode === 'polygon' && points.length >= 3) {
+        let inside = false;
+        for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+          const xi = points[i].lat, yi = points[i].lng;
+          const xj = points[j].lat, yj = points[j].lng;
+          const intersect = ((yi > coord.lng) !== (yj > coord.lng)) &&
+            (coord.lat < (xj - xi) * (coord.lng - yi) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      }
+      return false;
+    };
+
+    const matchedIds: string[] = [];
+    segs.forEach((seg) => {
+      if (seg.coordinates.some(isInZone)) matchedIds.push(seg.id);
+    });
+
+    if (matchedIds.length > 0) {
+      const next = new Set(selectedSegmentIds);
+      matchedIds.forEach((id) => next.add(id));
+      setSelectedSegmentIds(next);
+      toast.success(`${matchedIds.length} tramos seleccionados`);
+    } else {
+      toast.info('No se encontraron tramos en la zona');
+    }
+    setZoneSelectMode('none');
+    setZoneSelectPoints([]);
+  }, [state.route?.segments, zoneSelectMode, selectedSegmentIds, setSelectedSegmentIds]);
 
   const handleCreateSegment = useCallback((segment: Segment) => {
     onAddSegment(segment);
@@ -445,14 +553,15 @@ export default function MapPage({
   }, [route]);
 
   const visibleSegments = useMemo(() => {
-    if (!route || selectedSegmentIds.size === 0) return route?.segments ?? [];
-    return route.segments.filter((s) => selectedSegmentIds.has(s.id));
-  }, [route, selectedSegmentIds]);
+    if (!route) return [];
+    // In selection mode with filter, show only selected; otherwise show all
+    return route.segments;
+  }, [route]);
 
   const visibleOrder = useMemo(() => {
-    if (!route || selectedSegmentIds.size === 0) return route?.optimizedOrder ?? [];
-    return route.optimizedOrder.filter((id) => selectedSegmentIds.has(id));
-  }, [route, selectedSegmentIds]);
+    if (!route) return [];
+    return route.optimizedOrder;
+  }, [route]);
 
   if (!route) {
     return (
@@ -474,16 +583,17 @@ export default function MapPage({
           activeSegmentId={state.activeSegmentId}
           currentPosition={geo.position}
           optimizedOrder={visibleOrder}
-          onSegmentClick={onSetActiveSegment}
-          creationMode={creationMode}
-          onMapClick={handleMapClick}
-          creationStartPoint={creationStart}
-          creationEndPoint={creationEnd}
-          creationRoutePreview={creationRoute}
-          areaSelectionMode={areaMode}
-          areaPoints={areaPoints}
-          onAreaClick={handleAreaClick}
-          fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
+           onSegmentClick={handleSegmentClick}
+           selectedSegmentIds={selectionMode ? selectedSegmentIds : undefined}
+           creationMode={creationMode}
+           onMapClick={handleMapClick}
+           creationStartPoint={creationStart}
+           creationEndPoint={creationEnd}
+           creationRoutePreview={creationRoute}
+           areaSelectionMode={zoneSelectMode !== 'none' ? zoneSelectMode : areaMode}
+           areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
+           onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
+           fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
         />
       </div>
 
@@ -534,6 +644,33 @@ export default function MapPage({
         </div>
       )}
 
+      {/* Zone selection panel */}
+      {zoneSelectMode !== 'none' && (
+        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-accent/30 rounded-xl shadow-lg p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <BoxSelect className="w-4 h-4 text-accent" />
+              Seleccionar por zona
+            </h3>
+            <button onClick={cancelZoneSelect} className="text-xs text-muted-foreground hover:text-foreground">
+              Cancelar
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            {zoneSelectMode === 'rectangle'
+              ? `Haz click en 2 esquinas opuestas. (${zoneSelectPoints.length}/2)`
+              : zoneSelectMode === 'circle'
+                ? `Haz click en el centro y luego en el borde. (${zoneSelectPoints.length}/2)`
+                : `Haz click para definir los vértices. (${zoneSelectPoints.length} puntos)`}
+          </p>
+          {zoneSelectMode === 'polygon' && zoneSelectPoints.length >= 3 && (
+            <Button size="sm" onClick={finishZonePolygon} className="w-full h-8 text-xs bg-accent text-accent-foreground">
+              Cerrar polígono y seleccionar
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Area selection dialog */}
       <AreaSelectionDialog
         open={showAreaDialog}
@@ -553,8 +690,54 @@ export default function MapPage({
       />
 
       {/* FAB buttons */}
-      {!creationMode && areaMode === 'none' && (
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+          {/* Selection mode toggle */}
+          <button
+            onClick={() => {
+              setSelectionMode(!selectionMode);
+              if (selectionMode) setSelectedSegmentIds(new Set());
+            }}
+            className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+              selectionMode
+                ? 'bg-accent text-accent-foreground ring-2 ring-accent/50'
+                : 'bg-secondary text-muted-foreground hover:text-foreground'
+            }`}
+            title={selectionMode ? 'Desactivar selección' : 'Seleccionar tramos'}
+          >
+            <MousePointer2 className="w-4 h-4" />
+          </button>
+
+          {/* Zone selection buttons - only show in selection mode */}
+          {selectionMode && (
+            <>
+              <button
+                onClick={() => setZoneSelectMode('rectangle')}
+                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                title="Seleccionar por rectángulo"
+              >
+                <Square className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setZoneSelectMode('polygon')}
+                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                title="Seleccionar por polígono"
+              >
+                <Pentagon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setZoneSelectMode('circle')}
+                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+                title="Seleccionar por círculo"
+              >
+                <Circle className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {/* Divider */}
+          {selectionMode && <div className="w-6 h-px bg-border mx-auto" />}
+
           <button
             onClick={() => setCreationMode(true)}
             className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
@@ -565,21 +748,21 @@ export default function MapPage({
           <button
             onClick={() => setAreaMode('rectangle')}
             className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Selección rectangular"
+            title="Generar tramos - Rectángulo"
           >
             <Square className="w-4 h-4" />
           </button>
            <button
             onClick={() => setAreaMode('polygon')}
             className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Selección por polígono"
+            title="Generar tramos - Polígono"
           >
             <Pentagon className="w-4 h-4" />
           </button>
           <button
             onClick={() => setAreaMode('circle')}
             className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Selección circular (vías completas)"
+            title="Generar tramos - Círculo"
           >
             <Circle className="w-4 h-4" />
           </button>
@@ -587,7 +770,7 @@ export default function MapPage({
       )}
 
       {/* Control panel overlay */}
-      {!creationMode && areaMode === 'none' && (
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapControlPanel
           segments={route.segments}
           optimizedOrder={route.optimizedOrder}

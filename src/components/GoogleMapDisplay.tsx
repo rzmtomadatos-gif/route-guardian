@@ -13,6 +13,8 @@ interface Props {
   optimizedOrder?: string[];
   className?: string;
   onSegmentClick?: (segmentId: string) => void;
+  /** Set of selected segment IDs to highlight */
+  selectedSegmentIds?: Set<string>;
   /** Creation mode: when true, clicks on map trigger onMapClick */
   creationMode?: boolean;
   onMapClick?: (latlng: LatLng) => void;
@@ -68,6 +70,7 @@ export function GoogleMapDisplay({
   optimizedOrder,
   className = '',
   onSegmentClick,
+  selectedSegmentIds,
   creationMode = false,
   onMapClick,
   creationStartPoint,
@@ -213,13 +216,14 @@ export function GoogleMapDisplay({
     segments.forEach((seg) => {
       const path = seg.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }));
       const isActive = seg.id === activeSegmentId;
-      const color = STATUS_COLORS[seg.status];
+      const isSelected = selectedSegmentIds?.has(seg.id);
+      const color = isSelected ? '#8b5cf6' : STATUS_COLORS[seg.status];
 
       const polyline = new google.maps.Polyline({
         path,
         strokeColor: color,
-        strokeWeight: isActive ? 6 : 3,
-        strokeOpacity: isActive ? 1 : 0.7,
+        strokeWeight: isActive ? 6 : isSelected ? 5 : 3,
+        strokeOpacity: isActive ? 1 : isSelected ? 0.95 : 0.7,
         map,
       });
 
@@ -262,7 +266,7 @@ export function GoogleMapDisplay({
         console.warn('fitBounds failed:', e);
       }
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, clearOverlays, mapReady]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, clearOverlays, mapReady]);
 
   // Current position marker
   useEffect(() => {
