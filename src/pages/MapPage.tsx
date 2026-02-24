@@ -30,6 +30,8 @@ interface Props {
   onSetBase: (base: BaseLocation) => void;
   onAddSegment: (segment: Segment) => void;
   onMergeSegments: (ids: string[]) => void;
+  selectedIds: Set<string>;
+  onSelectedIdsChange: (ids: Set<string>) => void;
 }
 
 export default function MapPage({
@@ -45,16 +47,22 @@ export default function MapPage({
   onSetBase,
   onAddSegment,
   onMergeSegments,
+  selectedIds: selectedSegmentIds,
+  onSelectedIdsChange: setSelectedSegmentIds,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
-  const [selectedSegmentIds, setSelectedSegmentIds] = useState<Set<string>>(() => {
+
+  // Sync URL param on mount
+  useEffect(() => {
     const param = searchParams.get('selected');
-    if (param) return new Set(param.split(',').filter(Boolean));
-    return new Set();
-  });
+    if (param) {
+      const ids = new Set(param.split(',').filter(Boolean));
+      if (ids.size > 0) setSelectedSegmentIds(ids);
+    }
+  }, []);
 
   // Creation mode state
   const [creationMode, setCreationMode] = useState(false);

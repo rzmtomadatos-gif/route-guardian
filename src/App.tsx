@@ -88,6 +88,8 @@ function AppRoutes() {
               onSetBase={setBase}
               onAddSegment={addSegment}
               onMergeSegments={mergeSegments}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
             />
           }
         />
