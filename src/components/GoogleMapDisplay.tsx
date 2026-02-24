@@ -11,6 +11,13 @@ interface Props {
   optimizedOrder?: string[];
   className?: string;
   onSegmentClick?: (segmentId: string) => void;
+  /** Creation mode: when true, clicks on map trigger onMapClick */
+  creationMode?: boolean;
+  onMapClick?: (latlng: LatLng) => void;
+  /** Preview markers/route for creation mode */
+  creationStartPoint?: LatLng | null;
+  creationEndPoint?: LatLng | null;
+  creationRoutePreview?: LatLng[] | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -53,6 +60,11 @@ export function GoogleMapDisplay({
   optimizedOrder,
   className = '',
   onSegmentClick,
+  creationMode = false,
+  onMapClick,
+  creationStartPoint,
+  creationEndPoint,
+  creationRoutePreview,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -60,6 +72,9 @@ export function GoogleMapDisplay({
   const markersRef = useRef<google.maps.Marker[]>([]);
   const posMarkerRef = useRef<google.maps.Marker | null>(null);
   const connectionLinesRef = useRef<google.maps.Polyline[]>([]);
+  const creationMarkersRef = useRef<google.maps.Marker[]>([]);
+  const creationPolylineRef = useRef<google.maps.Polyline | null>(null);
+  const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
 
@@ -260,7 +275,96 @@ export function GoogleMapDisplay({
     }
   }, [currentPosition, mapReady]);
 
-  // Fallback to Leaflet if Google Maps fails
+  // Creation mode: map click listener
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    // Remove old listener
+    if (clickListenerRef.current) {
+      clickListenerRef.current.remove();
+      clickListenerRef.current = null;
+    }
+
+    if (creationMode && onMapClick) {
+      mapRef.current.setOptions({ draggableCursor: 'crosshair' });
+      clickListenerRef.current = mapRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (e.latLng) {
+          onMapClick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+        }
+      });
+    } else {
+      mapRef.current.setOptions({ draggableCursor: undefined });
+    }
+
+    return () => {
+      if (clickListenerRef.current) {
+        clickListenerRef.current.remove();
+        clickListenerRef.current = null;
+      }
+    };
+  }, [creationMode, onMapClick, mapReady]);
+
+  // Creation mode: preview markers and route line
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    // Clear previous creation overlays
+    creationMarkersRef.current.forEach((m) => m.setMap(null));
+    creationMarkersRef.current = [];
+    if (creationPolylineRef.current) {
+      creationPolylineRef.current.setMap(null);
+      creationPolylineRef.current = null;
+    }
+
+    if (creationStartPoint) {
+      const marker = new google.maps.Marker({
+        position: { lat: creationStartPoint.lat, lng: creationStartPoint.lng },
+        map,
+        label: { text: 'A', color: '#fff', fontSize: '12px', fontWeight: 'bold' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 14,
+          fillColor: '#22c55e',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+        },
+        zIndex: 1000,
+      });
+      creationMarkersRef.current.push(marker);
+    }
+
+    if (creationEndPoint) {
+      const marker = new google.maps.Marker({
+        position: { lat: creationEndPoint.lat, lng: creationEndPoint.lng },
+        map,
+        label: { text: 'B', color: '#fff', fontSize: '12px', fontWeight: 'bold' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 14,
+          fillColor: '#ef4444',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+        },
+        zIndex: 1000,
+      });
+      creationMarkersRef.current.push(marker);
+    }
+
+    if (creationRoutePreview && creationRoutePreview.length >= 2) {
+      creationPolylineRef.current = new google.maps.Polyline({
+        path: creationRoutePreview.map((c) => ({ lat: c.lat, lng: c.lng })),
+        strokeColor: '#3b82f6',
+        strokeWeight: 5,
+        strokeOpacity: 0.9,
+        geodesic: true,
+        map,
+      });
+    }
+  }, [creationStartPoint, creationEndPoint, creationRoutePreview, mapReady]);
+
+
   if (fallbackToLeaflet) {
     return (
       <MapDisplay

@@ -65,6 +65,7 @@ function AppRoutes() {
               onReoptimize={reoptimize}
               onSetActiveSegment={setActiveSegment}
               onSetBase={setBase}
+              onAddSegment={addSegment}
             />
           }
         />
