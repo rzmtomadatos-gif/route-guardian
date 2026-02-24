@@ -6,21 +6,37 @@ import { parseKMLFile, applyNamingField } from '@/utils/kml-parser';
 import type { ParsedKmlResult } from '@/utils/kml-parser';
 import { generateSampleRoute } from '@/utils/sample-kml';
 import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
+import { routeToKml, downloadKml } from '@/utils/kml-export';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { Route as RouteType } from '@/types/route';
 
 interface Props {
   onRouteLoaded: (route: RouteType) => void;
   hasRoute: boolean;
+  isDirty: boolean;
+  route: RouteType | null;
+  onMarkClean: () => void;
 }
 
-function UploadPage({ onRouteLoaded, hasRoute }: Props) {
+function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Props) {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<ParsedKmlResult | null>(null);
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const navigate = useNavigate();
 
-  const handleFile = useCallback(
+  const processFile = useCallback(
     async (file: File) => {
       const ext = file.name.toLowerCase().split('.').pop();
       if (ext !== 'kml' && ext !== 'kmz') {
@@ -47,11 +63,50 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
     [onRouteLoaded, navigate]
   );
 
+  const handleFile = useCallback(
+    (file: File) => {
+      if (hasRoute && isDirty) {
+        setPendingFile(file);
+        setUnsavedDialogOpen(true);
+      } else {
+        processFile(file);
+      }
+    },
+    [hasRoute, isDirty, processFile]
+  );
+
+  const handleUnsavedSave = useCallback(() => {
+    // Save current route as KML, then load new file
+    if (route) {
+      const kml = routeToKml(route);
+      downloadKml(kml, route.fileName || `${route.name}.kml`);
+      onMarkClean();
+    }
+    setUnsavedDialogOpen(false);
+    if (pendingFile) {
+      processFile(pendingFile);
+      setPendingFile(null);
+    }
+  }, [route, onMarkClean, pendingFile, processFile]);
+
+  const handleUnsavedDiscard = useCallback(() => {
+    setUnsavedDialogOpen(false);
+    if (pendingFile) {
+      processFile(pendingFile);
+      setPendingFile(null);
+    }
+  }, [pendingFile, processFile]);
+
+  const handleUnsavedCancel = useCallback(() => {
+    setUnsavedDialogOpen(false);
+    setPendingFile(null);
+  }, []);
+
   const handleNamingChoice = useCallback(
     (field: 'carretera' | 'identtramo') => {
       if (!pendingResult) return;
-      const route = applyNamingField(pendingResult.route, field);
-      onRouteLoaded(route);
+      const r = applyNamingField(pendingResult.route, field);
+      onRouteLoaded(r);
       setPendingResult(null);
       navigate('/map');
     },
@@ -128,6 +183,15 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
         <Button
           onClick={() => {
             const sample = generateSampleRoute();
+            if (hasRoute && isDirty) {
+              setPendingFile(null);
+              // For sample, we handle inline
+              if (route) {
+                const kml = routeToKml(route);
+                downloadKml(kml, route.fileName || `${route.name}.kml`);
+                onMarkClean();
+              }
+            }
             onRouteLoaded(sample);
             navigate('/map');
           }}
@@ -157,6 +221,32 @@ function UploadPage({ onRouteLoaded, hasRoute }: Props) {
           onChoice={handleNamingChoice}
         />
       )}
+
+      {/* Unsaved changes dialog */}
+      <AlertDialog open={unsavedDialogOpen} onOpenChange={setUnsavedDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambios sin guardar</AlertDialogTitle>
+            <AlertDialogDescription>
+              El archivo actual tiene cambios sin guardar. ¿Qué deseas hacer antes de cargar el nuevo archivo?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={handleUnsavedCancel}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUnsavedDiscard}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Descartar cambios
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleUnsavedSave}>
+              Guardar y continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
