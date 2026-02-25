@@ -45,6 +45,8 @@ interface LayerPanelProps {
   incidents: Incident[];
   selectedIds: Set<string>;
   availableLayers?: string[];
+  hiddenLayers: Set<string>;
+  onHiddenLayersChange: (layers: Set<string>) => void;
   onToggleSelect: (id: string) => void;
   onSelectMultiple: (ids: string[]) => void;
   onEditSegment: (seg: Segment) => void;
@@ -68,6 +70,8 @@ export function LayerPanel({
   incidents,
   selectedIds,
   availableLayers = [],
+  hiddenLayers,
+  onHiddenLayersChange,
   onToggleSelect,
   onSelectMultiple,
   onEditSegment,
@@ -81,7 +85,7 @@ export function LayerPanel({
   onAddLayer,
 }: LayerPanelProps) {
   const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
-  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  // hiddenLayers is now controlled via props
   const [renamingLayer, setRenamingLayer] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [showAddLayer, setShowAddLayer] = useState(false);
@@ -149,12 +153,10 @@ export function LayerPanel({
   };
 
   const toggleVisibility = (name: string) => {
-    setHiddenLayers((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
+    const next = new Set(hiddenLayers);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    onHiddenLayersChange(next);
   };
 
   const startRename = (name: string) => {

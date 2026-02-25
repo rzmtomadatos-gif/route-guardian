@@ -50,6 +50,7 @@ function AppRoutes() {
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
 
   return (
     <AppLayout
@@ -90,6 +91,7 @@ function AppRoutes() {
               onMergeSegments={mergeSegments}
               selectedIds={selectedIds}
               onSelectedIdsChange={setSelectedIds}
+              hiddenLayers={hiddenLayers}
             />
           }
         />
@@ -118,6 +120,8 @@ function AppRoutes() {
               onDuplicate={duplicateSegments}
               onReorder={reorderSegment}
               onSimplify={simplifySegments}
+              hiddenLayers={hiddenLayers}
+              onHiddenLayersChange={setHiddenLayers}
             />
           }
         />

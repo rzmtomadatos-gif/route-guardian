@@ -15,6 +15,8 @@ interface Props {
   onSegmentClick?: (segmentId: string) => void;
   /** Set of selected segment IDs to highlight */
   selectedSegmentIds?: Set<string>;
+  /** Map of segment ID to layer color */
+  layerColorMap?: Map<string, string>;
   /** Creation mode: when true, clicks on map trigger onMapClick */
   creationMode?: boolean;
   onMapClick?: (latlng: LatLng) => void;
@@ -71,6 +73,7 @@ export function GoogleMapDisplay({
   className = '',
   onSegmentClick,
   selectedSegmentIds,
+  layerColorMap,
   creationMode = false,
   onMapClick,
   creationStartPoint,
@@ -217,7 +220,7 @@ export function GoogleMapDisplay({
       const path = seg.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }));
       const isActive = seg.id === activeSegmentId;
       const isSelected = selectedSegmentIds?.has(seg.id);
-      const color = isSelected ? '#8b5cf6' : STATUS_COLORS[seg.status];
+      const color = isSelected ? '#8b5cf6' : (seg.color || layerColorMap?.get(seg.id) || STATUS_COLORS[seg.status]);
 
       const polyline = new google.maps.Polyline({
         path,
@@ -266,7 +269,7 @@ export function GoogleMapDisplay({
         console.warn('fitBounds failed:', e);
       }
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, clearOverlays, mapReady]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady]);
 
   // Current position marker
   useEffect(() => {

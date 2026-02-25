@@ -40,6 +40,8 @@ interface Props {
   onDuplicate: (ids: string[]) => void;
   onReorder: (id: string, dir: 'up' | 'down') => void;
   onSimplify: () => void;
+  hiddenLayers: Set<string>;
+  onHiddenLayersChange: (layers: Set<string>) => void;
 }
 
 export default function SegmentsPage({
@@ -64,6 +66,8 @@ export default function SegmentsPage({
   onDuplicate,
   onReorder,
   onSimplify,
+  hiddenLayers,
+  onHiddenLayersChange,
 }: Props) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -267,6 +271,8 @@ export default function SegmentsPage({
           incidents={incidents}
           selectedIds={selectedIds}
           availableLayers={route.availableLayers}
+          hiddenLayers={hiddenLayers}
+          onHiddenLayersChange={onHiddenLayersChange}
           onToggleSelect={toggleSelect}
           onSelectMultiple={selectMultiple}
           onEditSegment={setEditingSeg}
