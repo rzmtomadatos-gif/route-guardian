@@ -32,6 +32,7 @@ interface Props {
   onMergeSegments: (ids: string[]) => void;
   selectedIds: Set<string>;
   onSelectedIdsChange: (ids: Set<string>) => void;
+  hiddenLayers: Set<string>;
 }
 
 export default function MapPage({
@@ -49,6 +50,7 @@ export default function MapPage({
   onMergeSegments,
   selectedIds: selectedSegmentIds,
   onSelectedIdsChange: setSelectedSegmentIds,
+  hiddenLayers,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -552,15 +554,35 @@ export default function MapPage({
     return Array.from(set).sort();
   }, [route]);
 
+  // Layer colors - same palette as LayerPanel
+  const LAYER_COLORS = [
+    'hsl(210, 80%, 55%)', 'hsl(0, 75%, 55%)', 'hsl(142, 70%, 40%)', 'hsl(38, 95%, 50%)',
+    'hsl(280, 70%, 55%)', 'hsl(174, 72%, 40%)', 'hsl(25, 90%, 55%)', 'hsl(330, 70%, 55%)',
+  ];
+
   const visibleSegments = useMemo(() => {
     if (!route) return [];
-    // In selection mode with filter, show only selected; otherwise show all
-    return route.segments;
-  }, [route]);
+    return route.segments.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
+  }, [route, hiddenLayers]);
 
   const visibleOrder = useMemo(() => {
     if (!route) return [];
-    return route.optimizedOrder;
+    const visibleIds = new Set(visibleSegments.map((s) => s.id));
+    return route.optimizedOrder.filter((id) => visibleIds.has(id));
+  }, [route, visibleSegments]);
+
+  const layerColorMap = useMemo(() => {
+    if (!route) return new Map<string, string>();
+    // Build layer index map
+    const layerNames = [...new Set(route.segments.map((s) => s.layer).filter(Boolean) as string[])].sort();
+    const colorMap = new Map<string, string>();
+    route.segments.forEach((seg) => {
+      if (seg.layer) {
+        const idx = layerNames.indexOf(seg.layer);
+        colorMap.set(seg.id, LAYER_COLORS[idx % LAYER_COLORS.length]);
+      }
+    });
+    return colorMap;
   }, [route]);
 
   if (!route) {
@@ -585,6 +607,7 @@ export default function MapPage({
           optimizedOrder={visibleOrder}
            onSegmentClick={handleSegmentClick}
            selectedSegmentIds={selectionMode ? selectedSegmentIds : undefined}
+           layerColorMap={layerColorMap}
            creationMode={creationMode}
            onMapClick={handleMapClick}
            creationStartPoint={creationStart}
