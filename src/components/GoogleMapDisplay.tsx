@@ -220,7 +220,13 @@ export function GoogleMapDisplay({
       const path = seg.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }));
       const isActive = seg.id === activeSegmentId;
       const isSelected = selectedSegmentIds?.has(seg.id);
-      const color = isSelected ? '#8b5cf6' : (seg.color || layerColorMap?.get(seg.id) || STATUS_COLORS[seg.status]);
+      // Status colors take priority for non-pending segments; layer color only for pendiente
+      const layerColor = seg.color || layerColorMap?.get(seg.id);
+      const color = isSelected
+        ? '#8b5cf6'
+        : seg.status !== 'pendiente'
+          ? STATUS_COLORS[seg.status]
+          : (layerColor || STATUS_COLORS[seg.status]);
 
       const polyline = new google.maps.Polyline({
         path,
