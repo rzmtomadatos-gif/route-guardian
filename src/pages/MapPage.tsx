@@ -526,17 +526,21 @@ export default function MapPage({
 
     if (pendingIds.length === 0) return;
 
-    // Google Maps URL supports up to ~10 waypoints; use midpoints per segment
-    const points = pendingIds.map((id) => {
-      const seg = route.segments.find((s) => s.id === id)!;
-      const mid = seg.coordinates[Math.floor(seg.coordinates.length / 2)];
-      return `${mid.lat},${mid.lng}`;
-    });
+    // Build itinerary: start→end of each segment, then start of next, etc.
+    // Max 9 segments (18 points = origin + up to 16 waypoints + destination = 18 ≤ 20)
+    const selectedSegments = pendingIds.slice(0, 9).map((id) => route.segments.find((s) => s.id === id)!);
 
-    // First point = origin, last = destination, rest = waypoints (max ~9 intermediate)
+    const points: string[] = [];
+    for (const seg of selectedSegments) {
+      const start = seg.coordinates[0];
+      const end = seg.coordinates[seg.coordinates.length - 1];
+      points.push(`${start.lat},${start.lng}`);
+      points.push(`${end.lat},${end.lng}`);
+    }
+
     const origin = points[0];
     const destination = points[points.length - 1];
-    const middle = points.slice(1, -1).slice(0, 9).join('|');
+    const middle = points.slice(1, -1).join('|');
 
     let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
     if (middle) url += `&waypoints=${middle}`;
