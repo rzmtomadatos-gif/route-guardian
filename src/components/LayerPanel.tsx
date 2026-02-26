@@ -295,6 +295,24 @@ export function LayerPanel({
                   </>
                 )}
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  {group.segments.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const layerIds = group.segments.map((s) => s.id);
+                        const allSelected = layerIds.every((id) => selectedIds.has(id));
+                        if (allSelected) {
+                          // Deselect all in this layer
+                          layerIds.forEach((id) => { if (selectedIds.has(id)) onToggleSelect(id); });
+                        } else {
+                          onSelectMultiple(layerIds);
+                        }
+                      }}
+                      className="p-1 rounded text-muted-foreground hover:text-primary"
+                      title={group.segments.every((s) => selectedIds.has(s.id)) ? 'Deseleccionar capa' : 'Seleccionar toda la capa'}
+                    >
+                      <Check className={`w-3 h-3 ${group.segments.length > 0 && group.segments.every((s) => selectedIds.has(s.id)) ? 'text-primary' : ''}`} />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleVisibility(group.name)}
                     className="p-1 rounded text-muted-foreground hover:text-foreground"

@@ -139,7 +139,7 @@ export default function SegmentsPage({
     );
   }
 
-  const handleExport = () => exportRouteToExcel(route, incidents);
+  const handleExport = () => exportRouteToExcel(route, incidents, selectedIds);
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
