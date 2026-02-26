@@ -516,33 +516,33 @@ export default function MapPage({
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;
     const route = state.route;
-    const itinerary = route.optimizedOrder
-      .filter((id) => {
-        const seg = route.segments.find((s) => s.id === id);
-        return seg?.status === 'pendiente' || seg?.status === 'en_progreso';
-      })
-      .slice(0, 6);
+    // Get pending/in-progress segments from visible layers only
+    const pendingIds = route.optimizedOrder.filter((id) => {
+      const seg = route.segments.find((s) => s.id === id);
+      if (!seg) return false;
+      if (seg.layer && hiddenLayers.has(seg.layer)) return false;
+      return seg.status === 'pendiente' || seg.status === 'en_progreso';
+    });
 
-    if (itinerary.length === 0) return;
+    if (pendingIds.length === 0) return;
 
-    const waypoints: string[] = [];
-    for (const id of itinerary) {
+    // Google Maps URL supports up to ~10 waypoints; use midpoints per segment
+    const points = pendingIds.map((id) => {
       const seg = route.segments.find((s) => s.id === id)!;
-      const start = seg.coordinates[0];
-      const end = seg.coordinates[seg.coordinates.length - 1];
-      waypoints.push(`${start.lat},${start.lng}`);
-      waypoints.push(`${end.lat},${end.lng}`);
-    }
+      const mid = seg.coordinates[Math.floor(seg.coordinates.length / 2)];
+      return `${mid.lat},${mid.lng}`;
+    });
 
-    const origin = waypoints[0];
-    const destination = waypoints[waypoints.length - 1];
-    const middle = waypoints.slice(1, -1).join('|');
+    // First point = origin, last = destination, rest = waypoints (max ~9 intermediate)
+    const origin = points[0];
+    const destination = points[points.length - 1];
+    const middle = points.slice(1, -1).slice(0, 9).join('|');
 
     let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
     if (middle) url += `&waypoints=${middle}`;
 
     window.open(url, '_blank');
-  }, [state.route]);
+  }, [state.route, hiddenLayers]);
 
   const route = state.route;
 

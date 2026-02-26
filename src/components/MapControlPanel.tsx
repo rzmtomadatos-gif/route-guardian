@@ -269,12 +269,10 @@ export function MapControlPanel({
               )}
             </div>
 
-            {navigationActive && (
-              <Button variant="outline" onClick={onExportToGoogleMaps} size="sm" className="w-full h-8 text-xs border-border text-foreground">
-                <ExternalLink className="w-3.5 h-3.5 mr-1" />
-                Abrir en Google Maps
-              </Button>
-            )}
+            <Button variant="outline" onClick={onExportToGoogleMaps} size="sm" className="w-full h-8 text-xs border-border text-foreground">
+              <ExternalLink className="w-3.5 h-3.5 mr-1" />
+              Abrir en Google Maps ({pending} pend.)
+            </Button>
 
             {/* Segment list */}
             <div className="space-y-1">
