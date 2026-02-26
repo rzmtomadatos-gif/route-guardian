@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Route, Segment, Incident } from '@/types/route';
+import { segmentDistanceKm } from '@/utils/geo-distance';
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: 'Pendiente',
@@ -17,17 +18,29 @@ const TYPE_LABELS: Record<string, string> = {
   rotonda: 'Rotonda',
 };
 
-export function exportRouteToExcel(route: Route, incidents: Incident[]) {
+export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>) {
   const wb = XLSX.utils.book_new();
 
+  // If there are selected segments, only export those; otherwise export all
+  const exportSegments = selectedIds && selectedIds.size > 0
+    ? route.segments.filter((s) => selectedIds.has(s.id))
+    : route.segments;
+
+  const exportIncidents = selectedIds && selectedIds.size > 0
+    ? incidents.filter((i) => selectedIds.has(i.segmentId))
+    : incidents;
+
   // Sheet 1: Segments
-  const segData = route.segments.map((seg) => {
-    const segIncidents = incidents.filter((i) => i.segmentId === seg.id);
+  const segData = exportSegments.map((seg) => {
+    const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
+    const distKm = segmentDistanceKm(seg.coordinates);
     return {
       'Track': seg.trackNumber ?? 'Sin asignar',
       'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
       'ID Tramo': seg.kmlId,
       'Nombre': seg.name,
+      'Capa': seg.layer || 'Sin capa',
+      'Distancia (km)': Math.round(distKm * 100) / 100,
       'Carretera': seg.kmlMeta?.carretera || '',
       'Ident. Tramo': seg.kmlMeta?.identtramo || '',
       'Tipo KML': seg.kmlMeta?.tipo || '',
@@ -56,8 +69,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[]) {
   XLSX.utils.book_append_sheet(wb, ws1, 'Tramos');
 
   // Sheet 2: Incidents
-  if (incidents.length > 0) {
-    const incData = incidents.map((inc) => {
+  if (exportIncidents.length > 0) {
+    const incData = exportIncidents.map((inc) => {
       const seg = route.segments.find((s) => s.id === inc.segmentId);
       return {
         'Track': seg?.trackNumber ?? '',
