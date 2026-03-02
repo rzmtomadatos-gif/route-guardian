@@ -122,6 +122,14 @@ export default function SegmentsPage({
     return total;
   }, [selectedIds, distanceMap]);
 
+  // All layer names: from segments + from availableLayers metadata
+  const allLayerNames = useMemo(() => {
+    if (!route) return [];
+    const fromSegments = route.segments.map((s) => s.layer).filter(Boolean) as string[];
+    const fromMeta = route.availableLayers || [];
+    return [...new Set([...fromSegments, ...fromMeta])].sort();
+  }, [route]);
+
   if (!route) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6">
@@ -252,7 +260,7 @@ export default function SegmentsPage({
         <SelectionToolbar
           selectedCount={selectedIds.size}
           selectedIds={selectedIds}
-          availableLayers={route.availableLayers || []}
+          availableLayers={allLayerNames}
           totalDistanceKm={selectedDistanceKm}
           onMerge={onMergeSegments}
           onBulkDelete={onBulkDelete}
