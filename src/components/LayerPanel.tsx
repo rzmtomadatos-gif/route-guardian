@@ -283,7 +283,7 @@ export function LayerPanel({
                     </span>
                   </>
                 )}
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   {group.segments.length > 0 && (
                     <button
                       onClick={() => {
