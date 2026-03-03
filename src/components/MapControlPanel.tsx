@@ -2,10 +2,11 @@ import { useState } from 'react';
 import {
   Play, Square, Check, AlertTriangle, ChevronDown, ChevronUp,
   MapPin, RotateCcw, Navigation, ExternalLink, LocateFixed, LocateOff,
-  RefreshCw, Home, CheckSquare, Square as SquareIcon, Merge,
+  RefreshCw, Home, CheckSquare, Square as SquareIcon, Merge, Repeat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
@@ -24,6 +25,8 @@ interface Props {
   gpsError: string | null;
   navigationActive: boolean;
   base: BaseLocation | null;
+  rstMode: boolean;
+  rstGroupSize: number;
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
@@ -38,6 +41,8 @@ interface Props {
   selectedSegmentIds: Set<string>;
   onSelectedSegmentsChange: (ids: Set<string>) => void;
   onMergeSegments: (ids: string[]) => void;
+  onSetRstMode: (enabled: boolean) => void;
+  onSetRstGroupSize: (size: number) => void;
 }
 
 export function MapControlPanel({
@@ -51,6 +56,8 @@ export function MapControlPanel({
   gpsError,
   navigationActive,
   base,
+  rstMode,
+  rstGroupSize,
   onToggleGps,
   onConfirmStart,
   onComplete,
@@ -65,6 +72,8 @@ export function MapControlPanel({
   selectedSegmentIds,
   onSelectedSegmentsChange,
   onMergeSegments,
+  onSetRstMode,
+  onSetRstGroupSize,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendiente' | 'completado'>('todos');
@@ -266,6 +275,29 @@ export function MapControlPanel({
                   <Navigation className="w-3.5 h-3.5 mr-1" />
                   Navegar
                 </Button>
+              )}
+            </div>
+
+            {/* RST Mode */}
+            <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
+              <Repeat className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <label className="text-[10px] text-muted-foreground flex-shrink-0">RST</label>
+              <Switch checked={rstMode} onCheckedChange={onSetRstMode} className="scale-75 origin-left" />
+              {rstMode && (
+                <Input
+                  type="number"
+                  min={2}
+                  max={12}
+                  value={rstGroupSize}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 2 && v <= 12) onSetRstGroupSize(v);
+                  }}
+                  className="w-14 h-6 text-[10px] text-center px-1 py-0"
+                />
+              )}
+              {rstMode && (
+                <span className="text-[9px] text-accent whitespace-nowrap">×{rstGroupSize} tramos</span>
               )}
             </div>
 
