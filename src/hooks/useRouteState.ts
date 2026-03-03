@@ -102,12 +102,38 @@ export function useRouteState() {
   const completeSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
-      const segments = s.route.segments.map((seg) =>
-        seg.id === segmentId ? { ...seg, status: 'completado' as const } : seg
-      );
+
+      const currentSegment = s.route.segments.find((seg) => seg.id === segmentId);
+      const currentTrackNumber = currentSegment?.trackNumber ?? null;
+      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
+
+      // En modo RST, al completar un tramo también se completan los siguientes
+      // del bloque y heredan el mismo track de grabación.
+      const pendingAfterCurrent = currentIdx >= 0
+        ? s.route.optimizedOrder.slice(currentIdx + 1).filter((id) => {
+            const seg = s.route!.segments.find((seg) => seg.id === id);
+            return seg?.status === 'pendiente';
+          })
+        : [];
+
+      const autoCompleteIds = s.rstMode && s.rstGroupSize > 1 && currentTrackNumber !== null
+        ? pendingAfterCurrent.slice(0, Math.max(0, s.rstGroupSize - 1))
+        : [];
+
+      const autoCompleteSet = new Set(autoCompleteIds);
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id === segmentId || autoCompleteSet.has(seg.id)) {
+          return {
+            ...seg,
+            status: 'completado' as const,
+            trackNumber: seg.trackNumber ?? currentTrackNumber,
+          };
+        }
+        return seg;
+      });
 
       // Track completed count for auto-reoptimize every 6
-      completedCountRef.current += 1;
+      completedCountRef.current += 1 + autoCompleteIds.length;
       const shouldReoptimize = completedCountRef.current % 6 === 0;
 
       const pending = segments.filter((seg) => seg.status === 'pendiente');
@@ -124,11 +150,11 @@ export function useRouteState() {
         };
       }
 
-      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
-      const remaining = s.route.optimizedOrder.slice(currentIdx + 1).filter((id) => {
+      const remaining = (currentIdx >= 0 ? s.route.optimizedOrder.slice(currentIdx + 1) : s.route.optimizedOrder).filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
         return seg?.status === 'pendiente';
       });
+
       return {
         ...s,
         route: { ...s.route, segments },
