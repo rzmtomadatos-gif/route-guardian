@@ -76,7 +76,22 @@ export function useRouteState() {
         ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
         ...seg.trackHistory,
       ]);
-      const nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
+
+      let nextTrack: number;
+      if (s.rstMode && s.rstGroupSize > 0) {
+        // RST mode: repeat track number for groups of rstGroupSize
+        const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
+        if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
+          // Still in same group → reuse current max track
+          nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) : 1;
+        } else {
+          // New group → increment
+          nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
+        }
+      } else {
+        nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
+      }
+
       const segments = s.route.segments.map((seg) =>
         seg.id === segmentId ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack } : seg
       );
@@ -175,7 +190,9 @@ export function useRouteState() {
       activeSegmentId: null,
       navigationActive: false,
       currentPosition: null,
-      base: s.base, // preserve base
+      base: s.base,
+      rstMode: s.rstMode,
+      rstGroupSize: s.rstGroupSize,
     }));
   }, [setState]);
 
@@ -471,6 +488,14 @@ export function useRouteState() {
     setIsDirty(false);
   }, []);
 
+  const setRstMode = useCallback((enabled: boolean) => {
+    setState((s) => ({ ...s, rstMode: enabled }));
+  }, [setState]);
+
+  const setRstGroupSize = useCallback((size: number) => {
+    setState((s) => ({ ...s, rstGroupSize: size }));
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -502,5 +527,7 @@ export function useRouteState() {
     duplicateSegments,
     reorderSegment,
     simplifySegments,
+    setRstMode,
+    setRstGroupSize,
   };
 }

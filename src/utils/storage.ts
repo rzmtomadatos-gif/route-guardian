@@ -26,6 +26,8 @@ export function loadState(): AppState {
     navigationActive: false,
     currentPosition: null,
     base: null,
+    rstMode: false,
+    rstGroupSize: 3,
   };
 }
 

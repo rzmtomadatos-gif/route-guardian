@@ -75,4 +75,6 @@ export interface AppState {
   navigationActive: boolean;
   currentPosition: LatLng | null;
   base: BaseLocation | null;
+  rstMode: boolean;
+  rstGroupSize: number;
 }

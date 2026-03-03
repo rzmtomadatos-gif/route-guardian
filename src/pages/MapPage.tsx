@@ -33,6 +33,8 @@ interface Props {
   selectedIds: Set<string>;
   onSelectedIdsChange: (ids: Set<string>) => void;
   hiddenLayers: Set<string>;
+  onSetRstMode: (enabled: boolean) => void;
+  onSetRstGroupSize: (size: number) => void;
 }
 
 export default function MapPage({
@@ -51,6 +53,8 @@ export default function MapPage({
   selectedIds: selectedSegmentIds,
   onSelectedIdsChange: setSelectedSegmentIds,
   hiddenLayers,
+  onSetRstMode,
+  onSetRstGroupSize,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -809,6 +813,8 @@ export default function MapPage({
           gpsError={geo.error}
           navigationActive={state.navigationActive}
           base={state.base}
+          rstMode={state.rstMode}
+          rstGroupSize={state.rstGroupSize}
           onToggleGps={setGpsEnabled}
           onConfirmStart={onConfirmStart}
           onComplete={onComplete}
@@ -823,6 +829,8 @@ export default function MapPage({
           selectedSegmentIds={selectedSegmentIds}
           onSelectedSegmentsChange={setSelectedSegmentIds}
           onMergeSegments={onMergeSegments}
+          onSetRstMode={onSetRstMode}
+          onSetRstGroupSize={onSetRstGroupSize}
         />
       )}
     </div>
