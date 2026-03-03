@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Route, AlertCircle, MapPin } from 'lucide-react';
+import { FileUp, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseKMLFile, applyNamingField } from '@/utils/kml-parser';
 import type { ParsedKmlResult } from '@/utils/kml-parser';
-import { generateSampleRoute } from '@/utils/sample-kml';
+
 import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
 import {
@@ -180,27 +180,6 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           </div>
         )}
 
-        <Button
-          onClick={() => {
-            const sample = generateSampleRoute();
-            if (hasRoute && isDirty) {
-              setPendingFile(null);
-              // For sample, we handle inline
-              if (route) {
-                const kml = routeToKml(route);
-                downloadKml(kml, route.fileName || `${route.name}.kml`);
-                onMarkClean();
-              }
-            }
-            onRouteLoaded(sample);
-            navigate('/map');
-          }}
-          variant="outline"
-          className="w-full driving-button border-border text-foreground"
-        >
-          <MapPin className="w-4 h-4 mr-2" />
-          Cargar ruta de ejemplo
-        </Button>
 
         {hasRoute && (
           <Button
