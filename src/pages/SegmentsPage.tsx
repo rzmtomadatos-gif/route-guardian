@@ -178,10 +178,6 @@ export default function SegmentsPage({
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-bold text-foreground">{route.name}</h2>
           <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" onClick={onSimplify} className="h-7 text-[10px] gap-1">
-              <Wand2 className="w-3 h-3" />
-              Simplificar
-            </Button>
             {selectedIds.size > 0 && (
               <Button size="sm" onClick={handleViewSelectedOnMap} className="h-7 text-[10px] gap-1">
                 <MapPin className="w-3 h-3" />

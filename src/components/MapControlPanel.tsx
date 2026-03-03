@@ -128,23 +128,6 @@ export function MapControlPanel({
           <div className="w-8 h-1 rounded-full bg-muted-foreground/30" />
         </button>
 
-        {/* Merge button when segments selected */}
-        {selectedSegmentIds.size >= 2 && (
-          <div className="px-3 pb-1">
-            <Button
-              size="sm"
-              onClick={() => {
-                onMergeSegments(Array.from(selectedSegmentIds));
-                onSelectedSegmentsChange(new Set());
-              }}
-              className="h-7 text-[10px] gap-1 w-full border-primary/30 text-primary hover:bg-primary/10"
-              variant="outline"
-            >
-              <Merge className="w-3 h-3" />
-              Unir {selectedSegmentIds.size} tramos
-            </Button>
-          </div>
-        )}
 
         {/* COLLAPSED: minimal controls only */}
         {!expanded && (

@@ -200,17 +200,6 @@ export function LayerPanel({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {selectedIds.size >= 2 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleMerge}
-              className="h-7 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
-            >
-              <Merge className="w-3 h-3" />
-              Unir ({selectedIds.size})
-            </Button>
-          )}
           <Button
             size="sm"
             variant="ghost"
