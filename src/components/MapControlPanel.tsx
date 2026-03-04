@@ -108,6 +108,7 @@ export function MapControlPanel({
   const activeSegment = segments.find((s) => s.id === activeSegmentId);
   const pending = segments.filter((s) => s.status === 'pendiente').length;
   const completed = segments.filter((s) => s.status === 'completado').length;
+  const noVisiblePending = pending === 0;
 
   const orderedSegments = useMemo(() =>
     optimizedOrder
@@ -263,7 +264,7 @@ export function MapControlPanel({
                   Detener
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={pending === 0} className="flex-1 h-12 text-sm font-bold bg-primary text-primary-foreground">
+                <Button onClick={onStartNavigation} disabled={noVisiblePending} className="flex-1 h-12 text-sm font-bold bg-primary text-primary-foreground">
                   <Navigation className="w-4 h-4 mr-1.5" />
                   Navegar
                 </Button>
@@ -296,6 +297,10 @@ export function MapControlPanel({
                 <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
               </div>
             </div>
+
+            {noVisiblePending && segments.length > 0 && !navigationActive && (
+              <p className="text-[10px] text-amber-400 text-center py-1">No hay tramos visibles pendientes. Cambia el filtro de capas.</p>
+            )}
 
             {/* === SECONDARY ACTIONS (collapsible) === */}
             <Collapsible open={showSecondary} onOpenChange={setShowSecondary}>

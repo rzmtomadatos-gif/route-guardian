@@ -84,6 +84,8 @@ export function LayerPanel({
   onMergeSegments,
   onAddLayer,
 }: LayerPanelProps) {
+  // Start with all layers collapsed; initialize lazily from group names
+  const [collapsedInit, setCollapsedInit] = useState(false);
   const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
   // hiddenLayers is now controlled via props
   const [renamingLayer, setRenamingLayer] = useState<string | null>(null);
@@ -139,6 +141,12 @@ export function LayerPanel({
   });
   if (noLayer.length > 0) {
     layerGroups.push({ name: 'Sin capa', segments: noLayer });
+  }
+
+  // Auto-collapse all layers on first render
+  if (!collapsedInit && layerGroups.length > 0) {
+    setCollapsedInit(true);
+    setCollapsedLayers(new Set(layerGroups.map((g) => g.name)));
   }
 
   const allLayerNames = [...new Set([...layerNames, ...availableLayers])].sort();
