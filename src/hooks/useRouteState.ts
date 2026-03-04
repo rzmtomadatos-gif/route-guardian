@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
@@ -6,14 +6,14 @@ import { optimizeWithDirections } from '@/utils/google-directions';
 
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
-  const completedCountRef = useRef(0);
+  
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
 
-  const setState = useCallback((updater: (prev: AppState) => AppState) => {
+  const setState = useCallback((updater: (prev: AppState) => AppState, immediate = false) => {
     setStateRaw((prev) => {
       const next = updater(prev);
-      saveState(next);
+      saveState(next, immediate);
       setIsDirty(true);
       return next;
     });
@@ -96,7 +96,7 @@ export function useRouteState() {
         seg.id === segmentId ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack } : seg
       );
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
-    });
+    }, true);
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string) => {
@@ -132,24 +132,7 @@ export function useRouteState() {
         return seg;
       });
 
-      // Track completed count for auto-reoptimize every 6
-      completedCountRef.current += 1 + autoCompleteIds.length;
-      const shouldReoptimize = completedCountRef.current % 6 === 0;
-
-      const pending = segments.filter((seg) => seg.status === 'pendiente');
-
-      if (shouldReoptimize && pending.length > 0) {
-        const newOrder = [
-          ...segments.filter((seg) => seg.status !== 'pendiente').map((seg) => seg.id),
-          ...optimizeRoute(pending, s.base?.position || s.currentPosition),
-        ];
-        return {
-          ...s,
-          route: { ...s.route, segments, optimizedOrder: newOrder },
-          activeSegmentId: pending.length > 0 ? newOrder.find((id) => pending.some((p) => p.id === id)) || null : null,
-        };
-      }
-
+      // Find next pending segment in current order
       const remaining = (currentIdx >= 0 ? s.route.optimizedOrder.slice(currentIdx + 1) : s.route.optimizedOrder).filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
         return seg?.status === 'pendiente';
@@ -160,7 +143,7 @@ export function useRouteState() {
         route: { ...s.route, segments },
         activeSegmentId: remaining[0] || null,
       };
-    });
+    }, true);
   }, [setState]);
 
   const addIncident = useCallback((segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => {
@@ -206,7 +189,7 @@ export function useRouteState() {
         return { ...seg, status: 'pendiente' as const, trackNumber: null, trackHistory: newHistory };
       });
       return { ...s, route: { ...s.route, segments } };
-    });
+    }, true);
   }, [setState]);
 
   const clearRoute = useCallback(() => {

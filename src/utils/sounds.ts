@@ -12,6 +12,32 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
+/**
+ * Prime the AudioContext so subsequent playback works on mobile (Chrome Android / WebView).
+ * Call this on a user gesture (e.g. "Navegar" button, GPS toggle).
+ */
+export async function primeAudio(): Promise<void> {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    // Play an inaudible tone to fully unlock the context
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.05);
+  } catch {
+    // Silently ignore
+  }
+}
+
 function playTone(frequency: number, duration: number, type: OscillatorType = 'sine') {
   const ctx = getAudioContext();
   if (!ctx) return;
