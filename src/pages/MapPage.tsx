@@ -597,10 +597,14 @@ export default function MapPage({
     'hsl(280, 70%, 55%)', 'hsl(174, 72%, 40%)', 'hsl(25, 90%, 55%)', 'hsl(330, 70%, 55%)',
   ];
 
+  // If there's a selection, show ONLY selected segments on the map; otherwise filter by hidden layers
   const visibleSegments = useMemo(() => {
     if (!route) return [];
+    if (selectedSegmentIds.size > 0) {
+      return route.segments.filter((s) => selectedSegmentIds.has(s.id));
+    }
     return route.segments.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
-  }, [route, hiddenLayers]);
+  }, [route, hiddenLayers, selectedSegmentIds]);
 
   const visibleOrder = useMemo(() => {
     if (!route) return [];
@@ -643,7 +647,7 @@ export default function MapPage({
           currentPosition={geo.position}
           optimizedOrder={visibleOrder}
            onSegmentClick={handleSegmentClick}
-           selectedSegmentIds={selectionMode ? selectedSegmentIds : undefined}
+           selectedSegmentIds={selectedSegmentIds.size > 0 || selectionMode ? selectedSegmentIds : undefined}
            layerColorMap={layerColorMap}
            creationMode={creationMode}
            onMapClick={handleMapClick}
