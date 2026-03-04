@@ -22,7 +22,7 @@ interface Props {
   state: AppState;
   onStartNavigation: (hiddenLayers?: Set<string>) => void;
   onStopNavigation: () => void;
-  onConfirmStart: (segmentId: string) => void;
+  onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
@@ -500,6 +500,7 @@ export default function MapPage({
         id: Math.random().toString(36).substring(2, 10),
         routeId: state.route?.id || 'area',
         trackNumber: null,
+        plannedTrackNumber: null,
         trackHistory: [],
         kmlId: `osm-${way.id}`,
         name: way.name,
@@ -522,6 +523,7 @@ export default function MapPage({
           id: Math.random().toString(36).substring(2, 10),
           routeId: state.route?.id || 'area',
           trackNumber: null,
+          plannedTrackNumber: null,
           trackHistory: [],
           kmlId: `osm-${way.id}-rev`,
           name: `${way.name} (dec.)`,
@@ -869,7 +871,7 @@ export default function MapPage({
           rstMode={state.rstMode}
           rstGroupSize={state.rstGroupSize}
           onToggleGps={(v) => { if (v) primeAudio(); setGpsEnabled(v); }}
-          onConfirmStart={onConfirmStart}
+          onConfirmStart={(segId) => onConfirmStart(segId, hiddenLayers)}
           onComplete={(segId) => onComplete(segId, hiddenLayers)}
           onResetSegment={onResetSegment}
           onAddIncident={onAddIncident}
