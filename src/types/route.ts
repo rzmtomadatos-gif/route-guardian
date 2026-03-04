@@ -21,6 +21,8 @@ export interface Segment {
   id: string;
   routeId: string;
   trackNumber: number | null;
+  plannedTrackNumber: number | null;
+  plannedBy?: 'rst' | 'manual';
   trackHistory: number[];
   kmlId: string;
   name: string;

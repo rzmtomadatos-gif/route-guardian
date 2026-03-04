@@ -35,7 +35,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
     return {
-      'Track': seg.trackNumber ?? 'Sin asignar',
+      'Track': seg.trackNumber ?? '',
+      'Track planificado': seg.plannedTrackNumber ?? '',
       'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
       'ID Tramo': seg.kmlId,
       'Nombre': seg.name,

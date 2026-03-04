@@ -53,6 +53,7 @@ export function SegmentCreatorPanel({
       id: Math.random().toString(36).substring(2, 10),
       routeId: 'manual',
       trackNumber: null,
+      plannedTrackNumber: null,
       trackHistory: [],
       kmlId: '',
       name: name.trim() || roadInfo?.name || `Tramo manual ${Date.now()}`,

@@ -184,7 +184,7 @@ export function MapControlPanel({
             {pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
-                  {pinnedSegment.trackNumber ?? '—'}
+                  {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-xs text-foreground truncate">{pinnedSegment.name}</p>
@@ -235,7 +235,7 @@ export function MapControlPanel({
             {pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="bg-secondary/50 border border-border rounded-lg p-2 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
-                  {pinnedSegment.trackNumber ?? '—'}
+                  {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-[10px] text-muted-foreground">Siguiente tramo</p>
@@ -408,9 +408,10 @@ export function MapControlPanel({
                           seg.status === 'completado' ? 'bg-success/20 text-success'
                           : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
                           : seg.status === 'posible_repetir' ? 'bg-amber-500/20 text-amber-400'
+                          : seg.plannedTrackNumber ? 'bg-blue-500/10 text-blue-400 border border-dashed border-blue-400/40'
                           : 'bg-muted text-muted-foreground'
                         }`}>
-                          {seg.trackNumber ?? '—'}
+                          {seg.trackNumber ?? (seg.plannedTrackNumber ? `P${seg.plannedTrackNumber}` : '—')}
                         </span>
                         <div className="flex-1 min-w-0">
                           <span className="text-[9px] text-muted-foreground truncate block">{seg.name}</span>

@@ -84,51 +84,60 @@ export function useRouteState() {
     setState((s) => ({ ...s, navigationActive: false, activeSegmentId: null }));
   }, [setState]);
 
-  const confirmStartSegment = useCallback((segmentId: string) => {
+  const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
 
-      const maxTrack = getMaxTrack(s.route.segments);
-      let nextTrack: number;
+      const seg = s.route.segments.find((seg) => seg.id === segmentId);
+      if (!seg) return s;
 
-      if (maxTrack === 0) {
-        nextTrack = 1;
+      // If the segment already has a plannedTrackNumber, use it as the real track
+      let nextTrack: number;
+      if (seg.plannedTrackNumber !== null && seg.plannedTrackNumber !== undefined) {
+        nextTrack = seg.plannedTrackNumber;
       } else {
-        const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
-        if (countInCurrent >= MAX_SEGMENTS_PER_TRACK) {
-          nextTrack = maxTrack + 1;
-        } else if (s.rstMode && s.rstGroupSize > 0) {
-          // RST: keep same track for the group
-          const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
-          if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
-            nextTrack = maxTrack;
+        const maxTrack = getMaxTrack(s.route.segments);
+        if (maxTrack === 0) {
+          nextTrack = 1;
+        } else {
+          const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
+          if (countInCurrent >= MAX_SEGMENTS_PER_TRACK) {
+            nextTrack = maxTrack + 1;
+          } else if (s.rstMode && s.rstGroupSize > 0) {
+            const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
+            if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
+              nextTrack = maxTrack;
+            } else {
+              nextTrack = maxTrack + 1;
+            }
           } else {
             nextTrack = maxTrack + 1;
           }
-        } else {
-          nextTrack = maxTrack + 1;
         }
       }
 
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
-      // Start this segment
+      // Start this segment – assign real trackNumber
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, timestampInicio: new Date().toISOString() }
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: new Date().toISOString() }
           : seg
       );
 
-      // RST: pre-assign same trackNumber to next block siblings (keep them pendiente)
+      // RST: pre-assign plannedTrackNumber (NOT trackNumber) to next visible pending siblings
       if (s.rstMode && s.rstGroupSize > 1 && currentIdx >= 0) {
         let assigned = 0;
         const maxToAssign = s.rstGroupSize - 1;
         for (let i = currentIdx + 1; i < s.route.optimizedOrder.length && assigned < maxToAssign; i++) {
           const sibId = s.route.optimizedOrder[i];
           const sib = segments.find((seg) => seg.id === sibId);
-          if (sib && sib.status === 'pendiente' && sib.trackNumber === null) {
+          if (!sib || sib.status !== 'pendiente') continue;
+          // Skip segments in hidden layers
+          if (hiddenLayers && sib.layer && hiddenLayers.has(sib.layer)) continue;
+          if (sib.trackNumber === null && (sib.plannedTrackNumber === null || sib.plannedTrackNumber === undefined)) {
             segments = segments.map((seg) =>
-              seg.id === sibId ? { ...seg, trackNumber: nextTrack } : seg
+              seg.id === sibId ? { ...seg, plannedTrackNumber: nextTrack, plannedBy: 'rst' as const } : seg
             );
             assigned++;
           }
@@ -216,6 +225,8 @@ export function useRouteState() {
           ...seg,
           status: 'pendiente' as const,
           trackNumber: null,
+          plannedTrackNumber: null,
+          plannedBy: undefined,
           timestampInicio: undefined,
           timestampFin: undefined,
         };
@@ -285,6 +296,8 @@ export function useRouteState() {
           ...seg,
           status: 'pendiente' as const,
           trackNumber: null,
+          plannedTrackNumber: null,
+          plannedBy: undefined,
           trackHistory: newHistory,
           timestampInicio: undefined,
           timestampFin: undefined,

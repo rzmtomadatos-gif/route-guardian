@@ -131,6 +131,7 @@ function collectSegments(
         id: generateId(),
         routeId,
         trackNumber: null,
+        plannedTrackNumber: null,
         trackHistory: [],
         kmlId,
         name,
