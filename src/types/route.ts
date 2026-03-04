@@ -36,6 +36,8 @@ export interface Segment {
   color?: string;
   timestampInicio?: string;
   timestampFin?: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
 }
 
 export interface Route {
