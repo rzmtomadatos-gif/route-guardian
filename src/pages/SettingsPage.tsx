@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Info, Key, Check } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 
 interface Props {
@@ -12,11 +12,72 @@ interface Props {
 export default function SettingsPage({ onClear, hasRoute }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null);
 
   const handleSaveKey = () => {
     setGoogleMapsApiKey(apiKey);
     setSaved(true);
+    setTestResult(null);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleClearKey = () => {
+    setApiKey('');
+    setGoogleMapsApiKey('');
+    setTestResult(null);
+  };
+
+  const handleTestKey = async () => {
+    if (!apiKey) return;
+    setTesting(true);
+    setTestResult(null);
+    // Save temporarily for testing
+    setGoogleMapsApiKey(apiKey);
+
+    try {
+      // Try loading the Google Maps script
+      const existing = document.querySelector('script[src*="maps.googleapis.com"]');
+      if (existing) existing.remove();
+
+      const result = await new Promise<'ok' | 'error'>((resolve) => {
+        // Listen for gm_auth_failure
+        const authHandler = () => {
+          resolve('error');
+          window.removeEventListener('gm_authFailure' as any, authHandler);
+        };
+        (window as any).gm_authFailure = () => resolve('error');
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=routes`;
+        script.async = true;
+        script.onload = () => {
+          // Check for error containers after a short delay
+          setTimeout(() => {
+            const errContainer = document.querySelector('.gm-err-container');
+            if (errContainer) {
+              resolve('error');
+            } else if ((window as any).google?.maps) {
+              resolve('ok');
+            } else {
+              resolve('error');
+            }
+          }, 1000);
+        };
+        script.onerror = () => resolve('error');
+        document.head.appendChild(script);
+
+        // Timeout after 8s
+        setTimeout(() => resolve('error'), 8000);
+      });
+
+      setTestResult(result);
+    } catch {
+      setTestResult('error');
+    } finally {
+      setTesting(false);
+    }
   };
 
   return (
@@ -36,20 +97,64 @@ export default function SettingsPage({ onClear, hasRoute }: Props) {
             <p className="text-xs text-muted-foreground">
               API Key para optimización de rutas con Google Directions. Sin clave se usa el algoritmo local.
             </p>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIza..."
-              className="bg-secondary border-border text-foreground"
-            />
-            <Button
-              onClick={handleSaveKey}
-              className="w-full driving-button bg-primary text-primary-foreground"
-            >
-              {saved ? <Check className="w-4 h-4 mr-2" /> : <Key className="w-4 h-4 mr-2" />}
-              {saved ? 'Guardada' : 'Guardar clave'}
-            </Button>
+            <div className="relative">
+              <Input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
+                placeholder="AIza..."
+                className="bg-secondary border-border text-foreground pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {testResult && (
+              <div className={`flex items-center gap-2 text-xs p-2 rounded-lg ${
+                testResult === 'ok' 
+                  ? 'bg-green-500/10 text-green-400' 
+                  : 'bg-destructive/10 text-destructive'
+              }`}>
+                {testResult === 'ok' 
+                  ? <><CheckCircle className="w-4 h-4" /> API Key válida — Google Maps activo</>
+                  : <><XCircle className="w-4 h-4" /> API Key inválida o sin permisos</>
+                }
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveKey}
+                disabled={!apiKey}
+                className="flex-1 driving-button bg-primary text-primary-foreground"
+                size="sm"
+              >
+                {saved ? <Check className="w-4 h-4 mr-1" /> : <Key className="w-4 h-4 mr-1" />}
+                {saved ? 'Guardada' : 'Guardar'}
+              </Button>
+              <Button
+                onClick={handleTestKey}
+                disabled={!apiKey || testing}
+                variant="outline"
+                size="sm"
+              >
+                {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Probar'}
+              </Button>
+              <Button
+                onClick={handleClearKey}
+                disabled={!apiKey}
+                variant="outline"
+                size="sm"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 

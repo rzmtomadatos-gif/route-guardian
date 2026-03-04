@@ -10,6 +10,7 @@ import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
+import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
 import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
 import { toast } from 'sonner';
@@ -60,6 +61,33 @@ export default function MapPage({
   const [searchParams] = useSearchParams();
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
+  const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
+
+  // Detect Google Maps availability and auth failures
+  useEffect(() => {
+    const key = getGoogleMapsApiKey();
+    if (key) {
+      setMapMode('google');
+    }
+
+    // Listen for Google Maps auth failure
+    (window as any).gm_authFailure = () => {
+      setMapMode('leaflet');
+      toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+    };
+
+    // Check for error containers periodically
+    const checkErrors = setInterval(() => {
+      const errContainer = document.querySelector('.gm-err-container');
+      if (errContainer) {
+        setMapMode('leaflet');
+        toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+        clearInterval(checkErrors);
+      }
+    }, 3000);
+
+    return () => clearInterval(checkErrors);
+  }, []);
 
   // Sync URL param on mount
   useEffect(() => {
@@ -514,6 +542,7 @@ export default function MapPage({
 
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
+    primeAudio();
     onStartNavigation();
   }, [gpsEnabled, onStartNavigation]);
 
@@ -628,6 +657,14 @@ export default function MapPage({
         />
       </div>
 
+      {/* Map mode indicator */}
+      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
+        mapMode === 'google' 
+          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+          : 'bg-muted/80 text-muted-foreground border border-border'
+      }`}>
+        {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
+      </div>
       {/* Creation mode panel */}
       {creationMode && (
         <SegmentCreatorPanel
@@ -815,7 +852,7 @@ export default function MapPage({
           base={state.base}
           rstMode={state.rstMode}
           rstGroupSize={state.rstGroupSize}
-          onToggleGps={setGpsEnabled}
+          onToggleGps={(v) => { if (v) primeAudio(); setGpsEnabled(v); }}
           onConfirmStart={onConfirmStart}
           onComplete={onComplete}
           onResetSegment={onResetSegment}

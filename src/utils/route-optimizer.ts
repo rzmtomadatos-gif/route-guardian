@@ -134,10 +134,34 @@ export function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`;
 }
 
+/**
+ * Distance from a point to a line segment (between two coords).
+ * Returns the minimum perpendicular or endpoint distance in meters.
+ */
+function pointToLineSegmentDistance(p: LatLng, a: LatLng, b: LatLng): number {
+  const dx = b.lng - a.lng;
+  const dy = b.lat - a.lat;
+  if (dx === 0 && dy === 0) return haversineDistance(p, a);
+
+  // Project p onto line a→b, clamped to [0,1]
+  const t = Math.max(0, Math.min(1,
+    ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / (dx * dx + dy * dy)
+  ));
+  const proj: LatLng = {
+    lat: a.lat + t * dy,
+    lng: a.lng + t * dx,
+  };
+  return haversineDistance(p, proj);
+}
+
 export function distanceToSegment(pos: LatLng, segment: Segment): number {
+  if (segment.coordinates.length === 0) return Infinity;
+  if (segment.coordinates.length === 1) return haversineDistance(pos, segment.coordinates[0]);
+
   let minDist = Infinity;
-  for (const coord of segment.coordinates) {
-    const d = haversineDistance(pos, coord);
+  for (let i = 0; i < segment.coordinates.length - 1; i++) {
+    const d = pointToLineSegmentDistance(pos, segment.coordinates[i], segment.coordinates[i + 1]);
+    if (d < 5) return d; // early exit: close enough
     if (d < minDist) minDist = d;
   }
   return minDist;
