@@ -41,6 +41,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'ID Tramo': seg.kmlId,
       'Nombre': seg.name,
       'Capa': seg.layer || 'Sin capa',
+      'Inicio tramo': seg.startedAt || seg.timestampInicio || '',
+      'Fin tramo': seg.endedAt || seg.timestampFin || '',
       'Distancia (km)': Math.round(distKm * 100) / 100,
       'Carretera': seg.kmlMeta?.carretera || '',
       'Ident. Tramo': seg.kmlMeta?.identtramo || '',

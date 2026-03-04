@@ -91,27 +91,33 @@ export function useRouteState() {
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
 
-      // If the segment already has a plannedTrackNumber, use it as the real track
+      // Determine the effective group size limit
+      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : MAX_SEGMENTS_PER_TRACK;
+
+      // Calculate nextTrack: if planned, validate it still has room; otherwise compute
       let nextTrack: number;
       if (seg.plannedTrackNumber !== null && seg.plannedTrackNumber !== undefined) {
-        nextTrack = seg.plannedTrackNumber;
+        // Validate the planned track hasn't exceeded the limit
+        const countInPlanned = countSegmentsInTrack(s.route.segments, seg.plannedTrackNumber);
+        if (countInPlanned < groupLimit) {
+          nextTrack = seg.plannedTrackNumber;
+        } else {
+          // Planned track is full, find next available
+          nextTrack = seg.plannedTrackNumber + 1;
+          while (countSegmentsInTrack(s.route.segments, nextTrack) >= groupLimit) {
+            nextTrack++;
+          }
+        }
       } else {
         const maxTrack = getMaxTrack(s.route.segments);
         if (maxTrack === 0) {
           nextTrack = 1;
         } else {
           const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
-          if (countInCurrent >= MAX_SEGMENTS_PER_TRACK) {
+          if (countInCurrent >= groupLimit) {
             nextTrack = maxTrack + 1;
-          } else if (s.rstMode && s.rstGroupSize > 0) {
-            const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
-            if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
-              nextTrack = maxTrack;
-            } else {
-              nextTrack = maxTrack + 1;
-            }
           } else {
-            nextTrack = maxTrack + 1;
+            nextTrack = maxTrack;
           }
         }
       }
@@ -121,7 +127,7 @@ export function useRouteState() {
       // Start this segment – assign real trackNumber
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: new Date().toISOString() }
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: new Date().toISOString(), startedAt: new Date().toISOString() }
           : seg
       );
 
@@ -162,6 +168,8 @@ export function useRouteState() {
           status: 'completado' as const,
           timestampFin: now,
           timestampInicio: seg.timestampInicio || now,
+          endedAt: now,
+          startedAt: seg.startedAt || now,
         };
       });
 
