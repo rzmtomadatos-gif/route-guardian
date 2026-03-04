@@ -7,15 +7,18 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CloudRain, CloudFog, Construction, Droplets, Car, MoreHorizontal, CircleOff, Circle } from 'lucide-react';
+import { AlertTriangle, CloudRain, CloudFog, Construction, Droplets, Car, MoreHorizontal, CircleOff, Circle, Ban, ShieldAlert, TrafficCone } from 'lucide-react';
 import type { IncidentCategory } from '@/types/route';
 
 const categories: { value: IncidentCategory; label: string; icon: React.ElementType }[] = [
+  { value: 'carretera_cortada', label: 'Cortada', icon: CircleOff },
+  { value: 'obstaculo', label: 'Obstáculo', icon: Ban },
+  { value: 'obra', label: 'Obra', icon: Construction },
+  { value: 'acceso_imposible', label: 'Sin acceso', icon: ShieldAlert },
+  { value: 'trafico_extremo', label: 'Tráfico', icon: TrafficCone },
   { value: 'lluvia', label: 'Lluvia', icon: CloudRain },
   { value: 'niebla', label: 'Niebla', icon: CloudFog },
   { value: 'bache', label: 'Bache', icon: Circle },
-  { value: 'obra', label: 'Obra', icon: Construction },
-  { value: 'carretera_cortada', label: 'Cortada', icon: CircleOff },
   { value: 'inundacion', label: 'Inundación', icon: Droplets },
   { value: 'accidente', label: 'Accidente', icon: Car },
   { value: 'otro', label: 'Otro', icon: MoreHorizontal },
@@ -49,7 +52,8 @@ export function IncidentDialog({ onSubmit, children }: Props) {
             Registrar Incidencia
           </DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <p className="text-xs text-muted-foreground">El tramo pasará a estado "Posible repetir"</p>
+        <div className="grid grid-cols-3 gap-2 mt-1">
           {categories.map(({ value, label, icon: Icon }) => (
             <button
               key={value}

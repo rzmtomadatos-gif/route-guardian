@@ -1,6 +1,6 @@
 export type SegmentDirection = 'creciente' | 'ambos';
 export type SegmentType = 'tramo' | 'rotonda';
-export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado';
+export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado' | 'posible_repetir';
 
 export interface LatLng {
   lat: number;
@@ -32,6 +32,8 @@ export interface Segment {
   kmlMeta: SegmentKmlMeta;
   layer?: string;
   color?: string;
+  timestampInicio?: string;
+  timestampFin?: string;
 }
 
 export interface Route {
@@ -52,6 +54,9 @@ export type IncidentCategory =
   | 'carretera_cortada'
   | 'inundacion'
   | 'accidente'
+  | 'obstaculo'
+  | 'acceso_imposible'
+  | 'trafico_extremo'
   | 'otro';
 
 export interface Incident {

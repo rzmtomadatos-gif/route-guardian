@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
-  Repeat, MoreHorizontal, ChevronDown, ChevronUp,
+  Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -21,10 +21,12 @@ import {
 
 const FILTER_KEY = 'vialroute_nav_filter';
 
-function loadFilter(): 'todos' | 'pendiente' | 'completado' {
+type FilterType = 'todos' | 'pendiente' | 'completado' | 'posible_repetir';
+
+function loadFilter(): FilterType {
   try {
     const v = localStorage.getItem(FILTER_KEY);
-    if (v === 'todos' || v === 'pendiente' || v === 'completado') return v;
+    if (v === 'todos' || v === 'pendiente' || v === 'completado' || v === 'posible_repetir') return v;
   } catch {}
   return 'pendiente';
 }
@@ -47,6 +49,7 @@ interface Props {
   onComplete: (segmentId: string) => void;
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
+  onRepeatSegment: (segmentId: string) => void;
   onReoptimize: () => void;
   onStartNavigation: () => void;
   onStopNavigation: () => void;
@@ -77,6 +80,7 @@ export function MapControlPanel({
   onConfirmStart,
   onComplete,
   onResetSegment,
+  onRepeatSegment,
   onAddIncident,
   onReoptimize,
   onStartNavigation,
@@ -91,13 +95,15 @@ export function MapControlPanel({
   onSetRstGroupSize,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendiente' | 'completado'>(loadFilter);
+  const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
 
-  const handleFilterChange = (f: 'todos' | 'pendiente' | 'completado') => {
+  const handleFilterChange = (f: FilterType) => {
     setStatusFilter(f);
     try { localStorage.setItem(FILTER_KEY, f); } catch {}
   };
+
+  const posibleRepetir = segments.filter((s) => s.status === 'posible_repetir').length;
 
   const activeSegment = segments.find((s) => s.id === activeSegmentId);
   const pending = segments.filter((s) => s.status === 'pendiente').length;
@@ -283,6 +289,7 @@ export function MapControlPanel({
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <span>{pending} pend.</span>
                 <span className="text-success">{completed} compl.</span>
+                {posibleRepetir > 0 && <span className="text-amber-400">{posibleRepetir} rep.</span>}
               </div>
               <div className="flex items-center gap-1.5">
                 {gpsEnabled ? <LocateFixed className="w-3 h-3 text-accent" /> : <LocateOff className="w-3 h-3" />}
@@ -345,8 +352,8 @@ export function MapControlPanel({
             <div className="space-y-1">
               <div className="flex items-center justify-between px-0.5">
                 <p className="text-[10px] font-medium text-muted-foreground">Itinerario</p>
-                <div className="flex items-center gap-0.5">
-                  {(['todos', 'pendiente', 'completado'] as const).map((f) => (
+                <div className="flex items-center gap-0.5 flex-wrap">
+                  {(['todos', 'pendiente', 'completado', 'posible_repetir'] as const).map((f) => (
                     <button
                       key={f}
                       onClick={() => handleFilterChange(f)}
@@ -356,7 +363,7 @@ export function MapControlPanel({
                           : 'bg-secondary text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      {f === 'todos' ? 'Todos' : f === 'pendiente' ? 'Pend.' : 'Compl.'}
+                      {f === 'todos' ? 'Todos' : f === 'pendiente' ? 'Pend.' : f === 'completado' ? 'Compl.' : 'Rep.'}
                     </button>
                   ))}
                 </div>
@@ -395,6 +402,7 @@ export function MapControlPanel({
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
                           seg.status === 'completado' ? 'bg-success/20 text-success'
                           : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
+                          : seg.status === 'posible_repetir' ? 'bg-amber-500/20 text-amber-400'
                           : 'bg-muted text-muted-foreground'
                         }`}>
                           {seg.trackNumber ?? '—'}
@@ -407,6 +415,11 @@ export function MapControlPanel({
                       {seg.status === 'completado' && (
                         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onResetSegment(seg.id); }} className="h-6 px-1 text-muted-foreground hover:text-foreground">
                           <RefreshCw className="w-3 h-3" />
+                        </Button>
+                      )}
+                      {seg.status === 'posible_repetir' && (
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onRepeatSegment(seg.id); }} className="h-6 px-1 text-amber-400 hover:text-amber-300" title="Repetir tramo">
+                          <Repeat2 className="w-3 h-3" />
                         </Button>
                       )}
                     </div>
