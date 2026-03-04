@@ -412,6 +412,12 @@ export function MapControlPanel({
                         </div>
                         <StatusBadge status={seg.status} />
                       </button>
+                      {/* Incident button – available on any status */}
+                      <IncidentDialog onSubmit={(cat, note) => onAddIncident(seg.id, cat, note, currentPosition ?? undefined)}>
+                        <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-6 px-1 text-muted-foreground hover:text-destructive" title="Incidencia">
+                          <AlertTriangle className="w-3 h-3" />
+                        </Button>
+                      </IncidentDialog>
                       {seg.status === 'completado' && (
                         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onResetSegment(seg.id); }} className="h-6 px-1 text-muted-foreground hover:text-foreground">
                           <RefreshCw className="w-3 h-3" />

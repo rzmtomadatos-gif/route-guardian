@@ -92,12 +92,11 @@ export function useRouteState() {
       if (maxTrack === 0) {
         nextTrack = 1;
       } else {
-        // Check if current track is full (max 9 segments)
         const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
         if (countInCurrent >= MAX_SEGMENTS_PER_TRACK) {
           nextTrack = maxTrack + 1;
         } else if (s.rstMode && s.rstGroupSize > 0) {
-          // RST mode: repeat track for groups
+          // RST: keep same track for the group
           const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
           if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
             nextTrack = maxTrack;
@@ -109,11 +108,31 @@ export function useRouteState() {
         }
       }
 
-      const segments = s.route.segments.map((seg) =>
+      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
+
+      // Start this segment
+      let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
           ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, timestampInicio: new Date().toISOString() }
           : seg
       );
+
+      // RST: pre-assign same trackNumber to next block siblings (keep them pendiente)
+      if (s.rstMode && s.rstGroupSize > 1 && currentIdx >= 0) {
+        let assigned = 0;
+        const maxToAssign = s.rstGroupSize - 1;
+        for (let i = currentIdx + 1; i < s.route.optimizedOrder.length && assigned < maxToAssign; i++) {
+          const sibId = s.route.optimizedOrder[i];
+          const sib = segments.find((seg) => seg.id === sibId);
+          if (sib && sib.status === 'pendiente' && sib.trackNumber === null) {
+            segments = segments.map((seg) =>
+              seg.id === sibId ? { ...seg, trackNumber: nextTrack } : seg
+            );
+            assigned++;
+          }
+        }
+      }
+
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
     }, true);
   }, [setState]);
@@ -122,39 +141,22 @@ export function useRouteState() {
     setState((s) => {
       if (!s.route) return s;
 
-      const currentSegment = s.route.segments.find((seg) => seg.id === segmentId);
-      const currentTrackNumber = currentSegment?.trackNumber ?? null;
-      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
       const now = new Date().toISOString();
+      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
-      // RST auto-complete logic
-      const pendingAfterCurrent = currentIdx >= 0
-        ? s.route.optimizedOrder.slice(currentIdx + 1).filter((id) => {
-            const seg = s.route!.segments.find((seg) => seg.id === id);
-            return seg?.status === 'pendiente';
-          })
-        : [];
-
-      const autoCompleteIds = s.rstMode && s.rstGroupSize > 1 && currentTrackNumber !== null
-        ? pendingAfterCurrent.slice(0, Math.max(0, s.rstGroupSize - 1))
-        : [];
-
-      const autoCompleteSet = new Set(autoCompleteIds);
+      // Only complete THIS segment – no RST auto-complete
       const segments = s.route.segments.map((seg) => {
-        if (seg.id === segmentId || autoCompleteSet.has(seg.id)) {
-          return {
-            ...seg,
-            status: 'completado' as const,
-            trackNumber: seg.trackNumber ?? currentTrackNumber,
-            timestampFin: now,
-            timestampInicio: seg.timestampInicio || now,
-          };
-        }
-        return seg;
+        if (seg.id !== segmentId) return seg;
+        return {
+          ...seg,
+          status: 'completado' as const,
+          timestampFin: now,
+          timestampInicio: seg.timestampInicio || now,
+        };
       });
 
-      // Next pending
-      const remaining = (currentIdx >= 0 ? s.route.optimizedOrder.slice(currentIdx + 1) : s.route.optimizedOrder).filter((id) => {
+      // Next pending according to optimizedOrder
+      const remaining = s.route.optimizedOrder.filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
         return seg?.status === 'pendiente';
       });
@@ -219,25 +221,40 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Severe categories that suggest the segment may need repeating */
+  const SEVERE_CATEGORIES = new Set<IncidentCategory>([
+    'carretera_cortada', 'acceso_imposible', 'obstaculo', 'inundacion',
+  ]);
+
   const addIncident = useCallback((segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => {
-    // Add the incident record
-    setState((s) => ({
-      ...s,
-      incidents: [
-        ...s.incidents,
-        {
-          id: Math.random().toString(36).substring(2, 10),
-          segmentId,
-          category,
-          note,
-          timestamp: new Date().toISOString(),
-          location,
-        },
-      ],
-    }));
-    // Also mark the segment as posible_repetir
-    markPosibleRepetir(segmentId);
-  }, [setState, markPosibleRepetir]);
+    setState((s) => {
+      if (!s.route) return { ...s };
+      const newIncident = {
+        id: Math.random().toString(36).substring(2, 10),
+        segmentId,
+        category,
+        note,
+        timestamp: new Date().toISOString(),
+        location,
+      };
+
+      // For severe incidents, mark as posible_repetir (but do NOT auto-repeat)
+      const isSevere = SEVERE_CATEGORIES.has(category);
+      const segments = isSevere
+        ? s.route.segments.map((seg) => {
+            if (seg.id !== segmentId) return seg;
+            if (seg.status === 'completado' || seg.status === 'posible_repetir') return seg;
+            return { ...seg, status: 'posible_repetir' as const };
+          })
+        : s.route.segments;
+
+      return {
+        ...s,
+        route: { ...s.route, segments },
+        incidents: [...s.incidents, newIncident],
+      };
+    });
+  }, [setState]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null) => {
     setState((s) => {
