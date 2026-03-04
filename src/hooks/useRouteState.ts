@@ -4,6 +4,8 @@ import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 
+const MAX_SEGMENTS_PER_TRACK = 9;
+
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
   
@@ -19,8 +21,21 @@ export function useRouteState() {
     });
   }, []);
 
+  /** Get current max track number across all segments */
+  const getMaxTrack = (segments: Segment[]): number => {
+    const all = segments.flatMap((seg) => [
+      ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
+      ...seg.trackHistory,
+    ]);
+    return all.length > 0 ? Math.max(...all) : 0;
+  };
+
+  /** Count how many segments are assigned to a given track number */
+  const countSegmentsInTrack = (segments: Segment[], trackNum: number): number => {
+    return segments.filter((seg) => seg.trackNumber === trackNum && (seg.status === 'en_progreso' || seg.status === 'completado')).length;
+  };
+
   const setRoute = useCallback(async (route: Route) => {
-    // Start with nearest-neighbor fallback
     const fallbackOrder = optimizeRoute(route.segments);
     setState((s) => ({
       ...s,
@@ -30,7 +45,6 @@ export function useRouteState() {
       navigationActive: false,
     }));
 
-    // Try Google Directions API optimization
     try {
       const endpoints = route.segments.map((seg) => ({
         id: seg.id,
@@ -71,29 +85,34 @@ export function useRouteState() {
   const confirmStartSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
-      // Calculate next track number: max of all assigned + all history + 1
-      const allTrackNumbers = s.route.segments.flatMap((seg) => [
-        ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
-        ...seg.trackHistory,
-      ]);
 
+      const maxTrack = getMaxTrack(s.route.segments);
       let nextTrack: number;
-      if (s.rstMode && s.rstGroupSize > 0) {
-        // RST mode: repeat track number for groups of rstGroupSize
-        const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
-        if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
-          // Still in same group → reuse current max track
-          nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) : 1;
-        } else {
-          // New group → increment
-          nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
-        }
+
+      if (maxTrack === 0) {
+        nextTrack = 1;
       } else {
-        nextTrack = allTrackNumbers.length > 0 ? Math.max(...allTrackNumbers) + 1 : 1;
+        // Check if current track is full (max 9 segments)
+        const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
+        if (countInCurrent >= MAX_SEGMENTS_PER_TRACK) {
+          nextTrack = maxTrack + 1;
+        } else if (s.rstMode && s.rstGroupSize > 0) {
+          // RST mode: repeat track for groups
+          const assignedCount = s.route.segments.filter((seg) => seg.trackNumber !== null).length;
+          if (assignedCount > 0 && assignedCount % s.rstGroupSize !== 0) {
+            nextTrack = maxTrack;
+          } else {
+            nextTrack = maxTrack + 1;
+          }
+        } else {
+          nextTrack = maxTrack + 1;
+        }
       }
 
       const segments = s.route.segments.map((seg) =>
-        seg.id === segmentId ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack } : seg
+        seg.id === segmentId
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, timestampInicio: new Date().toISOString() }
+          : seg
       );
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
     }, true);
@@ -106,9 +125,9 @@ export function useRouteState() {
       const currentSegment = s.route.segments.find((seg) => seg.id === segmentId);
       const currentTrackNumber = currentSegment?.trackNumber ?? null;
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
+      const now = new Date().toISOString();
 
-      // En modo RST, al completar un tramo también se completan los siguientes
-      // del bloque y heredan el mismo track de grabación.
+      // RST auto-complete logic
       const pendingAfterCurrent = currentIdx >= 0
         ? s.route.optimizedOrder.slice(currentIdx + 1).filter((id) => {
             const seg = s.route!.segments.find((seg) => seg.id === id);
@@ -127,12 +146,14 @@ export function useRouteState() {
             ...seg,
             status: 'completado' as const,
             trackNumber: seg.trackNumber ?? currentTrackNumber,
+            timestampFin: now,
+            timestampInicio: seg.timestampInicio || now,
           };
         }
         return seg;
       });
 
-      // Find next pending segment in current order
+      // Next pending
       const remaining = (currentIdx >= 0 ? s.route.optimizedOrder.slice(currentIdx + 1) : s.route.optimizedOrder).filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
         return seg?.status === 'pendiente';
@@ -146,7 +167,60 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Mark segment as posible_repetir (called when adding an incident) */
+  const markPosibleRepetir = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        // Save current track to history
+        const newHistory = seg.trackNumber !== null
+          ? [...seg.trackHistory, seg.trackNumber]
+          : seg.trackHistory;
+        return {
+          ...seg,
+          status: 'posible_repetir' as const,
+          trackNumber: null,
+          trackHistory: newHistory,
+          timestampFin: new Date().toISOString(),
+        };
+      });
+
+      // Move to next pending
+      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
+      const remaining = s.route.optimizedOrder.filter((id) => {
+        const seg = segments.find((seg) => seg.id === id);
+        return seg?.status === 'pendiente';
+      });
+
+      return {
+        ...s,
+        route: { ...s.route, segments },
+        activeSegmentId: remaining[0] || null,
+      };
+    }, true);
+  }, [setState]);
+
+  /** Explicit repeat: reset posible_repetir segment to pendiente so it can be recorded again */
+  const repeatSegment = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        return {
+          ...seg,
+          status: 'pendiente' as const,
+          trackNumber: null,
+          timestampInicio: undefined,
+          timestampFin: undefined,
+        };
+      });
+      return { ...s, route: { ...s.route, segments } };
+    }, true);
+  }, [setState]);
+
   const addIncident = useCallback((segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => {
+    // Add the incident record
     setState((s) => ({
       ...s,
       incidents: [
@@ -161,7 +235,9 @@ export function useRouteState() {
         },
       ],
     }));
-  }, [setState]);
+    // Also mark the segment as posible_repetir
+    markPosibleRepetir(segmentId);
+  }, [setState, markPosibleRepetir]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null) => {
     setState((s) => {
@@ -182,11 +258,17 @@ export function useRouteState() {
       if (!s.route) return s;
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
-        // Save current track to history if it was assigned
         const newHistory = seg.trackNumber !== null
           ? [...seg.trackHistory, seg.trackNumber]
           : seg.trackHistory;
-        return { ...seg, status: 'pendiente' as const, trackNumber: null, trackHistory: newHistory };
+        return {
+          ...seg,
+          status: 'pendiente' as const,
+          trackNumber: null,
+          trackHistory: newHistory,
+          timestampInicio: undefined,
+          timestampFin: undefined,
+        };
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
@@ -240,15 +322,10 @@ export function useRouteState() {
   }, [setState]);
 
   const addLayer = useCallback((layerName: string) => {
-    // Create a layer by ensuring at least one segment references it.
-    // If no segments exist with this layer name, we add a placeholder marker
-    // by storing available layers in the route metadata.
     setState((s) => {
       if (!s.route) return s;
-      // Check if any segment already has this layer
       const exists = s.route.segments.some((seg) => seg.layer === layerName);
       if (exists) return s;
-      // Store available layer names on the route so empty layers persist
       const availableLayers = [...(s.route.availableLayers || []), layerName];
       return { ...s, route: { ...s.route, availableLayers } };
     });
@@ -290,13 +367,12 @@ export function useRouteState() {
       if (!s.route || segmentIds.length < 2) return s;
       const toMerge = segmentIds
         .map((id) => s.route!.segments.find((seg) => seg.id === id))
-        .filter(Boolean) as import('@/types/route').Segment[];
+        .filter(Boolean) as Segment[];
       if (toMerge.length < 2) return s;
 
-      // Merge coordinates in order
       const mergedCoords = toMerge.flatMap((seg) => seg.coordinates);
       const first = toMerge[0];
-      const merged: import('@/types/route').Segment = {
+      const merged: Segment = {
         ...first,
         id: Math.random().toString(36).substring(2, 10),
         name: toMerge.map((s) => s.name).join(' + '),
@@ -309,7 +385,6 @@ export function useRouteState() {
 
       const mergeSet = new Set(segmentIds);
       const segments = s.route.segments.filter((seg) => !mergeSet.has(seg.id));
-      // Insert merged segment at position of first original
       const insertIdx = s.route.segments.findIndex((seg) => seg.id === segmentIds[0]);
       segments.splice(Math.max(0, insertIdx), 0, merged);
 
@@ -327,7 +402,7 @@ export function useRouteState() {
     });
   }, [setState]);
 
-  const addSegment = useCallback((segment: import('@/types/route').Segment) => {
+  const addSegment = useCallback((segment: Segment) => {
     setState((s) => {
       if (!s.route) return s;
       return {
@@ -399,7 +474,7 @@ export function useRouteState() {
   const duplicateSegments = useCallback((segmentIds: string[]) => {
     setState((s) => {
       if (!s.route) return s;
-      const newSegments: import('@/types/route').Segment[] = [];
+      const newSegments: Segment[] = [];
       segmentIds.forEach((id) => {
         const orig = s.route!.segments.find((seg) => seg.id === id);
         if (orig) {
@@ -440,7 +515,6 @@ export function useRouteState() {
   const simplifySegments = useCallback(() => {
     setState((s) => {
       if (!s.route) return s;
-      // Group segments by (name, direction)
       const groups = new Map<string, Segment[]>();
       for (const seg of s.route.segments) {
         const key = `${seg.name}|||${seg.direction}`;
@@ -456,7 +530,6 @@ export function useRouteState() {
           newSegments.push(group[0]);
           continue;
         }
-        // Merge all in group into one
         const first = group[0];
         const mergedCoords = group.flatMap((seg) => seg.coordinates);
         const merged: Segment = {
@@ -481,7 +554,6 @@ export function useRouteState() {
         route: { ...s.route, segments: newSegments, optimizedOrder },
         incidents: s.incidents.map((inc) => {
           if (!removedIds.has(inc.segmentId)) return inc;
-          // Find the merged segment that replaced this one
           const orig = s.route!.segments.find((seg) => seg.id === inc.segmentId);
           if (!orig) return inc;
           const replacement = newSegments.find(
@@ -538,5 +610,7 @@ export function useRouteState() {
     simplifySegments,
     setRstMode,
     setRstGroupSize,
+    markPosibleRepetir,
+    repeatSegment,
   };
 }

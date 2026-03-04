@@ -49,6 +49,8 @@ function AppRoutes() {
     simplifySegments,
     setRstMode,
     setRstGroupSize,
+    markPosibleRepetir,
+    repeatSegment,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -96,6 +98,7 @@ function AppRoutes() {
               hiddenLayers={hiddenLayers}
               onSetRstMode={setRstMode}
               onSetRstGroupSize={setRstGroupSize}
+              onRepeatSegment={repeatSegment}
             />
           }
         />

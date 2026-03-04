@@ -26,6 +26,7 @@ interface Props {
   onComplete: (segmentId: string) => void;
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
+  onRepeatSegment: (segmentId: string) => void;
   onReoptimize: (pos?: LatLng | null) => void;
   onSetActiveSegment: (segmentId: string) => void;
   onSetBase: (base: BaseLocation) => void;
@@ -51,6 +52,7 @@ export default function MapPage({
   onSetBase,
   onAddSegment,
   onMergeSegments,
+  onRepeatSegment,
   selectedIds: selectedSegmentIds,
   onSelectedIdsChange: setSelectedSegmentIds,
   hiddenLayers,
@@ -861,6 +863,7 @@ export default function MapPage({
           onComplete={onComplete}
           onResetSegment={onResetSegment}
           onAddIncident={onAddIncident}
+          onRepeatSegment={onRepeatSegment}
           onReoptimize={handleReoptimize}
           onStartNavigation={handleStartNavigation}
           onStopNavigation={onStopNavigation}

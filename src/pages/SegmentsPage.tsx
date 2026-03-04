@@ -16,6 +16,7 @@ const STATUS_OPTIONS: { value: SegmentStatus | 'todos'; label: string }[] = [
   { value: 'pendiente', label: 'Pendientes' },
   { value: 'en_progreso', label: 'En progreso' },
   { value: 'completado', label: 'Completados' },
+  { value: 'posible_repetir', label: 'Posible repetir' },
 ];
 
 interface Props {
