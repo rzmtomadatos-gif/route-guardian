@@ -20,10 +20,10 @@ const DEVIATION_THRESHOLD = 100;
 
 interface Props {
   state: AppState;
-  onStartNavigation: () => void;
+  onStartNavigation: (hiddenLayers?: Set<string>) => void;
   onStopNavigation: () => void;
   onConfirmStart: (segmentId: string) => void;
-  onComplete: (segmentId: string) => void;
+  onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
   onRepeatSegment: (segmentId: string) => void;
@@ -132,6 +132,16 @@ export default function MapPage({
 
   // Deviation detection during active recording
   const activeSegment = state.route?.segments.find((s) => s.id === state.activeSegmentId);
+  
+  // Warn and stop navigation if active segment becomes hidden due to layer filter change
+  useEffect(() => {
+    if (!activeSegment || !state.navigationActive) return;
+    if (activeSegment.layer && hiddenLayers.has(activeSegment.layer)) {
+      toast.warning('El tramo activo pertenece a una capa oculta. Selecciona una capa visible para continuar.');
+      onStopNavigation();
+    }
+  }, [activeSegment, hiddenLayers, state.navigationActive, onStopNavigation]);
+
   useEffect(() => {
     if (!geo.position || !activeSegment || activeSegment.status !== 'en_progreso') return;
     const dist = distanceToSegment(geo.position, activeSegment);
@@ -545,8 +555,8 @@ export default function MapPage({
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     primeAudio();
-    onStartNavigation();
-  }, [gpsEnabled, onStartNavigation]);
+    onStartNavigation(hiddenLayers);
+  }, [gpsEnabled, onStartNavigation, hiddenLayers]);
 
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;
@@ -846,8 +856,8 @@ export default function MapPage({
       {/* Control panel overlay */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapControlPanel
-          segments={route.segments}
-          optimizedOrder={route.optimizedOrder}
+          segments={visibleSegments}
+          optimizedOrder={visibleOrder}
           activeSegmentId={state.activeSegmentId}
           gpsEnabled={gpsEnabled}
           currentPosition={geo.position}
@@ -860,7 +870,7 @@ export default function MapPage({
           rstGroupSize={state.rstGroupSize}
           onToggleGps={(v) => { if (v) primeAudio(); setGpsEnabled(v); }}
           onConfirmStart={onConfirmStart}
-          onComplete={onComplete}
+          onComplete={(segId) => onComplete(segId, hiddenLayers)}
           onResetSegment={onResetSegment}
           onAddIncident={onAddIncident}
           onRepeatSegment={onRepeatSegment}

@@ -63,12 +63,14 @@ export function useRouteState() {
     }
   }, [setState]);
 
-  const startNavigation = useCallback(() => {
+  const startNavigation = useCallback((hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
       const pendingSegments = s.route.optimizedOrder.filter((id) => {
         const seg = s.route!.segments.find((seg) => seg.id === id);
-        return seg?.status === 'pendiente';
+        if (!seg || seg.status !== 'pendiente') return false;
+        if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
+        return true;
       });
       return {
         ...s,
@@ -137,12 +139,11 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
-  const completeSegment = useCallback((segmentId: string) => {
+  const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
 
       const now = new Date().toISOString();
-      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
       // Only complete THIS segment – no RST auto-complete
       const segments = s.route.segments.map((seg) => {
@@ -155,10 +156,12 @@ export function useRouteState() {
         };
       });
 
-      // Next pending according to optimizedOrder
+      // Next pending according to optimizedOrder, respecting hidden layers
       const remaining = s.route.optimizedOrder.filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
-        return seg?.status === 'pendiente';
+        if (!seg || seg.status !== 'pendiente') return false;
+        if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
+        return true;
       });
 
       return {
