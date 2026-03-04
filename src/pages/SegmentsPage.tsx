@@ -71,7 +71,13 @@ export default function SegmentsPage({
 }: Props) {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<SegmentStatus | 'todos'>('todos');
+  const [statusFilter, setStatusFilter] = useState<SegmentStatus | 'todos'>(() => {
+    try {
+      const saved = localStorage.getItem('vialroute_segments_filter');
+      if (saved === 'todos' || saved === 'pendiente' || saved === 'en_progreso' || saved === 'completado') return saved;
+    } catch {}
+    return 'pendiente';
+  });
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
 
@@ -237,7 +243,10 @@ export default function SegmentsPage({
             {STATUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setStatusFilter(opt.value)}
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
+                }}
                 className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
                   statusFilter === opt.value
                     ? 'bg-primary text-primary-foreground'
