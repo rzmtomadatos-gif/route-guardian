@@ -220,7 +220,7 @@ export function MapControlPanel({
                     <p className="text-[10px] text-primary font-medium">Grabando</p>
                     <h3 className="text-sm font-bold text-foreground truncate">{pinnedSegment.name}</h3>
                   </div>
-                  <StatusBadge status={pinnedSegment.status} />
+                  <StatusBadge status={pinnedSegment.status} nonRecordable={pinnedSegment.nonRecordable} needsRepeat={pinnedSegment.needsRepeat} />
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={() => handleComplete(pinnedSegment.id)} className="flex-1 h-14 text-sm bg-success text-success-foreground font-bold">
@@ -429,9 +429,10 @@ export function MapControlPanel({
                       </button>
                       <button className="flex-1 flex items-center gap-1.5 min-w-0" onClick={() => onSegmentSelect(seg.id)}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                          seg.status === 'completado' ? 'bg-success/20 text-success'
+                          seg.nonRecordable ? 'bg-zinc-800 text-zinc-400'
+                          : seg.status === 'completado' ? 'bg-success/20 text-success'
                           : seg.status === 'en_progreso' ? 'bg-primary/20 text-primary'
-                          : seg.status === 'posible_repetir' ? 'bg-amber-500/20 text-amber-400'
+                          : (seg.status === 'posible_repetir' || seg.needsRepeat) ? 'bg-amber-500/20 text-amber-400'
                           : seg.plannedTrackNumber ? 'bg-blue-500/10 text-blue-400 border border-dashed border-blue-400/40'
                           : 'bg-muted text-muted-foreground'
                         }`}>
@@ -440,7 +441,7 @@ export function MapControlPanel({
                         <div className="flex-1 min-w-0">
                           <span className="text-[9px] text-muted-foreground truncate block">{seg.name}</span>
                         </div>
-                        <StatusBadge status={seg.status} />
+                        <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
                       </button>
                       {/* Incident button – available on any status */}
                       <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(seg.id, cat, impact, note, currentPosition ?? undefined)}>

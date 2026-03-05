@@ -203,8 +203,8 @@ export function useRouteState() {
       // Only complete THIS segment with invariants enforced
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
-        // Safety: nonRecordable / repeatRequested cannot be Completado
-        if (seg.nonRecordable || seg.repeatRequested) {
+        // Safety: nonRecordable cannot be Completado
+        if (seg.nonRecordable) {
           return { ...seg, status: 'posible_repetir' as const, trackNumber: null, endedAt: null };
         }
         const finalTrack = autoTrack !== null ? autoTrack : seg.trackNumber;
@@ -216,6 +216,10 @@ export function useRouteState() {
           timestampInicio: seg.timestampInicio || now,
           endedAt: now,
           startedAt: seg.startedAt || now,
+          // Clear repeat flags on successful completion
+          needsRepeat: false,
+          repeatRequested: false,
+          invalidatedByTrack: null,
         };
       });
 
@@ -331,7 +335,9 @@ export function useRouteState() {
           endedAt: null,
           failedAt: null,
           nonRecordable: false,
+          needsRepeat: false,
           repeatRequested: false,
+          invalidatedByTrack: null,
         };
       });
       return { ...s, route: { ...s.route, segments } };
@@ -363,7 +369,7 @@ export function useRouteState() {
       if (impact === 'informativa') {
         // No changes to track/status
       } else if (impact === 'critica_no_grabable') {
-        // Mark segment as non-recordable, remove from track
+        // Mark segment as physically non-recordable
         segments = segments.map((seg) => {
           if (seg.id !== segmentId) return seg;
           const newHistory = seg.trackNumber !== null
@@ -373,6 +379,7 @@ export function useRouteState() {
             ...seg,
             status: 'posible_repetir' as const,
             nonRecordable: true,
+            needsRepeat: false, // no point repeating if physically impossible
             trackNumber: null,
             trackHistory: newHistory,
             failedAt: now,
@@ -392,7 +399,8 @@ export function useRouteState() {
       } else if (impact === 'critica_invalida_bloque') {
         // Invalidate ALL segments in the current track session
         const invalidatedIds = new Set(trackSession?.segmentIds || []);
-        invalidatedIds.add(segmentId); // Include current segment too
+        invalidatedIds.add(segmentId);
+        const invalidatedTrackNum = trackSession?.trackNumber ?? null;
 
         segments = segments.map((seg) => {
           if (!invalidatedIds.has(seg.id)) return seg;
@@ -402,7 +410,10 @@ export function useRouteState() {
           return {
             ...seg,
             status: 'pendiente' as const,
-            repeatRequested: true,
+            needsRepeat: true,           // recordable, needs repeat
+            nonRecordable: false,         // IMPORTANT: NOT non-recordable
+            repeatRequested: false,       // deprecated field cleared
+            invalidatedByTrack: invalidatedTrackNum,
             trackNumber: null,
             trackHistory: newHistory,
             startedAt: null,
@@ -413,13 +424,13 @@ export function useRouteState() {
           };
         });
 
-        // Close the track session
+        // Close the track session and force next track increment
         if (trackSession) {
           trackSession = {
             ...trackSession,
             active: false,
             endedAt: now,
-            segmentIds: [], // All invalidated
+            segmentIds: [],
           };
         }
       }
@@ -477,7 +488,9 @@ export function useRouteState() {
           endedAt: null,
           failedAt: null,
           nonRecordable: false,
+          needsRepeat: false,
           repeatRequested: false,
+          invalidatedByTrack: null,
         };
       });
       return { ...s, route: { ...s.route, segments } };

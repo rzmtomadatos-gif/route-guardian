@@ -368,7 +368,7 @@ export function LayerPanel({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <StatusBadge status={seg.status} />
+                            <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
                             {seg.kmlMeta?.pkInicial && (
                               <span className="text-[9px] text-muted-foreground">
                                 PK {seg.kmlMeta.pkInicial}→{seg.kmlMeta.pkFinal}
