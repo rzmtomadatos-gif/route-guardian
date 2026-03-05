@@ -38,6 +38,9 @@ export interface Segment {
   timestampFin?: string;
   startedAt?: string | null;
   endedAt?: string | null;
+  failedAt?: string | null;
+  nonRecordable?: boolean;
+  repeatRequested?: boolean;
 }
 
 export interface Route {
@@ -61,20 +64,41 @@ export type IncidentCategory =
   | 'obstaculo'
   | 'acceso_imposible'
   | 'trafico_extremo'
+  | 'error_sistema_pc360'
+  | 'error_sistema_pc2'
+  | 'error_sistema_linux'
   | 'otro';
+
+/** Impact level of an incident */
+export type IncidentImpact = 'informativa' | 'critica_no_grabable' | 'critica_invalida_bloque';
 
 export interface Incident {
   id: string;
   segmentId: string;
   category: IncidentCategory;
+  impact: IncidentImpact;
   note?: string;
   timestamp: string;
   location?: LatLng;
+  /** Track number at the time of the incident (for traceability if block invalidated) */
+  trackAtIncident?: number | null;
+  /** Whether this incident invalidated the entire block */
+  invalidatedBlock?: boolean;
 }
 
 export interface BaseLocation {
   position: LatLng;
   label: string;
+}
+
+export interface TrackSession {
+  active: boolean;
+  trackNumber: number;
+  capacity: number;
+  segmentIds: string[];
+  startedAt: string | null;
+  endedAt: string | null;
+  closedManually: boolean;
 }
 
 export interface AppState {
@@ -86,4 +110,5 @@ export interface AppState {
   base: BaseLocation | null;
   rstMode: boolean;
   rstGroupSize: number;
+  trackSession: TrackSession | null;
 }

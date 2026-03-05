@@ -14,7 +14,7 @@ import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
 import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
 import { toast } from 'sonner';
-import type { AppState, IncidentCategory, LatLng, BaseLocation, Segment } from '@/types/route';
+import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -25,7 +25,7 @@ interface Props {
   onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
-  onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
+  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => void;
   onRepeatSegment: (segmentId: string) => void;
   onReoptimize: (pos?: LatLng | null) => void;
   onSetActiveSegment: (segmentId: string) => void;
@@ -37,6 +37,7 @@ interface Props {
   hiddenLayers: Set<string>;
   onSetRstMode: (enabled: boolean) => void;
   onSetRstGroupSize: (size: number) => void;
+  onFinalizeTrack: () => void;
 }
 
 export default function MapPage({
@@ -58,6 +59,7 @@ export default function MapPage({
   hiddenLayers,
   onSetRstMode,
   onSetRstGroupSize,
+  onFinalizeTrack,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -870,6 +872,7 @@ export default function MapPage({
           base={state.base}
           rstMode={state.rstMode}
           rstGroupSize={state.rstGroupSize}
+          trackSession={state.trackSession}
           onToggleGps={(v) => { if (v) primeAudio(); setGpsEnabled(v); }}
           onConfirmStart={(segId) => onConfirmStart(segId, hiddenLayers)}
           onComplete={(segId) => onComplete(segId, hiddenLayers)}
@@ -887,6 +890,7 @@ export default function MapPage({
           onMergeSegments={onMergeSegments}
           onSetRstMode={onSetRstMode}
           onSetRstGroupSize={onSetRstGroupSize}
+          onFinalizeTrack={onFinalizeTrack}
         />
       )}
     </div>

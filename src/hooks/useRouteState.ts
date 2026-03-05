@@ -1,10 +1,20 @@
 import { useState, useCallback } from 'react';
-import type { Route, AppState, Segment, Incident, IncidentCategory, LatLng, BaseLocation } from '@/types/route';
+import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
+
+/** Categories that are "Critica NO grabable" by default */
+const NON_RECORDABLE_CATEGORIES = new Set<IncidentCategory>([
+  'carretera_cortada', 'acceso_imposible', 'inundacion', 'lluvia',
+]);
+
+/** Categories that invalidate the entire block */
+const BLOCK_INVALIDATING_CATEGORIES = new Set<IncidentCategory>([
+  'error_sistema_pc360', 'error_sistema_pc2', 'error_sistema_linux',
+]);
 
 export function useRouteState() {
   const [state, setStateRaw] = useState<AppState>(loadState);
@@ -21,16 +31,17 @@ export function useRouteState() {
     });
   }, []);
 
-  /** Get current max track number across all segments */
-  const getMaxTrack = (segments: Segment[]): number => {
+  /** Get current max track number across all segments + track session */
+  const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null): number => {
     const all = segments.flatMap((seg) => [
       ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
       ...seg.trackHistory,
     ]);
+    if (trackSession) all.push(trackSession.trackNumber);
     return all.length > 0 ? Math.max(...all) : 0;
   };
 
-  /** Count how many segments are assigned to a given track number */
+  /** Count how many segments are assigned to a given track number (real, valid) */
   const countSegmentsInTrack = (segments: Segment[], trackNum: number): number => {
     return segments.filter((seg) => seg.trackNumber === trackNum && (seg.status === 'en_progreso' || seg.status === 'completado')).length;
   };
@@ -43,6 +54,7 @@ export function useRouteState() {
       incidents: [],
       activeSegmentId: null,
       navigationActive: false,
+      trackSession: null,
     }));
 
     try {
@@ -69,6 +81,7 @@ export function useRouteState() {
       const pendingSegments = s.route.optimizedOrder.filter((id) => {
         const seg = s.route!.segments.find((seg) => seg.id === id);
         if (!seg || seg.status !== 'pendiente') return false;
+        if (seg.nonRecordable) return false;
         if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
         return true;
       });
@@ -91,35 +104,71 @@ export function useRouteState() {
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
 
-      // Determine the effective group size limit
       const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : MAX_SEGMENTS_PER_TRACK;
+      const now = new Date().toISOString();
 
-      // Calculate nextTrack: if planned, validate it still has room; otherwise compute
+      // Determine track number using track session
       let nextTrack: number;
-      if (seg.plannedTrackNumber !== null && seg.plannedTrackNumber !== undefined) {
-        // Validate the planned track hasn't exceeded the limit
-        const countInPlanned = countSegmentsInTrack(s.route.segments, seg.plannedTrackNumber);
-        if (countInPlanned < groupLimit) {
-          nextTrack = seg.plannedTrackNumber;
+      let trackSession = s.trackSession;
+
+      if (trackSession && trackSession.active) {
+        // Check if current session has room
+        if (trackSession.segmentIds.length < trackSession.capacity) {
+          nextTrack = trackSession.trackNumber;
         } else {
-          // Planned track is full, find next available
-          nextTrack = seg.plannedTrackNumber + 1;
-          while (countSegmentsInTrack(s.route.segments, nextTrack) >= groupLimit) {
-            nextTrack++;
-          }
+          // Session is full, close it and start new
+          trackSession = {
+            ...trackSession,
+            active: false,
+            endedAt: now,
+          };
+          nextTrack = trackSession.trackNumber + 1;
+          trackSession = null; // Will be recreated below
         }
       } else {
-        const maxTrack = getMaxTrack(s.route.segments);
-        if (maxTrack === 0) {
-          nextTrack = 1;
-        } else {
-          const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
-          if (countInCurrent >= groupLimit) {
-            nextTrack = maxTrack + 1;
+        // No active session – compute next track
+        if (seg.plannedTrackNumber !== null && seg.plannedTrackNumber !== undefined) {
+          const countInPlanned = countSegmentsInTrack(s.route.segments, seg.plannedTrackNumber);
+          if (countInPlanned < groupLimit) {
+            nextTrack = seg.plannedTrackNumber;
           } else {
-            nextTrack = maxTrack;
+            nextTrack = seg.plannedTrackNumber + 1;
+            while (countSegmentsInTrack(s.route.segments, nextTrack) >= groupLimit) {
+              nextTrack++;
+            }
+          }
+        } else {
+          const maxTrack = getMaxTrack(s.route.segments, s.trackSession);
+          if (maxTrack === 0) {
+            nextTrack = 1;
+          } else {
+            const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
+            if (countInCurrent >= groupLimit) {
+              nextTrack = maxTrack + 1;
+            } else {
+              nextTrack = maxTrack;
+            }
           }
         }
+        trackSession = null; // Will be created below
+      }
+
+      // Create or update track session
+      if (!trackSession || !trackSession.active) {
+        trackSession = {
+          active: true,
+          trackNumber: nextTrack,
+          capacity: groupLimit,
+          segmentIds: [segmentId],
+          startedAt: now,
+          endedAt: null,
+          closedManually: false,
+        };
+      } else {
+        trackSession = {
+          ...trackSession,
+          segmentIds: [...trackSession.segmentIds, segmentId],
+        };
       }
 
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
@@ -127,19 +176,19 @@ export function useRouteState() {
       // Start this segment – assign real trackNumber
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: new Date().toISOString(), startedAt: new Date().toISOString() }
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now }
           : seg
       );
 
-      // RST: pre-assign plannedTrackNumber (NOT trackNumber) to next visible pending siblings
+      // RST: pre-assign plannedTrackNumber to next visible pending (non-nonRecordable) siblings
       if (s.rstMode && s.rstGroupSize > 1 && currentIdx >= 0) {
         let assigned = 0;
-        const maxToAssign = s.rstGroupSize - 1;
+        const maxToAssign = s.rstGroupSize - 1 - (trackSession.segmentIds.length - 1);
         for (let i = currentIdx + 1; i < s.route.optimizedOrder.length && assigned < maxToAssign; i++) {
           const sibId = s.route.optimizedOrder[i];
           const sib = segments.find((seg) => seg.id === sibId);
           if (!sib || sib.status !== 'pendiente') continue;
-          // Skip segments in hidden layers
+          if (sib.nonRecordable) continue;
           if (hiddenLayers && sib.layer && hiddenLayers.has(sib.layer)) continue;
           if (sib.trackNumber === null && (sib.plannedTrackNumber === null || sib.plannedTrackNumber === undefined)) {
             segments = segments.map((seg) =>
@@ -150,7 +199,7 @@ export function useRouteState() {
         }
       }
 
-      return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId };
+      return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId, trackSession };
     }, true);
   }, [setState]);
 
@@ -160,7 +209,7 @@ export function useRouteState() {
 
       const now = new Date().toISOString();
 
-      // Only complete THIS segment – no RST auto-complete
+      // Only complete THIS segment
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
         return {
@@ -173,10 +222,11 @@ export function useRouteState() {
         };
       });
 
-      // Next pending according to optimizedOrder, respecting hidden layers
+      // Next pending according to optimizedOrder, respecting hidden layers and nonRecordable
       const remaining = s.route.optimizedOrder.filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
         if (!seg || seg.status !== 'pendiente') return false;
+        if (seg.nonRecordable) return false;
         if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
         return true;
       });
@@ -189,13 +239,41 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Finalize the current track session (close early) */
+  const finalizeTrack = useCallback(() => {
+    setState((s) => {
+      if (!s.trackSession || !s.trackSession.active) return s;
+      const now = new Date().toISOString();
+
+      // Clear planned track numbers for the current track
+      let segments = s.route?.segments || [];
+      const trackNum = s.trackSession.trackNumber;
+      segments = segments.map((seg) => {
+        if (seg.plannedTrackNumber === trackNum && seg.status === 'pendiente') {
+          return { ...seg, plannedTrackNumber: null, plannedBy: undefined };
+        }
+        return seg;
+      });
+
+      return {
+        ...s,
+        route: s.route ? { ...s.route, segments } : null,
+        trackSession: {
+          ...s.trackSession,
+          active: false,
+          endedAt: now,
+          closedManually: true,
+        },
+      };
+    }, true);
+  }, [setState]);
+
   /** Mark segment as posible_repetir (called when adding an incident) */
   const markPosibleRepetir = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
-        // Save current track to history
         const newHistory = seg.trackNumber !== null
           ? [...seg.trackHistory, seg.trackNumber]
           : seg.trackHistory;
@@ -208,22 +286,30 @@ export function useRouteState() {
         };
       });
 
-      // Move to next pending
-      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
+      // Remove from track session if present
+      let trackSession = s.trackSession;
+      if (trackSession && trackSession.segmentIds.includes(segmentId)) {
+        trackSession = {
+          ...trackSession,
+          segmentIds: trackSession.segmentIds.filter((id) => id !== segmentId),
+        };
+      }
+
       const remaining = s.route.optimizedOrder.filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
-        return seg?.status === 'pendiente';
+        return seg?.status === 'pendiente' && !seg.nonRecordable;
       });
 
       return {
         ...s,
         route: { ...s.route, segments },
         activeSegmentId: remaining[0] || null,
+        trackSession,
       };
     }, true);
   }, [setState]);
 
-  /** Explicit repeat: reset posible_repetir segment to pendiente so it can be recorded again */
+  /** Explicit repeat: reset posible_repetir segment to pendiente */
   const repeatSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
@@ -237,56 +323,129 @@ export function useRouteState() {
           plannedBy: undefined,
           timestampInicio: undefined,
           timestampFin: undefined,
+          startedAt: null,
+          endedAt: null,
+          failedAt: null,
+          nonRecordable: false,
+          repeatRequested: false,
         };
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
   }, [setState]);
 
-  /** Severe categories that suggest the segment may need repeating */
-  const SEVERE_CATEGORIES = new Set<IncidentCategory>([
-    'carretera_cortada', 'acceso_imposible', 'obstaculo', 'inundacion',
-  ]);
-
-  const addIncident = useCallback((segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => {
+  const addIncident = useCallback((segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => {
     setState((s) => {
       if (!s.route) return { ...s };
-      const newIncident = {
+
+      const seg = s.route.segments.find((seg) => seg.id === segmentId);
+      const now = new Date().toISOString();
+
+      const newIncident: Incident = {
         id: Math.random().toString(36).substring(2, 10),
         segmentId,
         category,
+        impact,
         note,
-        timestamp: new Date().toISOString(),
+        timestamp: now,
         location,
+        trackAtIncident: seg?.trackNumber ?? null,
+        invalidatedBlock: impact === 'critica_invalida_bloque',
       };
 
-      // For severe incidents, mark as posible_repetir (but do NOT auto-repeat)
-      const isSevere = SEVERE_CATEGORIES.has(category);
-      const segments = isSevere
-        ? s.route.segments.map((seg) => {
-            if (seg.id !== segmentId) return seg;
-            if (seg.status === 'completado' || seg.status === 'posible_repetir') return seg;
-            return { ...seg, status: 'posible_repetir' as const };
-          })
-        : s.route.segments;
+      let segments = [...s.route.segments];
+      let trackSession = s.trackSession;
+
+      if (impact === 'informativa') {
+        // No changes to track/status
+      } else if (impact === 'critica_no_grabable') {
+        // Mark segment as non-recordable, remove from track
+        segments = segments.map((seg) => {
+          if (seg.id !== segmentId) return seg;
+          const newHistory = seg.trackNumber !== null
+            ? [...seg.trackHistory, seg.trackNumber]
+            : seg.trackHistory;
+          return {
+            ...seg,
+            status: 'posible_repetir' as const,
+            nonRecordable: true,
+            trackNumber: null,
+            trackHistory: newHistory,
+            failedAt: now,
+            plannedTrackNumber: null,
+            plannedBy: undefined,
+          };
+        });
+
+        // Remove from track session
+        if (trackSession && trackSession.segmentIds.includes(segmentId)) {
+          trackSession = {
+            ...trackSession,
+            segmentIds: trackSession.segmentIds.filter((id) => id !== segmentId),
+          };
+        }
+      } else if (impact === 'critica_invalida_bloque') {
+        // Invalidate ALL segments in the current track session
+        const invalidatedIds = new Set(trackSession?.segmentIds || []);
+        invalidatedIds.add(segmentId); // Include current segment too
+
+        segments = segments.map((seg) => {
+          if (!invalidatedIds.has(seg.id)) return seg;
+          const newHistory = seg.trackNumber !== null
+            ? [...seg.trackHistory, seg.trackNumber]
+            : seg.trackHistory;
+          return {
+            ...seg,
+            status: 'pendiente' as const,
+            repeatRequested: true,
+            trackNumber: null,
+            trackHistory: newHistory,
+            startedAt: null,
+            endedAt: null,
+            failedAt: now,
+            plannedTrackNumber: null,
+            plannedBy: undefined,
+          };
+        });
+
+        // Close the track session
+        if (trackSession) {
+          trackSession = {
+            ...trackSession,
+            active: false,
+            endedAt: now,
+            segmentIds: [], // All invalidated
+          };
+        }
+      }
+
+      // Find next valid segment
+      const remaining = s.route.optimizedOrder.filter((id) => {
+        const seg = segments.find((seg) => seg.id === id);
+        return seg?.status === 'pendiente' && !seg.nonRecordable;
+      });
 
       return {
         ...s,
         route: { ...s.route, segments },
         incidents: [...s.incidents, newIncident],
+        activeSegmentId: impact !== 'informativa' ? (remaining[0] || null) : s.activeSegmentId,
+        trackSession,
       };
-    });
+    }, true);
   }, [setState]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null) => {
     setState((s) => {
       if (!s.route) return s;
       const basePos = currentPos || s.base?.position || null;
-      const pending = s.route.segments.filter((seg) => seg.status === 'pendiente');
+      const pending = s.route.segments.filter((seg) => seg.status === 'pendiente' && !seg.nonRecordable);
+      const nonRecordablePending = s.route.segments.filter((seg) => seg.status === 'pendiente' && seg.nonRecordable);
       const completed = s.route.segments.filter((seg) => seg.status !== 'pendiente');
       const newOrder = [
         ...completed.map((s) => s.id),
         ...optimizeRoute(pending, basePos),
+        ...nonRecordablePending.map((s) => s.id), // Non-recordable at the end
       ];
       return { ...s, route: { ...s.route, optimizedOrder: newOrder } };
     });
@@ -309,6 +468,11 @@ export function useRouteState() {
           trackHistory: newHistory,
           timestampInicio: undefined,
           timestampFin: undefined,
+          startedAt: null,
+          endedAt: null,
+          failedAt: null,
+          nonRecordable: false,
+          repeatRequested: false,
         };
       });
       return { ...s, route: { ...s.route, segments } };
@@ -325,6 +489,7 @@ export function useRouteState() {
       base: s.base,
       rstMode: s.rstMode,
       rstGroupSize: s.rstGroupSize,
+      trackSession: null,
     }));
   }, [setState]);
 
@@ -653,5 +818,6 @@ export function useRouteState() {
     setRstGroupSize,
     markPosibleRepetir,
     repeatSegment,
+    finalizeTrack,
   };
 }

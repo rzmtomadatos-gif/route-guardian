@@ -41,7 +41,12 @@ export function saveState(state: Partial<AppState>, immediate = false): void {
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Ensure trackSession exists (migration)
+      if (!('trackSession' in parsed)) parsed.trackSession = null;
+      return parsed;
+    }
   } catch (e) {
     console.error('Error loading state:', e);
   }
@@ -54,6 +59,7 @@ export function loadState(): AppState {
     base: null,
     rstMode: false,
     rstGroupSize: 3,
+    trackSession: null,
   };
 }
 
