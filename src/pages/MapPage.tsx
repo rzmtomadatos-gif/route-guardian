@@ -8,8 +8,8 @@ import { SegmentCreatorPanel } from '@/components/SegmentCreatorPanel';
 import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
 import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { useCopilotOperator, QUEUE_SIZE, type QueueItem } from '@/hooks/useCopilotSession';
-import { buildGoogleMapsBatchUrl, BATCH_SIZE } from '@/utils/google-maps-batch';
+import { useCopilotOperator, type QueueItem } from '@/hooks/useCopilotSession';
+import { buildGoogleMapsBatchUrl, segmentsToStops, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
@@ -594,15 +594,16 @@ export default function MapPage({
   }, [state.blockEndPrompt.isOpen]);
 
   // Copilot: build queue of next eligible segments
-  const getNextEligibleSegments = useCallback((fromCursor: number, count: number): { items: QueueItem[]; newCursor: number } => {
-    if (!state.route) return { items: [], newCursor: fromCursor };
+  const getNextEligibleSegments = useCallback((fromCursor: number, count: number): { items: QueueItem[]; newCursor: number; segments: Segment[] } => {
+    if (!state.route) return { items: [], newCursor: fromCursor, segments: [] };
     const order = state.route.optimizedOrder;
-    const segments = state.route.segments;
+    const allSegments = state.route.segments;
     const items: QueueItem[] = [];
+    const eligibleSegs: Segment[] = [];
     let cursor = fromCursor;
 
     while (items.length < count && cursor < order.length) {
-      const seg = segments.find(s => s.id === order[cursor]);
+      const seg = allSegments.find(s => s.id === order[cursor]);
       cursor++;
       if (!seg) continue;
       if (seg.layer && hiddenLayers.has(seg.layer)) continue;
@@ -611,8 +612,9 @@ export default function MapPage({
 
       const start = seg.coordinates[0];
       items.push({ segmentId: seg.id, name: seg.name, lat: start.lat, lng: start.lng });
+      eligibleSegs.push(seg);
     }
-    return { items, newCursor: cursor };
+    return { items, newCursor: cursor, segments: eligibleSegs };
   }, [state.route, hiddenLayers]);
 
   // Copilot: compute a fingerprint of the "pending itinerary" to detect relevant changes
@@ -644,9 +646,10 @@ export default function MapPage({
     prevFingerprintRef.current = pendingFingerprint;
 
     // Regenerate batch from scratch (cursor 0)
-    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
+    const { items, newCursor, segments: batchSegs } = getNextEligibleSegments(0, SEGMENTS_PER_BATCH);
     if (items.length > 0) {
-      const batchUrl = buildGoogleMapsBatchUrl(items);
+      const stops = segmentsToStops(batchSegs);
+      const batchUrl = buildGoogleMapsBatchUrl(stops);
       copilot.pushQueue(items, newCursor, batchUrl);
     } else {
       // No pending segments
@@ -658,9 +661,10 @@ export default function MapPage({
   const copilotInitRef = useRef(false);
   useEffect(() => {
     if (!copilot.active || !copilot.session || !state.route || copilotInitRef.current) return;
-    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
+    const { items, newCursor, segments: batchSegs } = getNextEligibleSegments(0, SEGMENTS_PER_BATCH);
     if (items.length > 0) {
-      const batchUrl = buildGoogleMapsBatchUrl(items);
+      const stops = segmentsToStops(batchSegs);
+      const batchUrl = buildGoogleMapsBatchUrl(stops);
       copilot.pushQueue(items, newCursor, batchUrl);
     }
     copilotInitRef.current = true;
@@ -677,10 +681,13 @@ export default function MapPage({
     const queue = copilot.session.queue || [];
     if (queue.length === 1) {
       const currentCursor = copilot.session.cursor_index;
-      const { items: nextItems, newCursor } = getNextEligibleSegments(currentCursor, BATCH_SIZE - 1);
+      const { items: nextItems, newCursor, segments: batchSegs } = getNextEligibleSegments(currentCursor, SEGMENTS_PER_BATCH - 1);
       if (nextItems.length > 0) {
         const merged = [...queue, ...nextItems];
-        const batchUrl = buildGoogleMapsBatchUrl(merged);
+        const allSegs = batchSegs; // refill uses new segments only for URL
+        const stops = segmentsToStops(allSegs);
+        // Prepend current queue item stops (already in Maps, but regenerate full URL)
+        const batchUrl = buildGoogleMapsBatchUrl(stops);
         copilot.pushQueue(merged, newCursor, batchUrl);
       }
     }
@@ -689,11 +696,12 @@ export default function MapPage({
   // Force send next batch (operator manual action)
   const handleForceSendBatch = useCallback(() => {
     if (!copilot.active || !copilot.session || !state.route) return;
-    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
+    const { items, newCursor, segments: batchSegs } = getNextEligibleSegments(0, SEGMENTS_PER_BATCH);
     if (items.length > 0) {
-      const batchUrl = buildGoogleMapsBatchUrl(items);
+      const stops = segmentsToStops(batchSegs);
+      const batchUrl = buildGoogleMapsBatchUrl(stops);
       copilot.pushQueue(items, newCursor, batchUrl);
-      toast.success(`Lote de ${items.length} paradas enviado al conductor`);
+      toast.success(`Lote de ${items.length} tramos (${stops.length} paradas) enviado al conductor`);
     } else {
       toast.info('No quedan tramos pendientes para enviar');
     }
