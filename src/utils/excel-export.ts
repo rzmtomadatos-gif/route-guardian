@@ -37,9 +37,9 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
 
   // Check completed segments missing track or timestamps
   segments.forEach((s) => {
-    // nonRecordable / repeatRequested should never be Completado
-    if (s.status === 'completado' && (s.nonRecordable || s.repeatRequested)) {
-      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado pero marcado no grabable / repetición (se revertirá)' });
+    // nonRecordable should never be Completado
+    if (s.status === 'completado' && s.nonRecordable) {
+      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado pero marcado no grabable (se revertirá)' });
     }
     if (s.status !== 'completado') return;
     if (s.trackNumber === null) {
@@ -83,8 +83,8 @@ function autoFixSegments(exportSegments: Segment[]): Segment[] {
   });
 
   return exportSegments.map((s) => {
-    // nonRecordable / repeatRequested cannot stay as Completado
-    if (s.status === 'completado' && (s.nonRecordable || s.repeatRequested)) {
+    // nonRecordable cannot stay as Completado
+    if (s.status === 'completado' && s.nonRecordable) {
       return { ...s, status: 'posible_repetir' as const, trackNumber: null, endedAt: null };
     }
     if (s.status !== 'completado') return s;
@@ -117,7 +117,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const segData = validatedSegments.map((seg) => {
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
-    const trackReal = (seg.nonRecordable || seg.repeatRequested) ? '' : (seg.trackNumber ?? '');
+    const trackReal = seg.nonRecordable ? '' : (seg.trackNumber ?? '');
     return {
       'Track': trackReal,
       'Track planificado': seg.plannedTrackNumber ?? '',
@@ -126,7 +126,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'Nombre': seg.name,
       'Capa': seg.layer || 'Sin capa',
       'Inicio tramo': seg.startedAt || seg.timestampInicio || '',
-      'Fin tramo': (!seg.nonRecordable && !seg.repeatRequested) ? (seg.endedAt || seg.timestampFin || '') : '',
+      'Fin tramo': !seg.nonRecordable ? (seg.endedAt || seg.timestampFin || '') : '',
       'Distancia (km)': Math.round(distKm * 100) / 100,
       'Carretera': seg.kmlMeta?.carretera || '',
       'Ident. Tramo': seg.kmlMeta?.identtramo || '',
@@ -139,7 +139,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'Dirección': DIRECTION_LABELS[seg.direction] || seg.direction,
       'Estado': STATUS_LABELS[seg.status] || seg.status,
       'No grabable': seg.nonRecordable ? 'Sí' : '',
-      'Repetición solicitada': seg.repeatRequested ? 'Sí' : '',
+      'Repetir': seg.needsRepeat ? 'Sí' : '',
+      'Track invalidado por': seg.invalidatedByTrack ?? '',
       'Notas': seg.notes || '',
       'Incidencias': segIncidents.length,
       'Coord. Inicio Lat': seg.coordinates[0]?.lat ?? '',

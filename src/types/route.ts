@@ -39,7 +39,13 @@ export interface Segment {
   startedAt?: string | null;
   endedAt?: string | null;
   failedAt?: string | null;
+  /** Physical/operational impossibility to record (road cut, no access, flood) */
   nonRecordable?: boolean;
+  /** Segment is recordable but needs repeat (block invalidated, operator decision) */
+  needsRepeat?: boolean;
+  /** Which track number caused invalidation (audit trail) */
+  invalidatedByTrack?: number | null;
+  /** @deprecated Use needsRepeat instead */
   repeatRequested?: boolean;
 }
 
