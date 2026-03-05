@@ -45,6 +45,7 @@ export function loadState(): AppState {
       const parsed = JSON.parse(raw);
       // Ensure trackSession exists (migration)
       if (!('trackSession' in parsed)) parsed.trackSession = null;
+      if (!('blockEndPrompt' in parsed)) parsed.blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
       return parsed;
     }
   } catch (e) {
@@ -60,6 +61,7 @@ export function loadState(): AppState {
     rstMode: false,
     rstGroupSize: 3,
     trackSession: null,
+    blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
   };
 }
 

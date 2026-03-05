@@ -39,6 +39,7 @@ interface Props {
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
+  onCloseBlockEndPrompt: () => void;
 }
 
 export default function MapPage({
@@ -62,6 +63,7 @@ export default function MapPage({
   onSetRstGroupSize,
   onFinalizeTrack,
   onSkipSegment,
+  onCloseBlockEndPrompt,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -69,8 +71,7 @@ export default function MapPage({
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
-  const [videoEndBlocking, setVideoEndBlocking] = useState(false);
-  const prevTrackRef = useRef<{ trackNumber: number; active: boolean } | null>(null);
+  const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Detect Google Maps availability and auth failures
   useEffect(() => {
@@ -567,13 +568,10 @@ export default function MapPage({
     onStartNavigation(hiddenLayers);
   }, [gpsEnabled, onStartNavigation, hiddenLayers]);
 
-  // Detect end-of-video: track session went from active to inactive while RST is on
+  // Play sound/vibration when blockEndPrompt opens
+  const prevBlockOpenRef = useRef(false);
   useEffect(() => {
-    const ts = state.trackSession;
-    const prev = prevTrackRef.current;
-    if (state.rstMode && prev && prev.active && ts && !ts.active && ts.trackNumber === prev.trackNumber) {
-      // Track just closed → show blocking modal, vibrate + sound
-      setVideoEndBlocking(true);
+    if (state.blockEndPrompt.isOpen && !prevBlockOpenRef.current) {
       try { navigator.vibrate?.([200, 100, 200]); } catch {}
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -588,17 +586,16 @@ export default function MapPage({
         osc.stop(ctx.currentTime + 0.5);
       } catch {}
     }
-    prevTrackRef.current = ts ? { trackNumber: ts.trackNumber, active: ts.active } : null;
-  }, [state.trackSession, state.rstMode]);
+    prevBlockOpenRef.current = state.blockEndPrompt.isOpen;
+  }, [state.blockEndPrompt.isOpen]);
 
   const handleVideoEndContinue = useCallback(() => {
-    setVideoEndBlocking(false);
-    // Track is already closed by finalizeTrack/completeSegment — next confirmStart will open a new one
-  }, []);
+    onCloseBlockEndPrompt();
+  }, [onCloseBlockEndPrompt]);
 
   const handleVideoEndCancel = useCallback(() => {
-    setVideoEndBlocking(false);
-  }, []);
+    onCloseBlockEndPrompt();
+  }, [onCloseBlockEndPrompt]);
 
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;

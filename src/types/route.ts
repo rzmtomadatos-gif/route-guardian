@@ -109,6 +109,12 @@ export interface TrackSession {
   closedManually: boolean;
 }
 
+export interface BlockEndPrompt {
+  isOpen: boolean;
+  trackNumber: number | null;
+  reason: 'capacity' | 'manual';
+}
+
 export interface AppState {
   route: Route | null;
   incidents: Incident[];
@@ -119,4 +125,5 @@ export interface AppState {
   rstMode: boolean;
   rstGroupSize: number;
   trackSession: TrackSession | null;
+  blockEndPrompt: BlockEndPrompt;
 }
