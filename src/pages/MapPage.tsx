@@ -25,7 +25,7 @@ interface Props {
   onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
-  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => void;
+  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   onRepeatSegment: (segmentId: string) => void;
   onReoptimize: (pos?: LatLng | null) => void;
   onSetActiveSegment: (segmentId: string) => void;

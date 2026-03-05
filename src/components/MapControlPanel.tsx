@@ -49,7 +49,7 @@ interface Props {
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
   onResetSegment: (segmentId: string) => void;
-  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => void;
+  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   onRepeatSegment: (segmentId: string) => void;
   onReoptimize: () => void;
   onStartNavigation: () => void;
@@ -178,7 +178,7 @@ export function MapControlPanel({
                   <Square className="w-4 h-4 mr-1" />
                   Finalizar
                 </Button>
-                <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined)}>
+                <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                   <Button size="sm" variant="ghost" className="h-12 px-3 text-destructive">
                     <AlertTriangle className="w-4 h-4" />
                   </Button>
@@ -227,7 +227,7 @@ export function MapControlPanel({
                     <Square className="w-5 h-5 mr-1.5" />
                     Finalizar
                   </Button>
-                  <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined)}>
+                  <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                     <Button variant="outline" className="h-14 px-4 border-destructive/40 text-destructive">
                       <AlertTriangle className="w-5 h-5" />
                     </Button>
@@ -444,7 +444,7 @@ export function MapControlPanel({
                         <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
                       </button>
                       {/* Incident button – available on any status */}
-                      <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(seg.id, cat, impact, note, currentPosition ?? undefined)}>
+                      <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(seg.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                         <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-6 px-1 text-muted-foreground hover:text-destructive" title="Incidencia">
                           <AlertTriangle className="w-3 h-3" />
                         </Button>

@@ -344,7 +344,7 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
-  const addIncident = useCallback((segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => {
+  const addIncident = useCallback((segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => {
     setState((s) => {
       if (!s.route) return { ...s };
 
@@ -379,7 +379,7 @@ export function useRouteState() {
             ...seg,
             status: 'posible_repetir' as const,
             nonRecordable: true,
-            needsRepeat: false, // no point repeating if physically impossible
+            needsRepeat: false,
             trackNumber: null,
             trackHistory: newHistory,
             failedAt: now,
@@ -397,31 +397,78 @@ export function useRouteState() {
           };
         }
       } else if (impact === 'critica_invalida_bloque') {
-        // Invalidate ALL segments in the current track session
-        const invalidatedIds = new Set(trackSession?.segmentIds || []);
-        invalidatedIds.add(segmentId);
+        // 2.1 Previous segments in the track → needsRepeat, back to itinerary
+        const previousIds = new Set(
+          (trackSession?.segmentIds || []).filter((id) => id !== segmentId)
+        );
         const invalidatedTrackNum = trackSession?.trackNumber ?? null;
 
         segments = segments.map((seg) => {
-          if (!invalidatedIds.has(seg.id)) return seg;
-          const newHistory = seg.trackNumber !== null
-            ? [...seg.trackHistory, seg.trackNumber]
-            : seg.trackHistory;
-          return {
-            ...seg,
-            status: 'pendiente' as const,
-            needsRepeat: true,           // recordable, needs repeat
-            nonRecordable: false,         // IMPORTANT: NOT non-recordable
-            repeatRequested: false,       // deprecated field cleared
-            invalidatedByTrack: invalidatedTrackNum,
-            trackNumber: null,
-            trackHistory: newHistory,
-            startedAt: null,
-            endedAt: null,
-            failedAt: now,
-            plannedTrackNumber: null,
-            plannedBy: undefined,
-          };
+          // 2.1 Previous segments in the same track
+          if (previousIds.has(seg.id)) {
+            const newHistory = seg.trackNumber !== null
+              ? [...seg.trackHistory, seg.trackNumber]
+              : seg.trackHistory;
+            return {
+              ...seg,
+              status: 'pendiente' as const,
+              needsRepeat: true,
+              nonRecordable: false,
+              repeatRequested: false,
+              invalidatedByTrack: invalidatedTrackNum,
+              trackNumber: null,
+              trackHistory: newHistory,
+              startedAt: null,
+              endedAt: null,
+              failedAt: now,
+              plannedTrackNumber: null,
+              plannedBy: undefined,
+            };
+          }
+
+          // 2.2 Current segment where the incident occurred
+          if (seg.id === segmentId) {
+            const newHistory = seg.trackNumber !== null
+              ? [...seg.trackHistory, seg.trackNumber]
+              : seg.trackHistory;
+
+            if (currentSegmentNonRecordable) {
+              // INVALIDATE_BLOCK + NON_RECORDABLE: current segment is non-recordable, excluded from itinerary
+              return {
+                ...seg,
+                status: 'posible_repetir' as const,
+                nonRecordable: true,
+                needsRepeat: false,
+                invalidatedByTrack: invalidatedTrackNum,
+                trackNumber: null,
+                trackHistory: newHistory,
+                startedAt: null,
+                endedAt: null,
+                failedAt: now,
+                plannedTrackNumber: null,
+                plannedBy: undefined,
+              };
+            } else {
+              // INVALIDATE_BLOCK only: current segment is recordable, goes back for repeat
+              return {
+                ...seg,
+                status: 'pendiente' as const,
+                needsRepeat: true,
+                nonRecordable: false,
+                repeatRequested: false,
+                invalidatedByTrack: invalidatedTrackNum,
+                trackNumber: null,
+                trackHistory: newHistory,
+                startedAt: null,
+                endedAt: null,
+                failedAt: now,
+                plannedTrackNumber: null,
+                plannedBy: undefined,
+              };
+            }
+          }
+
+          return seg;
         });
 
         // Close the track session and force next track increment
