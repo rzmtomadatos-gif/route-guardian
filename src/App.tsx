@@ -11,6 +11,7 @@ import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import DriverPage from "@/pages/DriverPage";
+import DriverMiniPage from "@/pages/DriverMiniPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -163,6 +164,7 @@ function AppRoutes() {
           }
         />
         <Route path="/driver" element={<DriverPage />} />
+        <Route path="/driver-mini" element={<DriverMiniPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

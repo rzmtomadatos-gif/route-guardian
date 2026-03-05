@@ -24,6 +24,9 @@ export function CopilotPanel({ session, active, onStart, onEnd, onForceSendBatch
   const driverUrl = session
     ? `${window.location.origin}/driver?session=${session.token}`
     : '';
+  const driverMiniUrl = session
+    ? `${window.location.origin}/driver-mini?session=${session.token}`
+    : '';
 
   const handleStart = async () => {
     setLoading(true);
@@ -66,24 +69,29 @@ export function CopilotPanel({ session, active, onStart, onEnd, onForceSendBatch
         {active && session && (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground text-center">
-              El conductor debe escanear este QR o abrir el enlace:
+              Escanea el QR o comparte el enlace con el conductor:
             </p>
 
-            {/* QR */}
+            {/* QR - driver-mini */}
             <div className="flex justify-center bg-white rounded-lg p-4">
-              <QRCodeSVG value={driverUrl} size={200} level="M" />
+              <QRCodeSVG value={driverMiniUrl} size={200} level="M" />
             </div>
+            <p className="text-[10px] text-muted-foreground text-center">Vista mini (recomendada para split-screen)</p>
 
             {/* Link actions */}
             <div className="flex gap-2">
+              <Button variant="outline" onClick={async () => { await navigator.clipboard.writeText(driverMiniUrl); toast.success('Enlace mini copiado'); }} className="flex-1 h-9 text-xs">
+                <Copy className="w-3.5 h-3.5 mr-1" />
+                Copiar mini
+              </Button>
               <Button variant="outline" onClick={handleCopy} className="flex-1 h-9 text-xs">
                 <Copy className="w-3.5 h-3.5 mr-1" />
-                Copiar enlace
+                Copiar completo
               </Button>
               <Button
                 variant="outline"
                 className="h-9 px-3"
-                onClick={() => window.open(driverUrl, '_blank')}
+                onClick={() => window.open(driverMiniUrl, '_blank')}
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </Button>
