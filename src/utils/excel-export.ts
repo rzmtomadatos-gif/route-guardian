@@ -54,6 +54,7 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
   });
 
   // Check duplicate tracks in RST OFF (each completed segment should have unique track)
+  let rstOffCorrected = 0;
   if (!rstMode) {
     const completedWithTrack = segments.filter((s) => s.status === 'completado' && s.trackNumber !== null);
     const trackCounts = new Map<number, string[]>();
@@ -64,11 +65,15 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
     });
     trackCounts.forEach((names, track) => {
       if (names.length > 1) {
+        rstOffCorrected += names.length;
         names.forEach((name) => {
           errors.push({ segmentId: '', segmentName: name, issue: `Track ${track} repetido (RST OFF: debe ser único)` });
         });
       }
     });
+    if (rstOffCorrected > 0) {
+      errors.unshift({ segmentId: '', segmentName: '—', issue: `RST OFF detectado · Tracks corregidos automáticamente: ${rstOffCorrected}` });
+    }
   }
 
   return errors;
