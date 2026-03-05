@@ -605,11 +605,8 @@ export default function MapPage({
       const seg = segments.find(s => s.id === order[cursor]);
       cursor++;
       if (!seg) continue;
-      // Skip hidden layers
       if (seg.layer && hiddenLayers.has(seg.layer)) continue;
-      // Skip non-recordable
       if (seg.nonRecordable) continue;
-      // Skip completed (unless needsRepeat)
       if (seg.status === 'completado' && !seg.needsRepeat) continue;
 
       const start = seg.coordinates[0];
@@ -617,6 +614,45 @@ export default function MapPage({
     }
     return { items, newCursor: cursor };
   }, [state.route, hiddenLayers]);
+
+  // Copilot: compute a fingerprint of the "pending itinerary" to detect relevant changes
+  const pendingFingerprint = useMemo(() => {
+    if (!state.route || !copilot.active) return '';
+    const order = state.route.optimizedOrder;
+    const parts: string[] = [];
+    for (const id of order) {
+      const seg = state.route.segments.find(s => s.id === id);
+      if (!seg) continue;
+      if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+      if (seg.nonRecordable) continue;
+      if (seg.status === 'completado' && !seg.needsRepeat) continue;
+      parts.push(id);
+    }
+    return parts.join(',');
+  }, [state.route, hiddenLayers, copilot.active]);
+
+  // Copilot: auto-regenerate batch when itinerary changes (revision++)
+  const prevFingerprintRef = useRef('');
+  useEffect(() => {
+    if (!copilot.active || !copilot.session || !state.route) return;
+    if (!prevFingerprintRef.current) {
+      // First load, don't trigger revision
+      prevFingerprintRef.current = pendingFingerprint;
+      return;
+    }
+    if (pendingFingerprint === prevFingerprintRef.current) return;
+    prevFingerprintRef.current = pendingFingerprint;
+
+    // Regenerate batch from scratch (cursor 0)
+    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
+    if (items.length > 0) {
+      const batchUrl = buildGoogleMapsBatchUrl(items);
+      copilot.pushQueue(items, newCursor, batchUrl);
+    } else {
+      // No pending segments
+      copilot.pushQueue([], 0);
+    }
+  }, [pendingFingerprint]);
 
   // Copilot: initial queue fill when session starts
   const copilotInitRef = useRef(false);
@@ -653,8 +689,7 @@ export default function MapPage({
   // Force send next batch (operator manual action)
   const handleForceSendBatch = useCallback(() => {
     if (!copilot.active || !copilot.session || !state.route) return;
-    const currentCursor = copilot.session.cursor_index;
-    const { items, newCursor } = getNextEligibleSegments(currentCursor, BATCH_SIZE);
+    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
     if (items.length > 0) {
       const batchUrl = buildGoogleMapsBatchUrl(items);
       copilot.pushQueue(items, newCursor, batchUrl);
