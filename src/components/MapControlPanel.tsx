@@ -346,18 +346,40 @@ export function MapControlPanel({
               </div>
             </div>
 
-            {/* === RST VIDEO COUNTER === */}
-            {rstMode && trackSession && (
-              <div className="bg-secondary/60 border border-border rounded-lg px-2.5 py-1.5 flex items-center gap-2">
-                <Film className="w-4 h-4 text-primary flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground">
-                    Bloque/Track {trackSession.trackNumber} — {rstValidCount}/{rstGroupSize}
-                  </p>
-                  <Progress value={(rstValidCount / rstGroupSize) * 100} className="h-1.5 mt-1" />
+            {/* === RST BLOCK COUNTER with traffic-light === */}
+            {rstMode && trackSession && (() => {
+              const ratio = rstValidCount / rstGroupSize;
+              const isLast = rstValidCount === rstGroupSize - 1;
+              const isFull = rstValidCount >= rstGroupSize;
+              // Traffic-light colors
+              const dotColor = isFull
+                ? 'bg-red-500'
+                : isLast
+                  ? 'bg-amber-400'
+                  : 'bg-emerald-500';
+              const borderColor = isFull
+                ? 'border-red-500/40'
+                : isLast
+                  ? 'border-amber-400/40'
+                  : 'border-border';
+              const label = isFull
+                ? 'Bloque lleno — preparar nueva medición'
+                : isLast
+                  ? 'Último tramo del bloque'
+                  : `Tramos grabados: ${rstValidCount} / ${rstGroupSize}`;
+              return (
+                <div className={`bg-secondary/60 border ${borderColor} rounded-lg px-2.5 py-1.5 flex items-center gap-2`}>
+                  <span className={`w-3 h-3 rounded-full ${dotColor} flex-shrink-0`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">
+                      BLOQUE / TRACK {trackSession.trackNumber}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                    <Progress value={ratio * 100} className="h-1.5 mt-1" />
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {noVisiblePending && segments.length > 0 && !navigationActive && (
               <p className="text-[10px] text-amber-400 text-center py-1">No hay tramos visibles pendientes. Cambia el filtro de capas.</p>
