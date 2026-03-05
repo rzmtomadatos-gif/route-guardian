@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
-  Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp,
+  Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,7 +12,7 @@ import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { GoogleMapsItineraryDialog } from '@/components/GoogleMapsItineraryDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
-import type { Segment, LatLng, IncidentCategory, BaseLocation } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,11 +44,12 @@ interface Props {
   base: BaseLocation | null;
   rstMode: boolean;
   rstGroupSize: number;
+  trackSession: TrackSession | null;
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
   onResetSegment: (segmentId: string) => void;
-  onAddIncident: (segmentId: string, category: IncidentCategory, note?: string, location?: LatLng) => void;
+  onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng) => void;
   onRepeatSegment: (segmentId: string) => void;
   onReoptimize: () => void;
   onStartNavigation: () => void;
@@ -61,6 +62,7 @@ interface Props {
   onMergeSegments: (ids: string[]) => void;
   onSetRstMode: (enabled: boolean) => void;
   onSetRstGroupSize: (size: number) => void;
+  onFinalizeTrack: () => void;
 }
 
 export function MapControlPanel({
@@ -93,6 +95,8 @@ export function MapControlPanel({
   onMergeSegments,
   onSetRstMode,
   onSetRstGroupSize,
+  onFinalizeTrack,
+  trackSession,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -174,7 +178,7 @@ export function MapControlPanel({
                   <Square className="w-4 h-4 mr-1" />
                   Finalizar
                 </Button>
-                <IncidentDialog onSubmit={(cat, note) => onAddIncident(pinnedSegment.id, cat, note, currentPosition ?? undefined)}>
+                <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined)}>
                   <Button size="sm" variant="ghost" className="h-12 px-3 text-destructive">
                     <AlertTriangle className="w-4 h-4" />
                   </Button>
@@ -223,7 +227,7 @@ export function MapControlPanel({
                     <Square className="w-5 h-5 mr-1.5" />
                     Finalizar
                   </Button>
-                  <IncidentDialog onSubmit={(cat, note) => onAddIncident(pinnedSegment.id, cat, note, currentPosition ?? undefined)}>
+                  <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined)}>
                     <Button variant="outline" className="h-14 px-4 border-destructive/40 text-destructive">
                       <AlertTriangle className="w-5 h-5" />
                     </Button>
@@ -345,6 +349,26 @@ export function MapControlPanel({
                   {rstMode && <span className="text-[9px] text-accent whitespace-nowrap">×{rstGroupSize}</span>}
                 </div>
 
+                {/* Track session indicator + finalize */}
+                {rstMode && trackSession && trackSession.active && (
+                  <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-2 py-1.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-medium text-primary">
+                        Track {trackSession.trackNumber} · {trackSession.segmentIds.length}/{trackSession.capacity} tramos
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onFinalizeTrack}
+                      className="h-7 px-2 text-[10px] border-destructive/40 text-destructive hover:bg-destructive/10"
+                    >
+                      <StopCircle className="w-3 h-3 mr-1" />
+                      Finalizar track
+                    </Button>
+                  </div>
+                )}
+
                 {selectedSegmentIds.size > 0 && (
                   <button onClick={() => onSelectedSegmentsChange(new Set())} className="w-full text-[10px] text-primary hover:underline py-0.5">
                     Limpiar selección ({selectedSegmentIds.size})
@@ -419,7 +443,7 @@ export function MapControlPanel({
                         <StatusBadge status={seg.status} />
                       </button>
                       {/* Incident button – available on any status */}
-                      <IncidentDialog onSubmit={(cat, note) => onAddIncident(seg.id, cat, note, currentPosition ?? undefined)}>
+                      <IncidentDialog onSubmit={(cat, impact, note) => onAddIncident(seg.id, cat, impact, note, currentPosition ?? undefined)}>
                         <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-6 px-1 text-muted-foreground hover:text-destructive" title="Incidencia">
                           <AlertTriangle className="w-3 h-3" />
                         </Button>
