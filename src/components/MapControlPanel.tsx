@@ -352,7 +352,7 @@ export function MapControlPanel({
                 <Film className="w-4 h-4 text-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground">
-                    Vídeo/Track {trackSession.trackNumber} — {rstValidCount}/{rstGroupSize}
+                    Bloque/Track {trackSession.trackNumber} — {rstValidCount}/{rstGroupSize}
                   </p>
                   <Progress value={(rstValidCount / rstGroupSize) * 100} className="h-1.5 mt-1" />
                 </div>
@@ -527,6 +527,7 @@ export function MapControlPanel({
       <EndOfVideoDialog
         open={!!videoEndBlocking}
         trackNumber={trackSession?.trackNumber ?? 0}
+        rstGroupSize={rstGroupSize}
         onContinue={() => onVideoEndContinue?.()}
         onCancel={() => onVideoEndCancel?.()}
       />
