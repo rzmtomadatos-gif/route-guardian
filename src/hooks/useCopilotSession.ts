@@ -22,6 +22,8 @@ export interface CopilotSession {
   track_number: number | null;
   queue: QueueItem[];
   cursor_index: number;
+  batch_number: number;
+  batch_url: string | null;
 }
 
 /* ─── Operator side ─── */
@@ -89,25 +91,42 @@ export function useCopilotOperator() {
       .eq('id', session.id);
   }, [session]);
 
-  /** Push a batch of destinations into the queue */
-  const pushQueue = useCallback(async (items: QueueItem[], cursorIndex: number) => {
+  /** Push a batch of destinations into the queue and generate batch URL */
+  const pushQueue = useCallback(async (items: QueueItem[], cursorIndex: number, batchUrl?: string) => {
     if (!session) return;
+    const newBatchNumber = (session.batch_number || 0) + (batchUrl ? 1 : 0);
     await supabase
       .from('copilot_sessions')
       .update({
         queue: items as any,
         cursor_index: cursorIndex,
         status: items.length > 0 ? 'navigating' : 'waiting',
-        // Set current destination to first in queue
         segment_name: items[0]?.name ?? null,
         segment_id: items[0]?.segmentId ?? null,
         destination_lat: items[0]?.lat ?? null,
         destination_lng: items[0]?.lng ?? null,
+        batch_url: batchUrl ?? session.batch_url,
+        batch_number: newBatchNumber,
         updated_at: new Date().toISOString(),
       })
       .eq('id', session.id);
 
-    setSession(prev => prev ? { ...prev, queue: items, cursor_index: cursorIndex } : prev);
+    setSession(prev => prev ? { ...prev, queue: items, cursor_index: cursorIndex, batch_url: batchUrl ?? prev.batch_url, batch_number: newBatchNumber } : prev);
+  }, [session]);
+
+  /** Force send a new batch URL to the driver */
+  const forceSendBatch = useCallback(async (batchUrl: string) => {
+    if (!session) return;
+    const newBatchNumber = (session.batch_number || 0) + 1;
+    await supabase
+      .from('copilot_sessions')
+      .update({
+        batch_url: batchUrl,
+        batch_number: newBatchNumber,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+    setSession(prev => prev ? { ...prev, batch_url: batchUrl, batch_number: newBatchNumber } : prev);
   }, [session]);
 
   const setBlocked = useCallback(async () => {
@@ -136,7 +155,7 @@ export function useCopilotOperator() {
     setSession(null);
   }, [session]);
 
-  return { session, active, createSession, updateDestination, pushQueue, setBlocked, setWaiting, endSession };
+  return { session, active, createSession, updateDestination, pushQueue, forceSendBatch, setBlocked, setWaiting, endSession };
 }
 
 /* ─── Driver side ─── */

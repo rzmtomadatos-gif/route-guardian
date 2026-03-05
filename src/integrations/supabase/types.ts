@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       copilot_sessions: {
         Row: {
+          batch_number: number
+          batch_url: string | null
           created_at: string
           cursor_index: number
           destination_lat: number | null
@@ -30,6 +32,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          batch_number?: number
+          batch_url?: string | null
           created_at?: string
           cursor_index?: number
           destination_lat?: number | null
@@ -44,6 +48,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          batch_number?: number
+          batch_url?: string | null
           created_at?: string
           cursor_index?: number
           destination_lat?: number | null
