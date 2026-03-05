@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect } from 'lucide-react';
+import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -66,6 +66,7 @@ export default function MapPage({
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
+  const [centerActiveRequest, setCenterActiveRequest] = useState(0);
 
   // Detect Google Maps availability and auth failures
   useEffect(() => {
@@ -674,6 +675,7 @@ export default function MapPage({
            areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
            onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
            fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
+           centerActiveRequest={centerActiveRequest}
         />
       </div>
 
@@ -685,6 +687,16 @@ export default function MapPage({
       }`}>
         {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
       </div>
+      {/* Center on active segment button */}
+      {state.activeSegmentId && state.navigationActive && (
+        <button
+          onClick={() => setCenterActiveRequest((c) => c + 1)}
+          className="absolute top-3 left-48 z-10 w-9 h-9 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          title="Centrar en tramo activo"
+        >
+          <Crosshair className="w-4 h-4" />
+        </button>
+      )}
       {/* Creation mode panel */}
       {creationMode && (
         <SegmentCreatorPanel
