@@ -3,7 +3,7 @@ import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward, Send, Film,
+  SkipForward, Send, Film, Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -14,6 +14,7 @@ import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { GoogleMapsItineraryDialog } from '@/components/GoogleMapsItineraryDialog';
 import { DriverShareDialog } from '@/components/DriverShareDialog';
+import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
@@ -72,6 +73,11 @@ interface Props {
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
   onVideoEndCancel?: () => void;
+  /** Copilot session props */
+  copilotSession: import('@/hooks/useCopilotSession').CopilotSession | null;
+  copilotActive: boolean;
+  onCopilotStart: () => Promise<import('@/hooks/useCopilotSession').CopilotSession | null>;
+  onCopilotEnd: () => Promise<void>;
 }
 
 export function MapControlPanel({
@@ -110,6 +116,10 @@ export function MapControlPanel({
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
+  copilotSession,
+  copilotActive,
+  onCopilotStart,
+  onCopilotEnd,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -331,6 +341,16 @@ export function MapControlPanel({
                   <Send className="w-4 h-4" />
                 </Button>
               </DriverShareDialog>
+              <CopilotPanel
+                session={copilotSession}
+                active={copilotActive}
+                onStart={onCopilotStart}
+                onEnd={onCopilotEnd}
+              >
+                <Button variant="outline" className={`h-12 px-3 ${copilotActive ? 'border-emerald-500/40 text-emerald-500' : ''}`} title="Modo Copiloto">
+                  <Radio className="w-4 h-4" />
+                </Button>
+              </CopilotPanel>
             </div>
 
             {/* === SUMMARY + GPS === */}
