@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Segment, LatLng } from '@/types/route';
 
+export const QUEUE_SIZE = 5;
+
+export interface QueueItem {
+  segmentId: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface CopilotSession {
   id: string;
   token: string;
@@ -11,6 +20,8 @@ export interface CopilotSession {
   destination_lng: number | null;
   status: string;
   track_number: number | null;
+  queue: QueueItem[];
+  cursor_index: number;
 }
 
 /* ─── Operator side ─── */
@@ -18,17 +29,47 @@ export interface CopilotSession {
 export function useCopilotOperator() {
   const [session, setSession] = useState<CopilotSession | null>(null);
   const [active, setActive] = useState(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Subscribe to own session to watch queue changes (for auto-refill)
+  useEffect(() => {
+    if (!session || !active) return;
+    const channel = supabase
+      .channel(`copilot-op-${session.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${session.id}` },
+        (payload) => {
+          setSession(prev => {
+            if (!prev) return prev;
+            const raw = payload.new as any;
+            return {
+              ...prev,
+              ...raw,
+              queue: Array.isArray(raw.queue) ? raw.queue : JSON.parse(raw.queue || '[]'),
+            };
+          });
+        }
+      )
+      .subscribe();
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [session?.id, active]);
 
   const createSession = useCallback(async () => {
     const { data, error } = await supabase
       .from('copilot_sessions')
-      .insert({ status: 'waiting' })
+      .insert({ status: 'waiting', queue: [], cursor_index: 0 })
       .select()
       .single();
     if (error) { console.error('Copilot create error:', error); return null; }
-    setSession(data as CopilotSession);
+    const s = { ...data, queue: (Array.isArray(data.queue) ? data.queue : []) as unknown as QueueItem[] } as CopilotSession;
+    setSession(s);
     setActive(true);
-    return data as CopilotSession;
+    return s;
   }, []);
 
   const updateDestination = useCallback(async (segment: Segment, trackNumber?: number | null) => {
@@ -46,6 +87,27 @@ export function useCopilotOperator() {
         updated_at: new Date().toISOString(),
       })
       .eq('id', session.id);
+  }, [session]);
+
+  /** Push a batch of destinations into the queue */
+  const pushQueue = useCallback(async (items: QueueItem[], cursorIndex: number) => {
+    if (!session) return;
+    await supabase
+      .from('copilot_sessions')
+      .update({
+        queue: items as any,
+        cursor_index: cursorIndex,
+        status: items.length > 0 ? 'navigating' : 'waiting',
+        // Set current destination to first in queue
+        segment_name: items[0]?.name ?? null,
+        segment_id: items[0]?.segmentId ?? null,
+        destination_lat: items[0]?.lat ?? null,
+        destination_lng: items[0]?.lng ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+
+    setSession(prev => prev ? { ...prev, queue: items, cursor_index: cursorIndex } : prev);
   }, [session]);
 
   const setBlocked = useCallback(async () => {
@@ -68,13 +130,13 @@ export function useCopilotOperator() {
     if (!session) return;
     await supabase
       .from('copilot_sessions')
-      .update({ status: 'ended', updated_at: new Date().toISOString() })
+      .update({ status: 'ended', queue: [], updated_at: new Date().toISOString() })
       .eq('id', session.id);
     setActive(false);
     setSession(null);
   }, [session]);
 
-  return { session, active, createSession, updateDestination, setBlocked, setWaiting, endSession };
+  return { session, active, createSession, updateDestination, pushQueue, setBlocked, setWaiting, endSession };
 }
 
 /* ─── Driver side ─── */
@@ -85,10 +147,14 @@ export function useCopilotDriver(token: string | null) {
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  const parseSession = (raw: any): CopilotSession => ({
+    ...raw,
+    queue: Array.isArray(raw.queue) ? raw.queue : JSON.parse(raw.queue || '[]'),
+  });
+
   useEffect(() => {
     if (!token) { setLoading(false); return; }
 
-    // Initial fetch
     supabase
       .from('copilot_sessions')
       .select('*')
@@ -100,17 +166,16 @@ export function useCopilotDriver(token: string | null) {
           setLoading(false);
           return;
         }
-        setSession(data as CopilotSession);
+        setSession(parseSession(data));
         setLoading(false);
 
-        // Subscribe to realtime changes
         const channel = supabase
           .channel(`copilot-${data.id}`)
           .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${data.id}` },
             (payload) => {
-              setSession(payload.new as CopilotSession);
+              setSession(parseSession(payload.new));
             }
           )
           .subscribe();
@@ -125,5 +190,29 @@ export function useCopilotDriver(token: string | null) {
     };
   }, [token]);
 
-  return { session, loading, error };
+  /** Advance queue: shift current, update DB */
+  const advanceQueue = useCallback(async () => {
+    if (!session || session.queue.length <= 1) return null;
+    const newQueue = session.queue.slice(1);
+    const next = newQueue[0];
+    const newCursor = session.cursor_index + 1;
+
+    await supabase
+      .from('copilot_sessions')
+      .update({
+        queue: newQueue as any,
+        cursor_index: newCursor,
+        segment_name: next?.name ?? null,
+        segment_id: next?.segmentId ?? null,
+        destination_lat: next?.lat ?? null,
+        destination_lng: next?.lng ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+
+    // Return next destination for immediate nav opening
+    return next ?? null;
+  }, [session]);
+
+  return { session, loading, error, advanceQueue };
 }
