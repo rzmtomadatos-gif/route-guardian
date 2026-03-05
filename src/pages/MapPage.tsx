@@ -69,6 +69,8 @@ export default function MapPage({
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
+  const [videoEndBlocking, setVideoEndBlocking] = useState(false);
+  const prevTrackRef = useRef<{ trackNumber: number; active: boolean } | null>(null);
 
   // Detect Google Maps availability and auth failures
   useEffect(() => {
@@ -565,6 +567,39 @@ export default function MapPage({
     onStartNavigation(hiddenLayers);
   }, [gpsEnabled, onStartNavigation, hiddenLayers]);
 
+  // Detect end-of-video: track session went from active to inactive while RST is on
+  useEffect(() => {
+    const ts = state.trackSession;
+    const prev = prevTrackRef.current;
+    if (state.rstMode && prev && prev.active && ts && !ts.active && ts.trackNumber === prev.trackNumber) {
+      // Track just closed → show blocking modal, vibrate + sound
+      setVideoEndBlocking(true);
+      try { navigator.vibrate?.([200, 100, 200]); } catch {}
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      } catch {}
+    }
+    prevTrackRef.current = ts ? { trackNumber: ts.trackNumber, active: ts.active } : null;
+  }, [state.trackSession, state.rstMode]);
+
+  const handleVideoEndContinue = useCallback(() => {
+    setVideoEndBlocking(false);
+    // Track is already closed by finalizeTrack/completeSegment — next confirmStart will open a new one
+  }, []);
+
+  const handleVideoEndCancel = useCallback(() => {
+    setVideoEndBlocking(false);
+  }, []);
+
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;
     const route = state.route;
@@ -906,6 +941,9 @@ export default function MapPage({
           onSetRstGroupSize={onSetRstGroupSize}
           onFinalizeTrack={onFinalizeTrack}
           onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
+          videoEndBlocking={videoEndBlocking}
+          onVideoEndContinue={handleVideoEndContinue}
+          onVideoEndCancel={handleVideoEndCancel}
         />
       )}
     </div>

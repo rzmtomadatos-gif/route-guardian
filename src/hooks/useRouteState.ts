@@ -239,10 +239,24 @@ export function useRouteState() {
         };
       });
 
-      // RST OFF: close the track session after completing (1 segment = 1 track)
+      // Close track session if full
       let trackSession = s.trackSession;
       if (!s.rstMode && trackSession && trackSession.active) {
+        // RST OFF: close after each segment (1:1)
         trackSession = { ...trackSession, active: false, endedAt: now };
+      } else if (s.rstMode && trackSession && trackSession.active) {
+        // RST ON: count valid completed segments in this track
+        const validInTrack = segments.filter(
+          (seg) =>
+            seg.trackNumber === trackSession!.trackNumber &&
+            seg.status === 'completado' &&
+            !seg.nonRecordable &&
+            !seg.needsRepeat
+        ).length;
+        if (validInTrack >= trackSession.capacity) {
+          // Auto-close: capacity reached
+          trackSession = { ...trackSession, active: false, endedAt: now };
+        }
       }
 
       // Next pending according to optimizedOrder, respecting hidden layers and nonRecordable

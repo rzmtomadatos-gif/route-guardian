@@ -1,18 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward, Send,
+  SkipForward, Send, Film,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { GoogleMapsItineraryDialog } from '@/components/GoogleMapsItineraryDialog';
 import { DriverShareDialog } from '@/components/DriverShareDialog';
+import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
 import {
@@ -66,6 +68,10 @@ interface Props {
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string) => void;
+  /** Whether the end-of-video modal is blocking actions */
+  videoEndBlocking?: boolean;
+  onVideoEndContinue?: () => void;
+  onVideoEndCancel?: () => void;
 }
 
 export function MapControlPanel({
@@ -101,10 +107,27 @@ export function MapControlPanel({
   onFinalizeTrack,
   trackSession,
   onSkipSegment,
+  videoEndBlocking,
+  onVideoEndContinue,
+  onVideoEndCancel,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
+
+  // Compute valid completed count in current track (RST mode)
+  const rstValidCount = useMemo(() => {
+    if (!rstMode || !trackSession) return 0;
+    return segments.filter(
+      (s) =>
+        s.trackNumber === trackSession.trackNumber &&
+        s.status === 'completado' &&
+        !s.nonRecordable &&
+        !s.needsRepeat
+    ).length;
+  }, [rstMode, trackSession, segments]);
+
+  const isBlocked = !!videoEndBlocking;
 
   const handleFilterChange = (f: FilterType) => {
     setStatusFilter(f);
@@ -227,11 +250,11 @@ export function MapControlPanel({
                   <StatusBadge status={pinnedSegment.status} nonRecordable={pinnedSegment.nonRecordable} needsRepeat={pinnedSegment.needsRepeat} />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => handleComplete(pinnedSegment.id)} className="flex-1 h-14 text-sm bg-success text-success-foreground font-bold">
+                  <Button disabled={isBlocked} onClick={() => handleComplete(pinnedSegment.id)} className="flex-1 h-14 text-sm bg-success text-success-foreground font-bold">
                     <Square className="w-5 h-5 mr-1.5" />
                     Finalizar
                   </Button>
-                  <Button variant="outline" onClick={() => onSkipSegment(pinnedSegment.id)} className="h-14 px-3 border-amber-500/40 text-amber-400 hover:bg-amber-500/10" title="Saltar tramo">
+                  <Button disabled={isBlocked} variant="outline" onClick={() => onSkipSegment(pinnedSegment.id)} className="h-14 px-3 border-amber-500/40 text-amber-400 hover:bg-amber-500/10" title="Saltar tramo">
                     <SkipForward className="w-5 h-5" />
                   </Button>
                   <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
@@ -253,13 +276,13 @@ export function MapControlPanel({
                   <p className="text-xs font-medium text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
                 {pinnedSegment.id === activeSegmentId && (
-                  <Button onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
+                  <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
                     Iniciar
                   </Button>
                 )}
                 {pinnedSegment.id !== activeSegmentId && (
-                  <Button variant="outline" onClick={() => onSegmentSelect(pinnedSegment.id)} className="h-12 px-3 text-xs">
+                  <Button disabled={isBlocked} variant="outline" onClick={() => onSegmentSelect(pinnedSegment.id)} className="h-12 px-3 text-xs">
                     <MapPin className="w-4 h-4 mr-1" />
                     Ir
                   </Button>
@@ -322,6 +345,19 @@ export function MapControlPanel({
                 <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
               </div>
             </div>
+
+            {/* === RST VIDEO COUNTER === */}
+            {rstMode && trackSession && (
+              <div className="bg-secondary/60 border border-border rounded-lg px-2.5 py-1.5 flex items-center gap-2">
+                <Film className="w-4 h-4 text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-foreground">
+                    Vídeo/Track {trackSession.trackNumber} — {rstValidCount}/{rstGroupSize}
+                  </p>
+                  <Progress value={(rstValidCount / rstGroupSize) * 100} className="h-1.5 mt-1" />
+                </div>
+              </div>
+            )}
 
             {noVisiblePending && segments.length > 0 && !navigationActive && (
               <p className="text-[10px] text-amber-400 text-center py-1">No hay tramos visibles pendientes. Cambia el filtro de capas.</p>
@@ -487,6 +523,13 @@ export function MapControlPanel({
           </div>
         )}
       </div>
+      {/* End of video blocking modal */}
+      <EndOfVideoDialog
+        open={!!videoEndBlocking}
+        trackNumber={trackSession?.trackNumber ?? 0}
+        onContinue={() => onVideoEndContinue?.()}
+        onCancel={() => onVideoEndCancel?.()}
+      />
     </div>
   );
 }
