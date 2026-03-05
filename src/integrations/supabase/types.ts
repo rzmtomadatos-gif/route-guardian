@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      copilot_sessions: {
+        Row: {
+          created_at: string
+          destination_lat: number | null
+          destination_lng: number | null
+          id: string
+          segment_id: string | null
+          segment_name: string | null
+          status: string
+          token: string
+          track_number: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          id?: string
+          segment_id?: string | null
+          segment_name?: string | null
+          status?: string
+          token?: string
+          track_number?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          id?: string
+          segment_id?: string | null
+          segment_name?: string | null
+          status?: string
+          token?: string
+          track_number?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

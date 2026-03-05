@@ -8,6 +8,8 @@ import { SegmentCreatorPanel } from '@/components/SegmentCreatorPanel';
 import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
 import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { useCopilotOperator } from '@/hooks/useCopilotSession';
+import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
@@ -129,6 +131,7 @@ export default function MapPage({
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [pendingLayerName, setPendingLayerName] = useState('');
   const geo = useGeolocation(gpsEnabled);
+  const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
   // Save first GPS position as base
@@ -589,6 +592,25 @@ export default function MapPage({
     prevBlockOpenRef.current = state.blockEndPrompt.isOpen;
   }, [state.blockEndPrompt.isOpen]);
 
+  // Copilot: auto-send destination when activeSegment changes
+  const prevActiveRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!copilot.active) return;
+    const seg = state.route?.segments.find((s) => s.id === state.activeSegmentId);
+    if (seg && seg.id !== prevActiveRef.current && (seg.status === 'en_progreso' || seg.status === 'pendiente')) {
+      copilot.updateDestination(seg, seg.trackNumber);
+    }
+    prevActiveRef.current = state.activeSegmentId;
+  }, [state.activeSegmentId, copilot.active]);
+
+  // Copilot: send blocked status when blockEndPrompt opens
+  useEffect(() => {
+    if (!copilot.active) return;
+    if (state.blockEndPrompt.isOpen) {
+      copilot.setBlocked();
+    }
+  }, [state.blockEndPrompt.isOpen, copilot.active]);
+
   const handleVideoEndContinue = useCallback(() => {
     onCloseBlockEndPrompt();
   }, [onCloseBlockEndPrompt]);
@@ -941,6 +963,10 @@ export default function MapPage({
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
           onVideoEndCancel={handleVideoEndCancel}
+          copilotSession={copilot.session}
+          copilotActive={copilot.active}
+          onCopilotStart={copilot.createSession}
+          onCopilotEnd={copilot.endSession}
         />
       )}
     </div>
