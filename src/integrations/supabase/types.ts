@@ -17,9 +17,11 @@ export type Database = {
       copilot_sessions: {
         Row: {
           created_at: string
+          cursor_index: number
           destination_lat: number | null
           destination_lng: number | null
           id: string
+          queue: Json
           segment_id: string | null
           segment_name: string | null
           status: string
@@ -29,9 +31,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cursor_index?: number
           destination_lat?: number | null
           destination_lng?: number | null
           id?: string
+          queue?: Json
           segment_id?: string | null
           segment_name?: string | null
           status?: string
@@ -41,9 +45,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cursor_index?: number
           destination_lat?: number | null
           destination_lng?: number | null
           id?: string
+          queue?: Json
           segment_id?: string | null
           segment_name?: string | null
           status?: string

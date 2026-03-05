@@ -8,7 +8,7 @@ import { SegmentCreatorPanel } from '@/components/SegmentCreatorPanel';
 import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
 import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { useCopilotOperator } from '@/hooks/useCopilotSession';
+import { useCopilotOperator, QUEUE_SIZE, type QueueItem } from '@/hooks/useCopilotSession';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
@@ -592,16 +592,60 @@ export default function MapPage({
     prevBlockOpenRef.current = state.blockEndPrompt.isOpen;
   }, [state.blockEndPrompt.isOpen]);
 
-  // Copilot: auto-send destination when activeSegment changes
-  const prevActiveRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!copilot.active) return;
-    const seg = state.route?.segments.find((s) => s.id === state.activeSegmentId);
-    if (seg && seg.id !== prevActiveRef.current && (seg.status === 'en_progreso' || seg.status === 'pendiente')) {
-      copilot.updateDestination(seg, seg.trackNumber);
+  // Copilot: build queue of next eligible segments
+  const getNextEligibleSegments = useCallback((fromCursor: number, count: number): { items: QueueItem[]; newCursor: number } => {
+    if (!state.route) return { items: [], newCursor: fromCursor };
+    const order = state.route.optimizedOrder;
+    const segments = state.route.segments;
+    const items: QueueItem[] = [];
+    let cursor = fromCursor;
+
+    while (items.length < count && cursor < order.length) {
+      const seg = segments.find(s => s.id === order[cursor]);
+      cursor++;
+      if (!seg) continue;
+      // Skip hidden layers
+      if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+      // Skip non-recordable
+      if (seg.nonRecordable) continue;
+      // Skip completed (unless needsRepeat)
+      if (seg.status === 'completado' && !seg.needsRepeat) continue;
+
+      const start = seg.coordinates[0];
+      items.push({ segmentId: seg.id, name: seg.name, lat: start.lat, lng: start.lng });
     }
-    prevActiveRef.current = state.activeSegmentId;
-  }, [state.activeSegmentId, copilot.active]);
+    return { items, newCursor: cursor };
+  }, [state.route, hiddenLayers]);
+
+  // Copilot: initial queue fill when session starts
+  const copilotInitRef = useRef(false);
+  useEffect(() => {
+    if (!copilot.active || !copilot.session || !state.route || copilotInitRef.current) return;
+    const { items, newCursor } = getNextEligibleSegments(0, QUEUE_SIZE);
+    if (items.length > 0) {
+      copilot.pushQueue(items, newCursor);
+    }
+    copilotInitRef.current = true;
+  }, [copilot.active, copilot.session, state.route]);
+
+  // Reset init flag when session ends
+  useEffect(() => {
+    if (!copilot.active) copilotInitRef.current = false;
+  }, [copilot.active]);
+
+  // Copilot: auto-refill when queue drops to 1
+  useEffect(() => {
+    if (!copilot.active || !copilot.session || !state.route) return;
+    const queue = copilot.session.queue || [];
+    if (queue.length === 1) {
+      const currentCursor = copilot.session.cursor_index;
+      const { items: nextItems, newCursor } = getNextEligibleSegments(currentCursor, QUEUE_SIZE - 1);
+      if (nextItems.length > 0) {
+        const merged = [...queue, ...nextItems];
+        copilot.pushQueue(merged, newCursor);
+      }
+    }
+  }, [copilot.session?.queue?.length, copilot.active, state.route]);
 
   // Copilot: send blocked status when blockEndPrompt opens
   useEffect(() => {
