@@ -36,8 +36,26 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     ? incidents.filter((i) => selectedIds.has(i.segmentId))
     : incidents;
 
+  // Pre-export validation: fix completed segments missing track/timestamps
+  let maxTrack = 0;
+  exportSegments.forEach((s) => {
+    if (s.trackNumber !== null && s.trackNumber > maxTrack) maxTrack = s.trackNumber;
+    s.trackHistory.forEach((t) => { if (t > maxTrack) maxTrack = t; });
+  });
+  const validatedSegments = exportSegments.map((s) => {
+    if (s.status !== 'completado') return s;
+    const fixes: Partial<Segment> = {};
+    if (s.trackNumber === null) {
+      maxTrack++;
+      fixes.trackNumber = maxTrack;
+    }
+    if (!s.startedAt) fixes.startedAt = s.timestampInicio || new Date().toISOString();
+    if (!s.endedAt) fixes.endedAt = s.timestampFin || new Date().toISOString();
+    return Object.keys(fixes).length > 0 ? { ...s, ...fixes } : s;
+  });
+
   // Sheet 1: Segments
-  const segData = exportSegments.map((seg) => {
+  const segData = validatedSegments.map((seg) => {
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
     // Track real: only if valid (not nonRecordable, not repeatRequested)

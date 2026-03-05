@@ -97,6 +97,22 @@ export function useRouteState() {
     setState((s) => ({ ...s, navigationActive: false, activeSegmentId: null }));
   }, [setState]);
 
+  /** Allocate the next track number based on mode */
+  const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null): number => {
+    if (!rstMode) {
+      // RST OFF: every segment gets a unique track = max + 1
+      const maxTrack = getMaxTrack(segments, trackSession);
+      return maxTrack + 1;
+    }
+    // RST ON: reuse current track if session active and has room
+    if (trackSession && trackSession.active && trackSession.segmentIds.length < trackSession.capacity) {
+      return trackSession.trackNumber;
+    }
+    // Otherwise new track
+    const maxTrack = getMaxTrack(segments, trackSession);
+    return maxTrack + 1;
+  };
+
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
@@ -104,54 +120,21 @@ export function useRouteState() {
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
 
-      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : MAX_SEGMENTS_PER_TRACK;
+      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
       const now = new Date().toISOString();
 
-      // Determine track number using track session
-      let nextTrack: number;
       let trackSession = s.trackSession;
 
-      if (trackSession && trackSession.active) {
-        // Check if current session has room
-        if (trackSession.segmentIds.length < trackSession.capacity) {
-          nextTrack = trackSession.trackNumber;
-        } else {
-          // Session is full, close it and start new
-          trackSession = {
-            ...trackSession,
-            active: false,
-            endedAt: now,
-          };
-          nextTrack = trackSession.trackNumber + 1;
-          trackSession = null; // Will be recreated below
-        }
-      } else {
-        // No active session – compute next track
-        if (seg.plannedTrackNumber !== null && seg.plannedTrackNumber !== undefined) {
-          const countInPlanned = countSegmentsInTrack(s.route.segments, seg.plannedTrackNumber);
-          if (countInPlanned < groupLimit) {
-            nextTrack = seg.plannedTrackNumber;
-          } else {
-            nextTrack = seg.plannedTrackNumber + 1;
-            while (countSegmentsInTrack(s.route.segments, nextTrack) >= groupLimit) {
-              nextTrack++;
-            }
-          }
-        } else {
-          const maxTrack = getMaxTrack(s.route.segments, s.trackSession);
-          if (maxTrack === 0) {
-            nextTrack = 1;
-          } else {
-            const countInCurrent = countSegmentsInTrack(s.route.segments, maxTrack);
-            if (countInCurrent >= groupLimit) {
-              nextTrack = maxTrack + 1;
-            } else {
-              nextTrack = maxTrack;
-            }
-          }
-        }
-        trackSession = null; // Will be created below
+      // Close full session if needed
+      if (trackSession && trackSession.active && trackSession.segmentIds.length >= trackSession.capacity) {
+        trackSession = { ...trackSession, active: false, endedAt: now };
       }
+      // Close session if not in RST mode (each segment = new track)
+      if (!s.rstMode && trackSession && trackSession.active) {
+        trackSession = { ...trackSession, active: false, endedAt: now };
+      }
+
+      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null);
 
       // Create or update track session
       if (!trackSession || !trackSession.active) {
@@ -208,13 +191,23 @@ export function useRouteState() {
       if (!s.route) return s;
 
       const now = new Date().toISOString();
+      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
 
-      // Only complete THIS segment
+      // Auto-assign track if missing (invariant: completed must have trackNumber)
+      let autoTrack: number | null = null;
+      const seg = s.route.segments.find((seg) => seg.id === segmentId);
+      if (seg && seg.trackNumber === null) {
+        autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null);
+      }
+
+      // Only complete THIS segment with invariants enforced
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
+        const finalTrack = autoTrack !== null ? autoTrack : seg.trackNumber;
         return {
           ...seg,
           status: 'completado' as const,
+          trackNumber: finalTrack,
           timestampFin: now,
           timestampInicio: seg.timestampInicio || now,
           endedAt: now,
@@ -372,6 +365,7 @@ export function useRouteState() {
             trackNumber: null,
             trackHistory: newHistory,
             failedAt: now,
+            endedAt: null,
             plannedTrackNumber: null,
             plannedBy: undefined,
           };
