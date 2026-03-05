@@ -34,7 +34,7 @@ const impactOptions: { value: IncidentImpact; label: string; description: string
 ];
 
 interface Props {
-  onSubmit: (category: IncidentCategory, impact: IncidentImpact, note?: string) => void;
+  onSubmit: (category: IncidentCategory, impact: IncidentImpact, note?: string, currentSegmentNonRecordable?: boolean) => void;
   children: React.ReactNode;
 }
 
@@ -43,6 +43,7 @@ export function IncidentDialog({ onSubmit, children }: Props) {
   const [selected, setSelected] = useState<IncidentCategory | null>(null);
   const [impact, setImpact] = useState<IncidentImpact | null>(null);
   const [note, setNote] = useState('');
+  const [currentNonRecordable, setCurrentNonRecordable] = useState(false);
 
   const handleCategorySelect = (cat: IncidentCategory) => {
     setSelected(cat);
@@ -53,10 +54,11 @@ export function IncidentDialog({ onSubmit, children }: Props) {
 
   const handleSubmit = () => {
     if (!selected || !impact) return;
-    onSubmit(selected, impact, note || undefined);
+    onSubmit(selected, impact, note || undefined, impact === 'critica_invalida_bloque' ? currentNonRecordable : undefined);
     setSelected(null);
     setImpact(null);
     setNote('');
+    setCurrentNonRecordable(false);
     setOpen(false);
   };
 
@@ -113,6 +115,22 @@ export function IncidentDialog({ onSubmit, children }: Props) {
               ))}
             </div>
           </>
+        )}
+
+        {/* Checkbox: current segment non-recordable (only for block invalidation) */}
+        {impact === 'critica_invalida_bloque' && (
+          <label className="flex items-center gap-2 mt-2 p-2.5 rounded-lg border border-border cursor-pointer hover:border-foreground/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={currentNonRecordable}
+              onChange={(e) => setCurrentNonRecordable(e.target.checked)}
+              className="w-4 h-4 accent-destructive"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground">Tramo actual NO grabable</p>
+              <p className="text-[9px] text-muted-foreground">Este tramo se excluye del itinerario (los anteriores del track sí se repiten)</p>
+            </div>
+          </label>
         )}
 
         <textarea
