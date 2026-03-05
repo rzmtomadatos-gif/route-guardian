@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
+import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 
 interface Props {
   segments: Segment[];
@@ -10,6 +11,8 @@ interface Props {
   optimizedOrder?: string[];
   className?: string;
   onSegmentClick?: (segmentId: string) => void;
+  fitToActiveSegment?: boolean;
+  centerActiveRequest?: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -25,11 +28,14 @@ export function MapDisplay({
   optimizedOrder,
   className = '',
   onSegmentClick,
+  fitToActiveSegment = false,
+  centerActiveRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<L.LayerGroup | null>(null);
   const posMarkerRef = useRef<L.CircleMarker | null>(null);
+  const { requestFitBounds: smartFit } = useSmartFitLeaflet();
 
   // Initialize map
   useEffect(() => {
@@ -120,9 +126,31 @@ export function MapDisplay({
     });
 
     if (bounds.isValid()) {
-      mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+      smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit]);
+
+  // Fit to active segment
+  useEffect(() => {
+    if (!mapRef.current || !fitToActiveSegment || !activeSegmentId) return;
+    const seg = segments.find((s) => s.id === activeSegmentId);
+    if (!seg || seg.coordinates.length === 0) return;
+    const bounds = L.latLngBounds(seg.coordinates.map((c) => [c.lat, c.lng] as L.LatLngTuple));
+    if (bounds.isValid()) {
+      smartFit(mapRef.current, bounds, 'activeChanged');
+    }
+  }, [fitToActiveSegment, activeSegmentId, segments, smartFit]);
+
+  // Manual center
+  useEffect(() => {
+    if (!mapRef.current || !activeSegmentId || centerActiveRequest === 0) return;
+    const seg = segments.find((s) => s.id === activeSegmentId);
+    if (!seg || seg.coordinates.length === 0) return;
+    const bounds = L.latLngBounds(seg.coordinates.map((c) => [c.lat, c.lng] as L.LatLngTuple));
+    if (bounds.isValid()) {
+      smartFit(mapRef.current, bounds, 'manual');
+    }
+  }, [centerActiveRequest, smartFit]);
 
   // Update current position
   useEffect(() => {

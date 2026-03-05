@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
+import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 
 export type AreaSelectionMode = 'none' | 'rectangle' | 'polygon' | 'circle';
 
@@ -30,6 +31,8 @@ interface Props {
   onAreaClick?: (latlng: LatLng) => void;
   /** When true, zoom/fit map to the active segment */
   fitToActiveSegment?: boolean;
+  /** Incremented externally to force a manual center on active segment */
+  centerActiveRequest?: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -83,6 +86,7 @@ export function GoogleMapDisplay({
   areaPoints = [],
   onAreaClick,
   fitToActiveSegment = false,
+  centerActiveRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -98,6 +102,7 @@ export function GoogleMapDisplay({
   const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
+  const { requestFitBounds: smartFit, resetFitState } = useSmartFitGoogle();
 
   const clearOverlays = useCallback(() => {
     polylinesRef.current.forEach((p) => p.setMap(null));
@@ -269,13 +274,9 @@ export function GoogleMapDisplay({
     });
 
     if (!bounds.isEmpty()) {
-      try {
-        map.fitBounds(bounds, 40);
-      } catch (e) {
-        console.warn('fitBounds failed:', e);
-      }
+      smartFit(map, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady, smartFit]);
 
   // Current position marker
   useEffect(() => {
@@ -503,7 +504,7 @@ export function GoogleMapDisplay({
     }
   }, [areaPoints, areaSelectionMode, mapReady]);
 
-  // Fit map to active segment during navigation
+  // Fit map to active segment during navigation (with hysteresis)
   useEffect(() => {
     if (!mapReady || !mapRef.current || !fitToActiveSegment || !activeSegmentId) return;
     const seg = segments.find((s) => s.id === activeSegmentId);
@@ -513,19 +514,23 @@ export function GoogleMapDisplay({
     seg.coordinates.forEach((c) => bounds.extend(new google.maps.LatLng(c.lat, c.lng)));
 
     if (!bounds.isEmpty()) {
-      try {
-        // Smooth animated transition: first pan to center, then zoom
-        const map = mapRef.current;
-        const targetCenter = bounds.getCenter();
-        map.panTo(targetCenter);
-        setTimeout(() => {
-          map.fitBounds(bounds, { top: 40, bottom: 160, left: 40, right: 40 });
-        }, 400);
-      } catch (e) {
-        console.warn('fitBounds to active segment failed:', e);
-      }
+      smartFit(mapRef.current, bounds, 'activeChanged');
     }
-  }, [fitToActiveSegment, activeSegmentId, segments, mapReady]);
+  }, [fitToActiveSegment, activeSegmentId, segments, mapReady, smartFit]);
+
+  // Manual center request
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !activeSegmentId || centerActiveRequest === 0) return;
+    const seg = segments.find((s) => s.id === activeSegmentId);
+    if (!seg || seg.coordinates.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    seg.coordinates.forEach((c) => bounds.extend(new google.maps.LatLng(c.lat, c.lng)));
+
+    if (!bounds.isEmpty()) {
+      smartFit(mapRef.current, bounds, 'manual');
+    }
+  }, [centerActiveRequest, mapReady, smartFit]);
 
   if (fallbackToLeaflet) {
     return (
@@ -536,6 +541,8 @@ export function GoogleMapDisplay({
         optimizedOrder={optimizedOrder}
         className={className}
         onSegmentClick={onSegmentClick}
+        fitToActiveSegment={fitToActiveSegment}
+        centerActiveRequest={centerActiveRequest}
       />
     );
   }
