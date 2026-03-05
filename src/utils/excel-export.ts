@@ -37,6 +37,10 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
 
   // Check completed segments missing track or timestamps
   segments.forEach((s) => {
+    // nonRecordable / repeatRequested should never be Completado
+    if (s.status === 'completado' && (s.nonRecordable || s.repeatRequested)) {
+      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado pero marcado no grabable / repetición (se revertirá)' });
+    }
     if (s.status !== 'completado') return;
     if (s.trackNumber === null) {
       errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado sin Track real' });
@@ -79,6 +83,10 @@ function autoFixSegments(exportSegments: Segment[]): Segment[] {
   });
 
   return exportSegments.map((s) => {
+    // nonRecordable / repeatRequested cannot stay as Completado
+    if (s.status === 'completado' && (s.nonRecordable || s.repeatRequested)) {
+      return { ...s, status: 'posible_repetir' as const, trackNumber: null, endedAt: null };
+    }
     if (s.status !== 'completado') return s;
     const fixes: Partial<Segment> = {};
     if (s.trackNumber === null) {

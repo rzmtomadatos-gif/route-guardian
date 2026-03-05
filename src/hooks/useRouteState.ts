@@ -203,6 +203,10 @@ export function useRouteState() {
       // Only complete THIS segment with invariants enforced
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
+        // Safety: nonRecordable / repeatRequested cannot be Completado
+        if (seg.nonRecordable || seg.repeatRequested) {
+          return { ...seg, status: 'posible_repetir' as const, trackNumber: null, endedAt: null };
+        }
         const finalTrack = autoTrack !== null ? autoTrack : seg.trackNumber;
         return {
           ...seg,
