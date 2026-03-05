@@ -211,6 +211,33 @@ export function LayerPanel({
           <Button
             size="sm"
             variant="ghost"
+            onClick={() => {
+              // Show all layers
+              onHiddenLayersChange(new Set());
+            }}
+            className="h-7 px-1.5 text-[10px] text-muted-foreground hover:text-primary"
+            title="Mostrar todas las capas"
+          >
+            <Eye className="w-3 h-3 mr-0.5" />
+            Todo
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              // Hide all layers
+              const allNames = new Set(layerGroups.map((g) => g.name));
+              onHiddenLayersChange(allNames);
+            }}
+            className="h-7 px-1.5 text-[10px] text-muted-foreground hover:text-primary"
+            title="Ocultar todas las capas"
+          >
+            <EyeOff className="w-3 h-3 mr-0.5" />
+            Todo
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => setShowAddLayer(true)}
             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
           >

@@ -51,6 +51,13 @@ function boundsAreSimilar(a: BoundsLike, b: BoundsLike, tolerance = 0.0005): boo
 
 export type FitReason = 'activeChanged' | 'selectionChanged' | 'segmentsLoaded' | 'manual';
 
+function boundsCenter(b: BoundsLike): { lat: number; lng: number } {
+  return {
+    lat: (b.north + b.south) / 2,
+    lng: (b.east + b.west) / 2,
+  };
+}
+
 export function useSmartFitGoogle() {
   const lastFitAt = useRef(0);
   const lastFitBounds = useRef<BoundsLike | null>(null);
@@ -74,18 +81,30 @@ export function useSmartFitGoogle() {
       // Cooldown: skip if recently fitted (unless manual)
       if (reason !== 'manual' && now - lastFitAt.current < COOLDOWN_MS) return;
 
-      // Hysteresis: skip if already mostly visible (unless manual or selection)
+      // For activeChanged: use panTo (no zoom change) unless segment is outside viewport
       if (reason === 'activeChanged') {
         try {
           const viewportBounds = map.getBounds();
           if (viewportBounds) {
             const viewport = toBoundsObj(viewportBounds);
-            if (isBoundsMostlyVisible(targetBounds, viewport)) return;
+            if (isBoundsMostlyVisible(targetBounds, viewport)) return; // already visible, skip
+            // Segment is outside viewport: just pan to center, don't change zoom
+            const center = boundsCenter(targetBounds);
+            map.panTo({ lat: center.lat, lng: center.lng });
+            lastFitAt.current = now;
+            lastFitBounds.current = targetBounds;
+            return;
           }
         } catch {}
+        // Fallback: pan to center
+        const center = boundsCenter(targetBounds);
+        map.panTo({ lat: center.lat, lng: center.lng });
+        lastFitAt.current = now;
+        lastFitBounds.current = targetBounds;
+        return;
       }
 
-      // Execute fit
+      // For manual, selectionChanged, segmentsLoaded: use fitBounds
       try {
         map.fitBounds(bounds, padding);
         // Clamp zoom after fit settles
@@ -96,7 +115,6 @@ export function useSmartFitGoogle() {
             else if (z < ZOOM_MIN) map.setZoom(ZOOM_MIN);
           }
         });
-        // Safety cleanup
         setTimeout(() => google.maps.event.removeListener(listener), 3000);
       } catch (e) {
         console.warn('fitBounds failed:', e);
@@ -107,7 +125,6 @@ export function useSmartFitGoogle() {
     };
 
     if (reason === 'manual') {
-      // Manual: execute immediately, bypass debounce/cooldown
       lastFitAt.current = 0;
       lastFitBounds.current = null;
       execute();
@@ -149,6 +166,7 @@ export function useSmartFitLeaflet() {
       if (lastFitBounds.current && boundsAreSimilar(lastFitBounds.current, targetBounds)) return;
       if (reason !== 'manual' && now - lastFitAt.current < COOLDOWN_MS) return;
 
+      // For activeChanged: panTo without zoom change
       if (reason === 'activeChanged') {
         try {
           const vb = map.getBounds();
@@ -160,6 +178,15 @@ export function useSmartFitLeaflet() {
           };
           if (isBoundsMostlyVisible(targetBounds, viewport)) return;
         } catch {}
+        // Pan to center without changing zoom
+        const center = {
+          lat: (targetBounds.north + targetBounds.south) / 2,
+          lng: (targetBounds.east + targetBounds.west) / 2,
+        };
+        map.panTo([center.lat, center.lng] as L.LatLngExpression, { animate: true, duration: 0.6 });
+        lastFitAt.current = now;
+        lastFitBounds.current = targetBounds;
+        return;
       }
 
       try {
