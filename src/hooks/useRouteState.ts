@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession } from '@/types/route';
+import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt } from '@/types/route';
 import { loadState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
@@ -117,6 +117,7 @@ export function useRouteState() {
   const skipSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
+      if (s.blockEndPrompt.isOpen) return s;
       const segments = s.route.segments;
       const remaining = s.route.optimizedOrder.filter((id) => {
         if (id === segmentId) return false;
@@ -131,6 +132,8 @@ export function useRouteState() {
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
+      // Guard: block if end-of-video prompt is open
+      if (s.blockEndPrompt.isOpen) return s;
 
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
@@ -204,6 +207,8 @@ export function useRouteState() {
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
+      // Guard: block if end-of-video prompt is open
+      if (s.blockEndPrompt.isOpen) return s;
 
       const now = new Date().toISOString();
       const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
@@ -241,6 +246,7 @@ export function useRouteState() {
 
       // Close track session if full
       let trackSession = s.trackSession;
+      let blockEndPrompt = s.blockEndPrompt;
       if (!s.rstMode && trackSession && trackSession.active) {
         // RST OFF: close after each segment (1:1)
         trackSession = { ...trackSession, active: false, endedAt: now };
@@ -254,8 +260,9 @@ export function useRouteState() {
             !seg.needsRepeat
         ).length;
         if (validInTrack >= trackSession.capacity) {
-          // Auto-close: capacity reached
+          // Auto-close: capacity reached → trigger blocking prompt
           trackSession = { ...trackSession, active: false, endedAt: now };
+          blockEndPrompt = { isOpen: true, trackNumber: trackSession.trackNumber, reason: 'capacity' };
         }
       }
 
@@ -273,6 +280,7 @@ export function useRouteState() {
         route: { ...s.route, segments },
         activeSegmentId: remaining[0] || null,
         trackSession,
+        blockEndPrompt,
       };
     }, true);
   }, [setState]);
@@ -282,10 +290,10 @@ export function useRouteState() {
     setState((s) => {
       if (!s.trackSession || !s.trackSession.active) return s;
       const now = new Date().toISOString();
+      const trackNum = s.trackSession.trackNumber;
 
       // Clear planned track numbers for the current track
       let segments = s.route?.segments || [];
-      const trackNum = s.trackSession.trackNumber;
       segments = segments.map((seg) => {
         if (seg.plannedTrackNumber === trackNum && seg.status === 'pendiente') {
           return { ...seg, plannedTrackNumber: null, plannedBy: undefined };
@@ -302,6 +310,7 @@ export function useRouteState() {
           endedAt: now,
           closedManually: true,
         },
+        blockEndPrompt: { isOpen: true, trackNumber: trackNum, reason: 'manual' },
       };
     }, true);
   }, [setState]);
@@ -351,6 +360,7 @@ export function useRouteState() {
   const repeatSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
+      if (s.blockEndPrompt.isOpen) return s;
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
         return {
@@ -574,6 +584,14 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Close the block-end prompt, allowing actions to resume */
+  const closeBlockEndPrompt = useCallback(() => {
+    setState((s) => ({
+      ...s,
+      blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
+    }));
+  }, [setState]);
+
   const clearRoute = useCallback(() => {
     setState((s) => ({
       route: null,
@@ -585,6 +603,7 @@ export function useRouteState() {
       rstMode: s.rstMode,
       rstGroupSize: s.rstGroupSize,
       trackSession: null,
+      blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
     }));
   }, [setState]);
 
@@ -936,5 +955,6 @@ export function useRouteState() {
     repeatSegment,
     finalizeTrack,
     skipSegment,
+    closeBlockEndPrompt,
   };
 }

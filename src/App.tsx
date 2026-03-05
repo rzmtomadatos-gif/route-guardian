@@ -53,6 +53,7 @@ function AppRoutes() {
     repeatSegment,
     finalizeTrack,
     skipSegment,
+    closeBlockEndPrompt,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -117,6 +118,7 @@ function AppRoutes() {
               onRepeatSegment={repeatSegment}
               onFinalizeTrack={finalizeTrack}
               onSkipSegment={skipSegment}
+              onCloseBlockEndPrompt={closeBlockEndPrompt}
             />
           }
         />
