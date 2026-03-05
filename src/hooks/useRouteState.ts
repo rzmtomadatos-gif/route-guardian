@@ -857,7 +857,28 @@ export function useRouteState() {
   }, []);
 
   const setRstMode = useCallback((enabled: boolean) => {
-    setState((s) => ({ ...s, rstMode: enabled }));
+    setState((s) => {
+      // When switching RST off, reset track session so next segment gets a fresh unique track
+      if (!enabled && s.trackSession && s.trackSession.active) {
+        const now = new Date().toISOString();
+        // Also clear planned track numbers from RST planning
+        let segments = s.route?.segments || [];
+        const trackNum = s.trackSession.trackNumber;
+        segments = segments.map((seg) => {
+          if (seg.plannedTrackNumber === trackNum && seg.status === 'pendiente') {
+            return { ...seg, plannedTrackNumber: null, plannedBy: undefined };
+          }
+          return seg;
+        });
+        return {
+          ...s,
+          rstMode: enabled,
+          route: s.route ? { ...s.route, segments } : null,
+          trackSession: { ...s.trackSession, active: false, endedAt: now, closedManually: true },
+        };
+      }
+      return { ...s, rstMode: enabled };
+    });
   }, [setState]);
 
   const setRstGroupSize = useCallback((size: number) => {
