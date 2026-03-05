@@ -3,7 +3,7 @@ import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward,
+  SkipForward, Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { GoogleMapsItineraryDialog } from '@/components/GoogleMapsItineraryDialog';
+import { DriverShareDialog } from '@/components/DriverShareDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
 import {
@@ -293,6 +294,20 @@ export function MapControlPanel({
                   <ExternalLink className="w-4 h-4" />
                 </Button>
               </GoogleMapsItineraryDialog>
+              <DriverShareDialog
+                segments={segments}
+                optimizedOrder={optimizedOrder}
+                activeSegmentId={activeSegmentId}
+                currentPosition={currentPosition}
+                base={base}
+                rstMode={rstMode}
+                rstGroupSize={rstGroupSize}
+                selectedSegmentIds={selectedSegmentIds}
+              >
+                <Button variant="outline" className="h-12 px-3" title="Enviar al conductor">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </DriverShareDialog>
             </div>
 
             {/* === SUMMARY + GPS === */}
