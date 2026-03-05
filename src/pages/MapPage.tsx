@@ -38,6 +38,7 @@ interface Props {
   onSetRstMode: (enabled: boolean) => void;
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
+  onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
 }
 
 export default function MapPage({
@@ -60,6 +61,7 @@ export default function MapPage({
   onSetRstMode,
   onSetRstGroupSize,
   onFinalizeTrack,
+  onSkipSegment,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -903,6 +905,7 @@ export default function MapPage({
           onSetRstMode={onSetRstMode}
           onSetRstGroupSize={onSetRstGroupSize}
           onFinalizeTrack={onFinalizeTrack}
+          onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
         />
       )}
     </div>

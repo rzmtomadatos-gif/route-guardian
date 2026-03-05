@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 
@@ -15,6 +16,9 @@ export default function SettingsPage({ onClear, hasRoute }: Props) {
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null);
+  const [startHidden, setStartHidden] = useState(() => {
+    try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
+  });
 
   const handleSaveKey = () => {
     setGoogleMapsApiKey(apiKey);
@@ -154,6 +158,29 @@ export default function SettingsPage({ onClear, hasRoute }: Props) {
               >
                 <X className="w-4 h-4" />
               </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Layers */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Eye className="w-4 h-4" />
+            <span className="text-sm font-medium">Capas</span>
+          </div>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Iniciar con capas ocultas</p>
+                <p className="text-xs text-muted-foreground">Al cargar ruta nueva, todas las capas empiezan ocultas.</p>
+              </div>
+              <Switch
+                checked={startHidden}
+                onCheckedChange={(v) => {
+                  setStartHidden(v);
+                  try { localStorage.setItem('vialroute_start_hidden', v ? 'true' : 'false'); } catch {}
+                }}
+              />
             </div>
           </div>
         </div>

@@ -47,6 +47,8 @@ export interface Segment {
   invalidatedByTrack?: number | null;
   /** @deprecated Use needsRepeat instead */
   repeatRequested?: boolean;
+  /** How many times this segment has been recorded (for analysis). Defaults to 0. */
+  repeatNumber?: number;
 }
 
 export interface Route {
