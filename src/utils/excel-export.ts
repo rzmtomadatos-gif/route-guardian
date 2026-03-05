@@ -25,6 +25,72 @@ const IMPACT_LABELS: Record<string, string> = {
   critica_invalida_bloque: 'Crítica (invalida bloque)',
 };
 
+export interface ExportValidationError {
+  segmentId: string;
+  segmentName: string;
+  issue: string;
+}
+
+/** Validate segments before export. Returns list of issues found. */
+export function validateForExport(segments: Segment[], rstMode: boolean): ExportValidationError[] {
+  const errors: ExportValidationError[] = [];
+
+  // Check completed segments missing track or timestamps
+  segments.forEach((s) => {
+    if (s.status !== 'completado') return;
+    if (s.trackNumber === null) {
+      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado sin Track real' });
+    }
+    if (!s.startedAt) {
+      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado sin Inicio tramo' });
+    }
+    if (!s.endedAt) {
+      errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado sin Fin tramo' });
+    }
+  });
+
+  // Check duplicate tracks in RST OFF (each completed segment should have unique track)
+  if (!rstMode) {
+    const completedWithTrack = segments.filter((s) => s.status === 'completado' && s.trackNumber !== null);
+    const trackCounts = new Map<number, string[]>();
+    completedWithTrack.forEach((s) => {
+      const names = trackCounts.get(s.trackNumber!) || [];
+      names.push(s.name);
+      trackCounts.set(s.trackNumber!, names);
+    });
+    trackCounts.forEach((names, track) => {
+      if (names.length > 1) {
+        names.forEach((name) => {
+          errors.push({ segmentId: '', segmentName: name, issue: `Track ${track} repetido (RST OFF: debe ser único)` });
+        });
+      }
+    });
+  }
+
+  return errors;
+}
+
+/** Auto-fix completed segments missing track/timestamps. Returns fixed copies. */
+function autoFixSegments(exportSegments: Segment[]): Segment[] {
+  let maxTrack = 0;
+  exportSegments.forEach((s) => {
+    if (s.trackNumber !== null && s.trackNumber > maxTrack) maxTrack = s.trackNumber;
+    s.trackHistory.forEach((t) => { if (t > maxTrack) maxTrack = t; });
+  });
+
+  return exportSegments.map((s) => {
+    if (s.status !== 'completado') return s;
+    const fixes: Partial<Segment> = {};
+    if (s.trackNumber === null) {
+      maxTrack++;
+      fixes.trackNumber = maxTrack;
+    }
+    if (!s.startedAt) fixes.startedAt = s.timestampInicio || new Date().toISOString();
+    if (!s.endedAt) fixes.endedAt = s.timestampFin || new Date().toISOString();
+    return Object.keys(fixes).length > 0 ? { ...s, ...fixes } : s;
+  });
+}
+
 export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>) {
   const wb = XLSX.utils.book_new();
 
@@ -36,29 +102,13 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     ? incidents.filter((i) => selectedIds.has(i.segmentId))
     : incidents;
 
-  // Pre-export validation: fix completed segments missing track/timestamps
-  let maxTrack = 0;
-  exportSegments.forEach((s) => {
-    if (s.trackNumber !== null && s.trackNumber > maxTrack) maxTrack = s.trackNumber;
-    s.trackHistory.forEach((t) => { if (t > maxTrack) maxTrack = t; });
-  });
-  const validatedSegments = exportSegments.map((s) => {
-    if (s.status !== 'completado') return s;
-    const fixes: Partial<Segment> = {};
-    if (s.trackNumber === null) {
-      maxTrack++;
-      fixes.trackNumber = maxTrack;
-    }
-    if (!s.startedAt) fixes.startedAt = s.timestampInicio || new Date().toISOString();
-    if (!s.endedAt) fixes.endedAt = s.timestampFin || new Date().toISOString();
-    return Object.keys(fixes).length > 0 ? { ...s, ...fixes } : s;
-  });
+  // Auto-fix completed segments missing track/timestamps
+  const validatedSegments = autoFixSegments(exportSegments);
 
   // Sheet 1: Segments
   const segData = validatedSegments.map((seg) => {
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
-    // Track real: only if valid (not nonRecordable, not repeatRequested)
     const trackReal = (seg.nonRecordable || seg.repeatRequested) ? '' : (seg.trackNumber ?? '');
     return {
       'Track': trackReal,

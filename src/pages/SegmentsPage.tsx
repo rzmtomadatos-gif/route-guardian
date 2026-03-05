@@ -5,11 +5,21 @@ import { Input } from '@/components/ui/input';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
-import { Download, Search, Plus, MapPin, Wand2, ArrowUpDown } from 'lucide-react';
+import { Download, Search, Plus, MapPin, Wand2, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { exportRouteToExcel } from '@/utils/excel-export';
+import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 import type { AppState, Incident, Segment, SegmentStatus } from '@/types/route';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const STATUS_OPTIONS: { value: SegmentStatus | 'todos'; label: string }[] = [
   { value: 'todos', label: 'Todos' },
@@ -81,6 +91,8 @@ export default function SegmentsPage({
   });
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
+  const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
+  const [showExportAlert, setShowExportAlert] = useState(false);
 
   const route = state.route;
   const incidents = state.incidents;
@@ -154,7 +166,26 @@ export default function SegmentsPage({
     );
   }
 
-  const handleExport = () => exportRouteToExcel(route, incidents, selectedIds);
+
+  const handleExport = () => {
+    const errors = validateForExport(
+      selectedIds && selectedIds.size > 0
+        ? route.segments.filter((s) => selectedIds.has(s.id))
+        : route.segments,
+      state.rstMode,
+    );
+    if (errors.length > 0) {
+      setExportErrors(errors);
+      setShowExportAlert(true);
+    } else {
+      exportRouteToExcel(route, incidents, selectedIds);
+    }
+  };
+
+  const handleExportForceAutofix = () => {
+    setShowExportAlert(false);
+    exportRouteToExcel(route, incidents, selectedIds);
+  };
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -316,6 +347,36 @@ export default function SegmentsPage({
           }}
         />
       )}
+
+      <AlertDialog open={showExportAlert} onOpenChange={setShowExportAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              Errores de validación pre-export
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Se detectaron {exportErrors.length} problema(s) en los tramos:</p>
+                <ul className="text-xs space-y-1 max-h-40 overflow-auto">
+                  {exportErrors.map((e, i) => (
+                    <li key={i} className="text-destructive">• {e.segmentName}: {e.issue}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Puedes exportar con corrección automática (se asignarán tracks y timestamps faltantes).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExportForceAutofix}>
+              Corregir y exportar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

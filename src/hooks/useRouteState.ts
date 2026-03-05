@@ -215,6 +215,12 @@ export function useRouteState() {
         };
       });
 
+      // RST OFF: close the track session after completing (1 segment = 1 track)
+      let trackSession = s.trackSession;
+      if (!s.rstMode && trackSession && trackSession.active) {
+        trackSession = { ...trackSession, active: false, endedAt: now };
+      }
+
       // Next pending according to optimizedOrder, respecting hidden layers and nonRecordable
       const remaining = s.route.optimizedOrder.filter((id) => {
         const seg = segments.find((seg) => seg.id === id);
@@ -228,6 +234,7 @@ export function useRouteState() {
         ...s,
         route: { ...s.route, segments },
         activeSegmentId: remaining[0] || null,
+        trackSession,
       };
     }, true);
   }, [setState]);
