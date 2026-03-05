@@ -3,6 +3,7 @@ import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
+  SkipForward,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -63,6 +64,7 @@ interface Props {
   onSetRstMode: (enabled: boolean) => void;
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
+  onSkipSegment: (segmentId: string) => void;
 }
 
 export function MapControlPanel({
@@ -97,6 +99,7 @@ export function MapControlPanel({
   onSetRstGroupSize,
   onFinalizeTrack,
   trackSession,
+  onSkipSegment,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -226,6 +229,9 @@ export function MapControlPanel({
                   <Button onClick={() => handleComplete(pinnedSegment.id)} className="flex-1 h-14 text-sm bg-success text-success-foreground font-bold">
                     <Square className="w-5 h-5 mr-1.5" />
                     Finalizar
+                  </Button>
+                  <Button variant="outline" onClick={() => onSkipSegment(pinnedSegment.id)} className="h-14 px-3 border-amber-500/40 text-amber-400 hover:bg-amber-500/10" title="Saltar tramo">
+                    <SkipForward className="w-5 h-5" />
                   </Button>
                   <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                     <Button variant="outline" className="h-14 px-4 border-destructive/40 text-destructive">

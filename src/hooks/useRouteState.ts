@@ -113,6 +113,21 @@ export function useRouteState() {
     return maxTrack + 1;
   };
 
+  /** Skip segment: leave as pendiente and move to next */
+  const skipSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments;
+      const remaining = s.route.optimizedOrder.filter((id) => {
+        if (id === segmentId) return false;
+        const seg = segments.find((seg) => seg.id === id);
+        return seg?.status === 'pendiente' && !seg.nonRecordable &&
+          !(hiddenLayers && seg.layer && hiddenLayers.has(seg.layer));
+      });
+      return { ...s, activeSegmentId: remaining[0] || null };
+    });
+  }, [setState]);
+
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
@@ -220,6 +235,7 @@ export function useRouteState() {
           needsRepeat: false,
           repeatRequested: false,
           invalidatedByTrack: null,
+          repeatNumber: (seg.repeatNumber || 0) + 1,
         };
       });
 
@@ -884,5 +900,6 @@ export function useRouteState() {
     markPosibleRepetir,
     repeatSegment,
     finalizeTrack,
+    skipSegment,
   };
 }

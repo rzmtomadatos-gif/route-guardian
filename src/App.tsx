@@ -52,10 +52,25 @@ function AppRoutes() {
     markPosibleRepetir,
     repeatSegment,
     finalizeTrack,
+    skipSegment,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [startWithLayersHidden] = useState(() => {
+    try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
+  });
+
+  // Auto-hide all layers when a new route is loaded
+  const prevRouteId = useState<string | null>(null);
+  if (state.route && state.route.id !== prevRouteId[0]) {
+    prevRouteId[1](state.route.id);
+    if (startWithLayersHidden && state.route.availableLayers) {
+      const allLayers = new Set<string>();
+      state.route.segments.forEach((s) => { if (s.layer) allLayers.add(s.layer); });
+      if (allLayers.size > 0) setHiddenLayers(allLayers);
+    }
+  }
 
   return (
     <AppLayout
@@ -101,6 +116,7 @@ function AppRoutes() {
               onSetRstGroupSize={setRstGroupSize}
               onRepeatSegment={repeatSegment}
               onFinalizeTrack={finalizeTrack}
+              onSkipSegment={skipSegment}
             />
           }
         />
