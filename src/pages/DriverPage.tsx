@@ -1,28 +1,36 @@
-import { useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useCopilotDriver, type QueueItem } from '@/hooks/useCopilotSession';
-import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, ChevronRight, List } from 'lucide-react';
+import { useCopilotDriver } from '@/hooks/useCopilotSession';
+import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-function buildNavUrl(lat: number, lng: number, app: 'google' | 'waze' | 'system'): string {
-  if (app === 'waze') return `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-  if (app === 'google') return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-  return `geo:${lat},${lng}?q=${lat},${lng}`;
-}
 
 export default function DriverPage() {
   const [params] = useSearchParams();
   const token = params.get('session');
-  const { session, loading, error, advanceQueue } = useCopilotDriver(token);
+  const { session, loading, error } = useCopilotDriver(token);
 
-  const handleNextStop = useCallback(async () => {
+  // Track seen batch to show "new batch" alert
+  const [seenBatch, setSeenBatch] = useState(0);
+  const [showNewBatch, setShowNewBatch] = useState(false);
+  const prevBatchRef = useRef(0);
+
+  useEffect(() => {
     if (!session) return;
-    const next = await advanceQueue();
-    if (next) {
-      // Open navigation in same user gesture
-      window.open(buildNavUrl(next.lat, next.lng, 'google'), '_blank');
+    const bn = session.batch_number || 0;
+    if (bn > prevBatchRef.current && prevBatchRef.current > 0) {
+      setShowNewBatch(true);
+      // Vibrate to alert driver
+      try { navigator.vibrate?.([300, 100, 300]); } catch {}
     }
-  }, [session, advanceQueue]);
+    prevBatchRef.current = bn;
+  }, [session?.batch_number]);
+
+  const handleOpenBatch = useCallback(() => {
+    if (!session?.batch_url) return;
+    window.open(session.batch_url, '_blank');
+    setShowNewBatch(false);
+    setSeenBatch(session.batch_number || 0);
+  }, [session]);
 
   if (!token) {
     return (
@@ -68,12 +76,12 @@ export default function DriverPage() {
     );
   }
 
-  const queue = session.queue || [];
-  const current = queue[0] || null;
-  const upcoming = queue.slice(1);
   const isBlocked = session.status === 'blocked';
   const isWaiting = session.status === 'waiting';
-  const hasQueue = queue.length > 0;
+  const hasBatch = !!session.batch_url;
+  const batchNum = session.batch_number || 0;
+  const queue = session.queue || [];
+  const isNewBatch = showNewBatch && batchNum > seenBatch;
 
   return (
     <div className="min-h-screen bg-background flex flex-col safe-area-bottom safe-area-top">
@@ -84,7 +92,8 @@ export default function DriverPage() {
           <h1 className="text-sm font-bold text-foreground">Modo Copiloto</h1>
           <p className="text-[10px] text-muted-foreground">
             {session.track_number ? `Track ${session.track_number}` : 'Conectado'}
-            {hasQueue && ` · ${queue.length} en cola`}
+            {hasBatch && ` · Lote ${batchNum}`}
+            {queue.length > 0 && ` · ${queue.length} paradas`}
           </p>
         </div>
         <StatusDot status={session.status} />
@@ -92,93 +101,82 @@ export default function DriverPage() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-        {isWaiting && !hasQueue && (
+        {isWaiting && !hasBatch && (
           <div className="text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <Clock className="w-8 h-8 text-primary" />
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <Clock className="w-10 h-10 text-primary" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Esperando destino</h2>
+            <h2 className="text-2xl font-bold text-foreground">Esperando itinerario</h2>
             <p className="text-sm text-muted-foreground max-w-xs">
-              El operador aún no ha iniciado un tramo. Recibirás el destino automáticamente.
+              El operador aún no ha enviado un itinerario. Recibirás el lote automáticamente.
             </p>
           </div>
         )}
 
         {isBlocked && (
           <div className="text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
-              <Clock className="w-8 h-8 text-amber-500" />
+            <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+              <Clock className="w-10 h-10 text-amber-500" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Bloque completado</h2>
+            <h2 className="text-2xl font-bold text-foreground">Bloque completado</h2>
             <p className="text-sm text-muted-foreground max-w-xs">
-              El operador está preparando una nueva medición. Espera a que confirme para continuar.
+              El operador está preparando una nueva medición. Espera a que confirme.
             </p>
           </div>
         )}
 
-        {!isBlocked && current && (
-          <div className="w-full max-w-sm space-y-4">
-            {/* Current destination */}
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
-                <MapPin className="w-8 h-8 text-emerald-500" />
-              </div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Destino actual</p>
-              <h2 className="text-xl font-bold text-foreground">{current.name || 'Sin nombre'}</h2>
+        {/* New batch alert */}
+        {!isBlocked && isNewBatch && hasBatch && (
+          <div className="w-full max-w-sm space-y-6 text-center">
+            <div className="w-24 h-24 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto animate-pulse">
+              <Map className="w-12 h-12 text-emerald-500" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-foreground">Nuevo itinerario disponible</h2>
+              <p className="text-sm text-muted-foreground">Lote {batchNum} · {queue.length} paradas</p>
+            </div>
+            <Button
+              className="w-full h-16 text-lg font-bold"
+              onClick={handleOpenBatch}
+            >
+              <ExternalLink className="w-6 h-6 mr-3" />
+              Abrir en Google Maps
+            </Button>
+          </div>
+        )}
+
+        {/* Current batch (already seen) */}
+        {!isBlocked && !isNewBatch && hasBatch && (
+          <div className="w-full max-w-sm space-y-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
+              <MapPin className="w-8 h-8 text-emerald-500" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Itinerario activo</p>
+              <h2 className="text-xl font-bold text-foreground">Lote {batchNum}</h2>
+              <p className="text-xs text-muted-foreground">{queue.length} paradas en cola</p>
             </div>
 
-            {/* Nav buttons */}
-            <div className="space-y-2 w-full">
-              <Button
-                className="w-full h-14 text-base font-bold"
-                onClick={() => window.open(buildNavUrl(current.lat, current.lng, 'google'), '_blank')}
-              >
-                <ExternalLink className="w-5 h-5 mr-2" />
-                Abrir en Google Maps
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 h-11"
-                  onClick={() => window.open(buildNavUrl(current.lat, current.lng, 'waze'), '_blank')}
-                >
-                  Waze
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 h-11"
-                  onClick={() => window.open(buildNavUrl(current.lat, current.lng, 'system'), '_blank')}
-                >
-                  Navegador
-                </Button>
-              </div>
-            </div>
+            <Button
+              className="w-full h-14 text-base font-bold"
+              onClick={handleOpenBatch}
+            >
+              <ExternalLink className="w-5 h-5 mr-2" />
+              Abrir itinerario en Google Maps
+            </Button>
 
-            {/* Next stop button */}
-            {queue.length > 1 && (
-              <Button
-                variant="secondary"
-                className="w-full h-14 text-base font-bold mt-4"
-                onClick={handleNextStop}
-              >
-                <ChevronRight className="w-5 h-5 mr-2" />
-                Siguiente parada
-              </Button>
-            )}
-
-            {/* Upcoming queue */}
-            {upcoming.length > 0 && (
-              <div className="border border-border rounded-lg overflow-hidden mt-2">
-                <div className="px-3 py-2 bg-muted/50 border-b border-border flex items-center gap-2">
-                  <List className="w-3.5 h-3.5 text-muted-foreground" />
+            {/* Queue preview */}
+            {queue.length > 0 && (
+              <div className="border border-border rounded-lg overflow-hidden mt-2 text-left">
+                <div className="px-3 py-2 bg-muted/50 border-b border-border">
                   <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                    Próximos ({upcoming.length})
+                    Paradas del lote
                   </span>
                 </div>
                 <div className="divide-y divide-border">
-                  {upcoming.slice(0, 4).map((item, i) => (
+                  {queue.slice(0, 5).map((item, i) => (
                     <div key={item.segmentId} className="px-3 py-2 flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-muted-foreground w-4 text-right">{i + 2}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground w-4 text-right">{i + 1}</span>
                       <span className="text-xs text-foreground truncate">{item.name || 'Sin nombre'}</span>
                     </div>
                   ))}

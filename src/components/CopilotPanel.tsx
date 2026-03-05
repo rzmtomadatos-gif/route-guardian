@@ -4,7 +4,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { QRCodeSVG } from 'qrcode.react';
-import { Radio, Copy, ExternalLink, X } from 'lucide-react';
+import { Radio, Copy, ExternalLink, X, Send } from 'lucide-react';
 import type { CopilotSession } from '@/hooks/useCopilotSession';
 import { toast } from 'sonner';
 
@@ -13,10 +13,11 @@ interface Props {
   active: boolean;
   onStart: () => Promise<CopilotSession | null>;
   onEnd: () => Promise<void>;
+  onForceSendBatch?: () => void;
   children: React.ReactNode;
 }
 
-export function CopilotPanel({ session, active, onStart, onEnd, children }: Props) {
+export function CopilotPanel({ session, active, onStart, onEnd, onForceSendBatch, children }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -88,7 +89,23 @@ export function CopilotPanel({ session, active, onStart, onEnd, children }: Prop
               </Button>
             </div>
 
-            <div className="border-t border-border pt-3">
+            <div className="border-t border-border pt-3 space-y-2">
+              {/* Batch info */}
+              {session.batch_number > 0 && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Lote actual: {session.batch_number}</span>
+                  <span>{(session.queue || []).length} paradas en cola</span>
+                </div>
+              )}
+
+              {/* Force send batch */}
+              {onForceSendBatch && (
+                <Button variant="outline" size="sm" onClick={onForceSendBatch} className="w-full text-xs">
+                  <Send className="w-3.5 h-3.5 mr-1" />
+                  Enviar siguiente lote ahora
+                </Button>
+              )}
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

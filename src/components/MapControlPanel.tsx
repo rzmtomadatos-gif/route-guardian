@@ -78,6 +78,7 @@ interface Props {
   copilotActive: boolean;
   onCopilotStart: () => Promise<import('@/hooks/useCopilotSession').CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
+  onForceSendBatch?: () => void;
 }
 
 export function MapControlPanel({
@@ -120,6 +121,7 @@ export function MapControlPanel({
   copilotActive,
   onCopilotStart,
   onCopilotEnd,
+  onForceSendBatch,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -346,6 +348,7 @@ export function MapControlPanel({
                 active={copilotActive}
                 onStart={onCopilotStart}
                 onEnd={onCopilotEnd}
+                onForceSendBatch={onForceSendBatch}
               >
                 <Button variant="outline" className={`h-12 px-3 ${copilotActive ? 'border-emerald-500/40 text-emerald-500' : ''}`} title="Modo Copiloto">
                   <Radio className="w-4 h-4" />

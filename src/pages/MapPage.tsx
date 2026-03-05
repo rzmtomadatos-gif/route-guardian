@@ -9,6 +9,7 @@ import { AreaSelectionDialog } from '@/components/AreaSelectionDialog';
 import { AreaResultsDialog } from '@/components/AreaResultsDialog';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useCopilotOperator, QUEUE_SIZE, type QueueItem } from '@/hooks/useCopilotSession';
+import { buildGoogleMapsBatchUrl, BATCH_SIZE } from '@/utils/google-maps-batch';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { playDeviationSound } from '@/utils/sounds';
@@ -621,9 +622,10 @@ export default function MapPage({
   const copilotInitRef = useRef(false);
   useEffect(() => {
     if (!copilot.active || !copilot.session || !state.route || copilotInitRef.current) return;
-    const { items, newCursor } = getNextEligibleSegments(0, QUEUE_SIZE);
+    const { items, newCursor } = getNextEligibleSegments(0, BATCH_SIZE);
     if (items.length > 0) {
-      copilot.pushQueue(items, newCursor);
+      const batchUrl = buildGoogleMapsBatchUrl(items);
+      copilot.pushQueue(items, newCursor, batchUrl);
     }
     copilotInitRef.current = true;
   }, [copilot.active, copilot.session, state.route]);
@@ -639,13 +641,28 @@ export default function MapPage({
     const queue = copilot.session.queue || [];
     if (queue.length === 1) {
       const currentCursor = copilot.session.cursor_index;
-      const { items: nextItems, newCursor } = getNextEligibleSegments(currentCursor, QUEUE_SIZE - 1);
+      const { items: nextItems, newCursor } = getNextEligibleSegments(currentCursor, BATCH_SIZE - 1);
       if (nextItems.length > 0) {
         const merged = [...queue, ...nextItems];
-        copilot.pushQueue(merged, newCursor);
+        const batchUrl = buildGoogleMapsBatchUrl(merged);
+        copilot.pushQueue(merged, newCursor, batchUrl);
       }
     }
   }, [copilot.session?.queue?.length, copilot.active, state.route]);
+
+  // Force send next batch (operator manual action)
+  const handleForceSendBatch = useCallback(() => {
+    if (!copilot.active || !copilot.session || !state.route) return;
+    const currentCursor = copilot.session.cursor_index;
+    const { items, newCursor } = getNextEligibleSegments(currentCursor, BATCH_SIZE);
+    if (items.length > 0) {
+      const batchUrl = buildGoogleMapsBatchUrl(items);
+      copilot.pushQueue(items, newCursor, batchUrl);
+      toast.success(`Lote de ${items.length} paradas enviado al conductor`);
+    } else {
+      toast.info('No quedan tramos pendientes para enviar');
+    }
+  }, [copilot.active, copilot.session, state.route, getNextEligibleSegments]);
 
   // Copilot: send blocked status when blockEndPrompt opens
   useEffect(() => {
@@ -1011,6 +1028,7 @@ export default function MapPage({
           copilotActive={copilot.active}
           onCopilotStart={copilot.createSession}
           onCopilotEnd={copilot.endSession}
+          onForceSendBatch={handleForceSendBatch}
         />
       )}
     </div>
