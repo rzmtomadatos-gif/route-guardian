@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
+import { NavigationOverlay } from '@/components/NavigationOverlay';
+import { useNavigationTracker } from '@/hooks/useNavigationTracker';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -146,6 +149,33 @@ export default function MapPage({
 
   // Deviation detection during active recording
   const activeSegment = state.route?.segments.find((s) => s.id === state.activeSegmentId);
+  const isRecording = activeSegment?.status === 'en_progreso';
+  
+  // Navigation tracker
+  const navTracker = useNavigationTracker(
+    activeSegment,
+    geo.position,
+    geo.speed,
+    !!isRecording,
+    state.navigationActive,
+  );
+
+  // Sound effects for navigation state changes
+  const prevNavState = useRef(navTracker.operationalState);
+  useEffect(() => {
+    const prev = prevNavState.current;
+    const curr = navTracker.operationalState;
+    prevNavState.current = curr;
+    if (prev === curr) return;
+
+    if (curr === 'ready' && prev === 'approaching') {
+      playApproachSound();
+    } else if (curr === 'deviated' && prev === 'recording') {
+      playDeviationAlertSound();
+    } else if (curr === 'recording' && prev === 'deviated') {
+      playRecoverySound();
+    }
+  }, [navTracker.operationalState]);
   
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
@@ -859,6 +889,36 @@ export default function MapPage({
           <Crosshair className="w-4 h-4" />
         </button>
       )}
+
+      {/* === NAVIGATION OVERLAY (operational HUD) === */}
+      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' && (
+        <NavigationOverlay
+          segment={activeSegment}
+          operationalState={navTracker.operationalState}
+          distanceToStart={navTracker.distanceToStart}
+          etaToStart={navTracker.etaToStart}
+          progressPercent={navTracker.progressPercent}
+          distanceRemaining={navTracker.distanceRemaining}
+          totalDistance={navTracker.totalDistance}
+          speedKmh={navTracker.speedKmh}
+          deviationMeters={navTracker.deviationMeters}
+          showApproachPrompt={navTracker.showApproachPrompt}
+          onStartSegment={() => {
+            navTracker.dismissApproachPrompt();
+            onConfirmStart(activeSegment.id, hiddenLayers);
+          }}
+          onCompleteSegment={() => onComplete(activeSegment.id, hiddenLayers)}
+          onSkipSegment={() => onSkipSegment(activeSegment.id, hiddenLayers)}
+          onPostpone={() => {
+            navTracker.dismissApproachPrompt();
+            onSkipSegment(activeSegment.id, hiddenLayers);
+          }}
+          onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
+          currentPosition={geo.position}
+          isBlocked={videoEndBlocking}
+        />
+      )}
+
       {/* Creation mode panel */}
       {creationMode && (
         <SegmentCreatorPanel
