@@ -948,6 +948,33 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  /** Apply companySegmentId retroactively to segments missing it */
+  const applyRetroactiveIds = useCallback((code: string, projectName: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      // Find max existing index
+      let maxIndex = -1;
+      for (const seg of s.route.segments) {
+        if (seg.companySegmentId) {
+          const parts = seg.companySegmentId.split('_');
+          const num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num) && num > maxIndex) maxIndex = num;
+        }
+      }
+      let nextIndex = maxIndex + 1;
+      const segments = s.route.segments.map((seg) => {
+        if (seg.companySegmentId) return seg;
+        const id = `${code}_${String(nextIndex).padStart(5, '0')}`;
+        nextIndex++;
+        return { ...seg, companySegmentId: id };
+      });
+      return {
+        ...s,
+        route: { ...s.route, segments, projectCode: code, projectName: projectName || code },
+      };
+    }, true);
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -988,5 +1015,6 @@ export function useRouteState() {
     closeBlockEndPrompt,
     setWorkDay,
     updateRouteContext,
+    applyRetroactiveIds,
   };
 }
