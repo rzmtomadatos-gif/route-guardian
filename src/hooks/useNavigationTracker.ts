@@ -1,42 +1,84 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Segment, LatLng } from '@/types/route';
 
+// ─── Operational states ───────────────────────────────────────────────
 export type NavOperationalState =
   | 'idle'
-  | 'approaching'     // en_aproximación — driving to segment start
-  | 'ready'           // listo_para_iniciar — within proximity of start
-  | 'recording'       // en_grabación — segment started
-  | 'deviated'        // desviado — off the polyline during recording
-  | 'interrupted'     // interrumpido
-  | 'completed';      // completado
+  | 'approaching'       // driving to segment start
+  | 'ready'             // within proximity of start
+  | 'recording'         // segment started, on polyline
+  | 'pre_alert'         // deviation building but not confirmed
+  | 'deviated'          // confirmed off-polyline
+  | 'wrong_direction'   // traveling against planned direction
+  | 'interrupted'
+  | 'completed';
 
-interface NavTrackerState {
-  operationalState: NavOperationalState;
-  /** Distance to segment start point in meters */
-  distanceToStart: number | null;
-  /** ETA to start in seconds (based on current speed) */
-  etaToStart: number | null;
-  /** Progress along polyline 0–100 */
-  progressPercent: number;
-  /** Distance remaining on the polyline in meters */
-  distanceRemaining: number | null;
-  /** Total polyline length in meters */
-  totalDistance: number;
-  /** Current speed in km/h */
-  speedKmh: number;
-  /** Perpendicular distance from polyline in meters */
-  deviationMeters: number;
-  /** Whether the approach confirmation prompt should show */
-  showApproachPrompt: boolean;
-  /** Index of closest point on polyline */
-  closestPointIndex: number;
+// ─── Transition log entry ─────────────────────────────────────────────
+export interface NavTransition {
+  from: NavOperationalState;
+  to: NavOperationalState;
+  timestamp: string;      // ISO
+  position: LatLng | null;
+  segmentId: string;
+  reason: string;
+  deviationMeters?: number;
+  progressPercent?: number;
 }
 
-const APPROACH_RADIUS = 50; // meters — when to trigger "ready"
-const DEVIATION_THRESHOLD = 80; // meters — when to flag deviation
-const DEVIATION_RECOVERY = 40; // meters — back under this = recovered
+// ─── Configurable thresholds ──────────────────────────────────────────
+export interface NavThresholds {
+  /** Radius in meters to trigger "ready" state */
+  approachRadius: number;
+  /** Deviation distance to enter pre_alert (meters) */
+  preAlertThreshold: number;
+  /** Deviation distance to confirm deviation (meters) */
+  deviationThreshold: number;
+  /** Deviation distance to confirm recovery (meters) — hysteresis */
+  recoveryThreshold: number;
+  /** Number of consecutive samples above threshold to confirm deviation */
+  deviationWindowSize: number;
+  /** Number of consecutive samples below recovery to confirm recovery */
+  recoveryWindowSize: number;
+  /** Number of consecutive samples with regressing index to flag wrong direction */
+  wrongDirectionWindowSize: number;
+  /** GPS accuracy threshold — ignore samples worse than this (meters) */
+  accuracyFilter: number;
+  /** Minimum speed to evaluate direction (m/s) — below this, direction is unreliable */
+  minSpeedForDirection: number;
+}
 
-/** Haversine distance in meters */
+const DEFAULT_THRESHOLDS: NavThresholds = {
+  approachRadius: 50,
+  preAlertThreshold: 40,
+  deviationThreshold: 80,
+  recoveryThreshold: 35,
+  deviationWindowSize: 4,
+  recoveryWindowSize: 3,
+  wrongDirectionWindowSize: 5,
+  accuracyFilter: 50,
+  minSpeedForDirection: 1.5, // ~5 km/h
+};
+
+// ─── Public state ─────────────────────────────────────────────────────
+export interface NavTrackerState {
+  operationalState: NavOperationalState;
+  distanceToStart: number | null;
+  etaToStart: number | null;
+  progressPercent: number;
+  distanceRemaining: number | null;
+  totalDistance: number;
+  speedKmh: number;
+  deviationMeters: number;
+  showApproachPrompt: boolean;
+  closestPointIndex: number;
+  /** Transition log for traceability */
+  transitions: NavTransition[];
+  /** Active thresholds (for debug display) */
+  thresholds: NavThresholds;
+}
+
+// ─── Geometry helpers ─────────────────────────────────────────────────
+
 function haversine(a: LatLng, b: LatLng): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -47,54 +89,86 @@ function haversine(a: LatLng, b: LatLng): number {
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-/** Distance from point to line segment (p1→p2) in meters */
-function pointToSegmentDistance(p: LatLng, p1: LatLng, p2: LatLng): number {
+/** Project point onto segment p1→p2, return projected point and fractional t */
+function projectOnSegment(p: LatLng, p1: LatLng, p2: LatLng): { proj: LatLng; t: number; dist: number } {
   const d12 = haversine(p1, p2);
-  if (d12 < 0.1) return haversine(p, p1);
-  
-  // Project onto segment using dot product approximation
+  if (d12 < 0.1) return { proj: p1, t: 0, dist: haversine(p, p1) };
   const dx = p2.lng - p1.lng;
   const dy = p2.lat - p1.lat;
   const t = Math.max(0, Math.min(1, ((p.lng - p1.lng) * dx + (p.lat - p1.lat) * dy) / (dx * dx + dy * dy)));
   const proj: LatLng = { lat: p1.lat + t * dy, lng: p1.lng + t * dx };
-  return haversine(p, proj);
+  return { proj, t, dist: haversine(p, proj) };
 }
 
-/** Find closest point on polyline, return index and distance */
-function closestOnPolyline(pos: LatLng, coords: LatLng[]): { index: number; distance: number } {
+/** Find closest point on polyline — returns segment index, fractional position, and distance */
+function closestOnPolyline(pos: LatLng, coords: LatLng[]): { index: number; t: number; distance: number } {
   let minDist = Infinity;
   let minIdx = 0;
+  let minT = 0;
   for (let i = 0; i < coords.length - 1; i++) {
-    const d = pointToSegmentDistance(pos, coords[i], coords[i + 1]);
-    if (d < minDist) {
-      minDist = d;
+    const { t, dist } = projectOnSegment(pos, coords[i], coords[i + 1]);
+    if (dist < minDist) {
+      minDist = dist;
       minIdx = i;
+      minT = t;
     }
   }
-  return { index: minIdx, distance: minDist };
+  return { index: minIdx, t: minT, distance: minDist };
 }
 
-/** Polyline length from index to end in meters */
-function polylineLengthFrom(coords: LatLng[], fromIndex: number): number {
-  let total = 0;
-  for (let i = Math.max(0, fromIndex); i < coords.length - 1; i++) {
-    total += haversine(coords[i], coords[i + 1]);
+/** Cumulative length array for the polyline (meters) */
+function cumulativeLengths(coords: LatLng[]): number[] {
+  const lens = [0];
+  for (let i = 1; i < coords.length; i++) {
+    lens.push(lens[i - 1] + haversine(coords[i - 1], coords[i]));
   }
-  return total;
+  return lens;
 }
 
-/** Total polyline length in meters */
-function polylineLength(coords: LatLng[]): number {
-  return polylineLengthFrom(coords, 0);
+/** Progress in meters along polyline given segment index + fractional t */
+function progressAlongPolyline(cumLens: number[], index: number, t: number): number {
+  if (index >= cumLens.length - 1) return cumLens[cumLens.length - 1];
+  const segLen = cumLens[index + 1] - cumLens[index];
+  return cumLens[index] + segLen * t;
 }
+
+// ─── Sliding window helper ───────────────────────────────────────────
+
+class SlidingWindow {
+  private buffer: boolean[];
+  private size: number;
+  constructor(size: number) {
+    this.size = size;
+    this.buffer = [];
+  }
+  push(value: boolean) {
+    this.buffer.push(value);
+    if (this.buffer.length > this.size) this.buffer.shift();
+  }
+  /** All samples in window are true */
+  allTrue(): boolean {
+    return this.buffer.length >= this.size && this.buffer.every(Boolean);
+  }
+  reset() {
+    this.buffer = [];
+  }
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────
 
 export function useNavigationTracker(
   activeSegment: Segment | null | undefined,
   currentPosition: LatLng | null | undefined,
-  gpsSpeed: number | null, // m/s from geolocation
-  isRecording: boolean, // segment status === 'en_progreso'
+  gpsSpeed: number | null,
+  isRecording: boolean,
   navigationActive: boolean,
+  customThresholds?: Partial<NavThresholds>,
 ) {
+  const thresholds = useMemo<NavThresholds>(
+    () => ({ ...DEFAULT_THRESHOLDS, ...customThresholds }),
+    [customThresholds],
+  );
+
   const [state, setState] = useState<NavTrackerState>({
     operationalState: 'idle',
     distanceToStart: null,
@@ -106,20 +180,72 @@ export function useNavigationTracker(
     deviationMeters: 0,
     showApproachPrompt: false,
     closestPointIndex: 0,
+    transitions: [],
+    thresholds,
   });
 
+  // Refs for windowed analysis
+  const deviationWindowRef = useRef(new SlidingWindow(thresholds.deviationWindowSize));
+  const recoveryWindowRef = useRef(new SlidingWindow(thresholds.recoveryWindowSize));
+  const wrongDirWindowRef = useRef(new SlidingWindow(thresholds.wrongDirectionWindowSize));
+  const prevIndexRef = useRef<number | null>(null);
+  const prevTRef = useRef<number>(0);
   const promptDismissedRef = useRef<string | null>(null);
-  const prevDeviatedRef = useRef(false);
+  const transitionsRef = useRef<NavTransition[]>([]);
+  const currentStateRef = useRef<NavOperationalState>('idle');
 
-  const totalDist = useMemo(() => {
-    if (!activeSegment || activeSegment.coordinates.length < 2) return 0;
-    return polylineLength(activeSegment.coordinates);
+  // Reset windows when segment changes
+  const segIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeSegment?.id !== segIdRef.current) {
+      segIdRef.current = activeSegment?.id ?? null;
+      deviationWindowRef.current = new SlidingWindow(thresholds.deviationWindowSize);
+      recoveryWindowRef.current = new SlidingWindow(thresholds.recoveryWindowSize);
+      wrongDirWindowRef.current = new SlidingWindow(thresholds.wrongDirectionWindowSize);
+      prevIndexRef.current = null;
+      prevTRef.current = 0;
+      transitionsRef.current = [];
+      currentStateRef.current = 'idle';
+    }
+  }, [activeSegment?.id, thresholds]);
+
+  // Precompute cumulative lengths
+  const cumLens = useMemo(() => {
+    if (!activeSegment || activeSegment.coordinates.length < 2) return [0];
+    return cumulativeLengths(activeSegment.coordinates);
   }, [activeSegment?.id, activeSegment?.coordinates.length]);
 
-  // Main tracking loop
+  const totalDist = cumLens[cumLens.length - 1];
+
+  // Transition logger
+  const logTransition = useCallback((from: NavOperationalState, to: NavOperationalState, reason: string, pos: LatLng | null, extra?: { deviationMeters?: number; progressPercent?: number }) => {
+    if (from === to) return;
+    const entry: NavTransition = {
+      from,
+      to,
+      timestamp: new Date().toISOString(),
+      position: pos ? { lat: pos.lat, lng: pos.lng } : null,
+      segmentId: activeSegment?.companySegmentId || activeSegment?.id || '',
+      reason,
+      ...extra,
+    };
+    transitionsRef.current = [...transitionsRef.current, entry];
+    currentStateRef.current = to;
+  }, [activeSegment?.id, activeSegment?.companySegmentId]);
+
+  // ─── Main tracking loop ─────────────────────────────────────────────
   useEffect(() => {
     if (!activeSegment || !currentPosition || !navigationActive) {
-      setState((s) => ({ ...s, operationalState: 'idle', showApproachPrompt: false }));
+      if (currentStateRef.current !== 'idle') {
+        logTransition(currentStateRef.current, 'idle', 'navigation_deactivated', currentPosition ?? null);
+      }
+      setState((s) => ({
+        ...s,
+        operationalState: 'idle',
+        showApproachPrompt: false,
+        transitions: transitionsRef.current,
+        thresholds,
+      }));
       return;
     }
 
@@ -131,14 +257,20 @@ export function useNavigationTracker(
     const speed = gpsSpeed != null && gpsSpeed >= 0 ? gpsSpeed : 0;
     const speedKmh = speed * 3.6;
     const eta = speed > 0.5 ? distToStart / speed : null;
+    const prev = currentStateRef.current;
 
     if (!isRecording) {
-      // APPROACH PHASE
-      const isNearStart = distToStart <= APPROACH_RADIUS;
+      // ── APPROACH PHASE ──────────────────────────────────────────────
+      const isNearStart = distToStart <= thresholds.approachRadius;
+      const newState: NavOperationalState = isNearStart ? 'ready' : 'approaching';
       const shouldShowPrompt = isNearStart && promptDismissedRef.current !== activeSegment.id;
 
+      if (prev !== newState) {
+        logTransition(prev, newState, isNearStart ? `within_${thresholds.approachRadius}m_of_start` : `dist_to_start=${Math.round(distToStart)}m`, currentPosition);
+      }
+
       setState({
-        operationalState: isNearStart ? 'ready' : 'approaching',
+        operationalState: newState,
         distanceToStart: distToStart,
         etaToStart: eta,
         progressPercent: 0,
@@ -148,25 +280,81 @@ export function useNavigationTracker(
         deviationMeters: 0,
         showApproachPrompt: shouldShowPrompt,
         closestPointIndex: 0,
+        transitions: transitionsRef.current,
+        thresholds,
       });
     } else {
-      // RECORDING PHASE — track progress along polyline
-      const { index, distance: deviation } = closestOnPolyline(currentPosition, coords);
-      const remaining = polylineLengthFrom(coords, index);
-      const progress = totalDist > 0 ? Math.min(100, ((totalDist - remaining) / totalDist) * 100) : 0;
+      // ── RECORDING PHASE ─────────────────────────────────────────────
+      const { index, t, distance: deviation } = closestOnPolyline(currentPosition, coords);
+      const progressM = progressAlongPolyline(cumLens, index, t);
+      const remaining = Math.max(0, totalDist - progressM);
+      const progress = totalDist > 0 ? Math.min(100, (progressM / totalDist) * 100) : 0;
 
-      const isDeviated = deviation > DEVIATION_THRESHOLD;
-      const wasDeviated = prevDeviatedRef.current;
-      const recovered = wasDeviated && deviation <= DEVIATION_RECOVERY;
+      // ── Direction analysis (index regression = wrong direction) ────
+      const combinedIndex = index + t; // fractional index for smooth comparison
+      const prevCombined = prevIndexRef.current !== null ? prevIndexRef.current + prevTRef.current : null;
+      const isMovingBackward = prevCombined !== null && speed >= thresholds.minSpeedForDirection && combinedIndex < prevCombined - 0.3;
+      wrongDirWindowRef.current.push(isMovingBackward);
+      const confirmedWrongDir = wrongDirWindowRef.current.allTrue();
 
-      let opState: NavOperationalState = 'recording';
-      if (isDeviated) opState = 'deviated';
-      if (recovered) opState = 'recording';
+      prevIndexRef.current = index;
+      prevTRef.current = t;
 
-      prevDeviatedRef.current = isDeviated;
+      // ── Deviation analysis with hysteresis ─────────────────────────
+      const isAboveDeviation = deviation > thresholds.deviationThreshold;
+      const isAbovePreAlert = deviation > thresholds.preAlertThreshold;
+      const isBelowRecovery = deviation <= thresholds.recoveryThreshold;
+
+      deviationWindowRef.current.push(isAboveDeviation);
+      recoveryWindowRef.current.push(isBelowRecovery);
+
+      const confirmedDeviation = deviationWindowRef.current.allTrue();
+      const confirmedRecovery = recoveryWindowRef.current.allTrue();
+
+      // ── State machine transitions ──────────────────────────────────
+      let newState: NavOperationalState = prev;
+      let reason = '';
+
+      if (prev === 'recording' || prev === 'pre_alert') {
+        if (confirmedWrongDir && !confirmedDeviation) {
+          newState = 'wrong_direction';
+          reason = `index_regression_confirmed_over_${thresholds.wrongDirectionWindowSize}_samples`;
+          wrongDirWindowRef.current.reset();
+        } else if (confirmedDeviation) {
+          newState = 'deviated';
+          reason = `deviation=${Math.round(deviation)}m_confirmed_over_${thresholds.deviationWindowSize}_samples`;
+          deviationWindowRef.current.reset();
+        } else if (isAbovePreAlert && prev === 'recording') {
+          newState = 'pre_alert';
+          reason = `deviation=${Math.round(deviation)}m_above_pre_alert_${thresholds.preAlertThreshold}m`;
+        } else if (!isAbovePreAlert && prev === 'pre_alert') {
+          newState = 'recording';
+          reason = `deviation=${Math.round(deviation)}m_dropped_below_pre_alert`;
+          deviationWindowRef.current.reset();
+        }
+      } else if (prev === 'deviated' || prev === 'wrong_direction') {
+        if (confirmedRecovery) {
+          newState = 'recording';
+          reason = `recovery_confirmed_deviation=${Math.round(deviation)}m_below_${thresholds.recoveryThreshold}m_over_${thresholds.recoveryWindowSize}_samples`;
+          recoveryWindowRef.current.reset();
+          wrongDirWindowRef.current.reset();
+          deviationWindowRef.current.reset();
+        }
+      } else {
+        // First sample after recording starts — default to recording
+        newState = 'recording';
+        reason = 'recording_started';
+      }
+
+      if (prev !== newState) {
+        logTransition(prev, newState, reason, currentPosition, {
+          deviationMeters: deviation,
+          progressPercent: progress,
+        });
+      }
 
       setState({
-        operationalState: opState,
+        operationalState: newState,
         distanceToStart: distToStart,
         etaToStart: null,
         progressPercent: progress,
@@ -176,9 +364,11 @@ export function useNavigationTracker(
         deviationMeters: deviation,
         showApproachPrompt: false,
         closestPointIndex: index,
+        transitions: transitionsRef.current,
+        thresholds,
       });
     }
-  }, [activeSegment?.id, currentPosition?.lat, currentPosition?.lng, gpsSpeed, isRecording, navigationActive, totalDist]);
+  }, [activeSegment?.id, currentPosition?.lat, currentPosition?.lng, gpsSpeed, isRecording, navigationActive, totalDist, thresholds, cumLens, logTransition]);
 
   const dismissApproachPrompt = useCallback(() => {
     if (activeSegment) {
@@ -187,5 +377,10 @@ export function useNavigationTracker(
     setState((s) => ({ ...s, showApproachPrompt: false }));
   }, [activeSegment]);
 
-  return { ...state, dismissApproachPrompt };
+  const clearTransitions = useCallback(() => {
+    transitionsRef.current = [];
+    setState((s) => ({ ...s, transitions: [] }));
+  }, []);
+
+  return { ...state, dismissApproachPrompt, clearTransitions };
 }
