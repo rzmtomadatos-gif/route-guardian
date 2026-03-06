@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
-import { playApproachSound, playDeviationAlertSound, playRecoverySound } from '@/utils/sounds';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -170,9 +170,13 @@ export default function MapPage({
 
     if (curr === 'ready' && prev === 'approaching') {
       playApproachSound();
-    } else if (curr === 'deviated' && prev === 'recording') {
+    } else if (curr === 'deviated' && (prev === 'recording' || prev === 'pre_alert')) {
       playDeviationAlertSound();
-    } else if (curr === 'recording' && prev === 'deviated') {
+    } else if (curr === 'wrong_direction') {
+      playWrongDirectionSound();
+    } else if (curr === 'pre_alert' && prev === 'recording') {
+      playPreAlertSound();
+    } else if (curr === 'recording' && (prev === 'deviated' || prev === 'wrong_direction')) {
       playRecoverySound();
     }
   }, [navTracker.operationalState]);

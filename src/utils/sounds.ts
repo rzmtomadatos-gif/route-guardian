@@ -24,7 +24,6 @@ export async function primeAudio(): Promise<void> {
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
-    // Play an inaudible tone to fully unlock the context
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.001, ctx.currentTime);
@@ -42,7 +41,6 @@ function playTone(frequency: number, duration: number, type: OscillatorType = 's
   const ctx = getAudioContext();
   if (!ctx) return;
 
-  // Resume if suspended (browser autoplay policy)
   if (ctx.state === 'suspended') {
     ctx.resume().catch(() => {});
   }
@@ -99,4 +97,18 @@ export function playRecoverySound() {
   playTone(440, 0.1);
   setTimeout(() => playTone(660, 0.1), 120);
   setTimeout(() => playTone(880, 0.15), 240);
+}
+
+/** Sound for wrong direction detection — distinct pattern */
+export function playWrongDirectionSound() {
+  playTone(280, 0.25, 'square');
+  setTimeout(() => playTone(220, 0.25, 'square'), 300);
+  setTimeout(() => playTone(280, 0.25, 'square'), 600);
+  try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch {}
+}
+
+/** Soft pre-alert tone — single short warning */
+export function playPreAlertSound() {
+  playTone(550, 0.15, 'triangle');
+  try { navigator.vibrate?.([80]); } catch {}
 }
