@@ -188,6 +188,53 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
           </div>
         </div>
 
+        {/* Project context */}
+        {route && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <User className="w-4 h-4" />
+              <span className="text-sm font-medium">Contexto del proyecto</span>
+            </div>
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              {route.projectCode && (
+                <p className="text-xs text-muted-foreground">
+                  Proyecto: <span className="text-foreground font-medium">{route.projectCode}</span>
+                  {route.projectName && ` — ${route.projectName}`}
+                </p>
+              )}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Operador"
+                    value={route.operator || ''}
+                    onChange={(e) => onUpdateRouteContext({ operator: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Car className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Vehículo"
+                    value={route.vehicle || ''}
+                    onChange={(e) => onUpdateRouteContext({ vehicle: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Climatología"
+                    value={route.weather || ''}
+                    onChange={(e) => onUpdateRouteContext({ weather: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* App info */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -199,7 +246,7 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
             <p className="text-xs text-muted-foreground">
               Aplicación de auscultación vial para optimización y guía de rutas de grabación.
             </p>
-            <p className="text-xs text-muted-foreground">Versión 1.0.0 — MVP</p>
+            <p className="text-xs text-muted-foreground">Versión 1.1.0</p>
           </div>
         </div>
 
