@@ -883,87 +883,78 @@ export default function MapPage({
     );
   }
 
+  // Compute block/counter info for NavigationOverlay
+  const navCounters = useMemo(() => {
+    if (!route) return { blockNumber: 0, segmentIndexInBlock: 0, totalSegmentsInBlock: 0, pendingCount: 0, completedCount: 0, repeatCount: 0 };
+    const segs = visibleSegments;
+    const pendingCount = segs.filter(s => s.status === 'pendiente').length;
+    const completedCount = segs.filter(s => s.status === 'completado').length;
+    const repeatCount = segs.filter(s => s.needsRepeat).length;
+    // Block info from RST mode
+    let blockNumber = 0;
+    let segmentIndexInBlock = 0;
+    let totalSegmentsInBlock = 0;
+    if (state.rstMode && state.trackSession && activeSegment) {
+      blockNumber = state.trackSession.trackNumber || 0;
+      const order = visibleOrder;
+      const idx = order.indexOf(activeSegment.id);
+      const groupSize = state.rstGroupSize || 1;
+      const blockStart = Math.floor(idx / groupSize) * groupSize;
+      segmentIndexInBlock = idx - blockStart + 1;
+      totalSegmentsInBlock = Math.min(groupSize, order.length - blockStart);
+    }
+    return { blockNumber, segmentIndexInBlock, totalSegmentsInBlock, pendingCount, completedCount, repeatCount };
+  }, [route, visibleSegments, visibleOrder, state.rstMode, state.trackSession, state.rstGroupSize, activeSegment]);
+
+  const showNavPanel = state.navigationActive && activeSegment && navTracker.operationalState !== 'idle';
+
   return (
-    <div className="flex flex-col h-full relative">
-      <div className="flex-1">
+    <div className="flex flex-col h-full">
+      {/* Map area: grows to fill available space */}
+      <div className="flex-1 relative min-h-0">
         <GoogleMapDisplay
           segments={visibleSegments}
           activeSegmentId={state.activeSegmentId}
           currentPosition={geo.position}
           optimizedOrder={visibleOrder}
-           onSegmentClick={handleSegmentClick}
-           selectedSegmentIds={selectedSegmentIds.size > 0 || selectionMode ? selectedSegmentIds : undefined}
-           layerColorMap={layerColorMap}
-           creationMode={creationMode}
-           onMapClick={handleMapClick}
-           creationStartPoint={creationStart}
-           creationEndPoint={creationEnd}
-           creationRoutePreview={creationRoute}
-           areaSelectionMode={zoneSelectMode !== 'none' ? zoneSelectMode : areaMode}
-           areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
-           onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
-           fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
-           centerActiveRequest={centerActiveRequest}
+          onSegmentClick={handleSegmentClick}
+          selectedSegmentIds={selectedSegmentIds.size > 0 || selectionMode ? selectedSegmentIds : undefined}
+          layerColorMap={layerColorMap}
+          creationMode={creationMode}
+          onMapClick={handleMapClick}
+          creationStartPoint={creationStart}
+          creationEndPoint={creationEnd}
+          creationRoutePreview={creationRoute}
+          areaSelectionMode={zoneSelectMode !== 'none' ? zoneSelectMode : areaMode}
+          areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
+          onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
+          fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
+          centerActiveRequest={centerActiveRequest}
         />
-      </div>
 
-      {/* Map mode indicator */}
-      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
-        mapMode === 'google' 
-          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-          : 'bg-muted/80 text-muted-foreground border border-border'
-      }`}>
-        {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
-      </div>
-      {/* Center on active segment button */}
-      {state.activeSegmentId && state.navigationActive && (
-        <button
-          onClick={() => setCenterActiveRequest((c) => c + 1)}
-          className="absolute top-3 left-48 z-10 w-9 h-9 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          title="Centrar en tramo activo"
-        >
-          <Crosshair className="w-4 h-4" />
-        </button>
-      )}
+        {/* Map floating buttons: max 2 — center GPS + map mode indicator */}
+        {state.navigationActive && (
+          <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">
+            <button
+              onClick={() => setCenterActiveRequest((c) => c + 1)}
+              className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title="Centrar en tramo activo"
+            >
+              <Crosshair className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
-      {/* === NAVIGATION OVERLAY (operational HUD) === */}
-      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' && (
-        <NavigationOverlay
-          segment={activeSegment}
-          operationalState={navTracker.operationalState}
-          distanceToStart={navTracker.distanceToStart}
-          distanceToEnd={navTracker.distanceToEnd}
-          etaToStart={navTracker.etaToStart}
-          progressPercent={navTracker.progressPercent}
-          distanceRemaining={navTracker.distanceRemaining}
-          totalDistance={navTracker.totalDistance}
-          speedKmh={navTracker.speedKmh}
-          deviationMeters={navTracker.deviationMeters}
-          showApproachPrompt={navTracker.showApproachPrompt}
-          onStartSegment={() => {
-            navTracker.dismissApproachPrompt();
-            onConfirmStart(activeSegment.id, hiddenLayers);
-          }}
-          onCompleteSegment={() => onComplete(activeSegment.id, hiddenLayers)}
-          onSkipSegment={() => onSkipSegment(activeSegment.id, hiddenLayers)}
-          onPostpone={() => {
-            navTracker.dismissApproachPrompt();
-            onSkipSegment(activeSegment.id, hiddenLayers);
-          }}
-          onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
-          onRestartSegment={handleRestartSegment}
-          onMarkF5={handleMarkF5}
-          currentPosition={geo.position}
-          isBlocked={videoEndBlocking}
-          isInvalidated={navTracker.isInvalidated}
-          contiguousInfo={navTracker.contiguousInfo}
-          activeReference={navTracker.activeReference}
-          headingDelta={navTracker.headingDelta}
-          stats={navTracker.stats}
-          approachSequenceValid={navTracker.approachSequenceValid}
-          geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
-        />
-      )}
+        {/* Map mode indicator (non-nav mode) */}
+        {!state.navigationActive && (
+          <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
+            mapMode === 'google'
+              ? 'bg-success/20 text-success border border-success/30'
+              : 'bg-muted/80 text-muted-foreground border border-border'
+          }`}>
+            {mapMode === 'google' ? '● Google Maps' : '● Offline (Leaflet)'}
+          </div>
+        )}
 
       {/* Creation mode panel */}
       {creationMode && (
