@@ -363,6 +363,7 @@ export function MapControlPanel({
             {/* === SUMMARY + GPS === */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <span className="text-accent font-medium">D{workDay}</span>
                 <span>{pending} pend.</span>
                 <span className="text-success">{completed} compl.</span>
                 {posibleRepetir > 0 && <span className="text-amber-400">{posibleRepetir} rep.</span>}
