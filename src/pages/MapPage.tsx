@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
-import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound } from '@/utils/sounds';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -166,6 +166,8 @@ export default function MapPage({
     activeSegment,
     geo.position,
     geo.speed,
+    geo.heading,
+    geo.accuracy,
     !!isRecording,
     state.navigationActive,
     undefined,
@@ -217,6 +219,7 @@ export default function MapPage({
     else if (curr === 'wrong_direction') playWrongDirectionSound();
     else if (curr === 'pre_alert') playPreAlertSound();
     else if (curr === 'recording' && prev === 'pre_alert') playRecoverySound();
+    else if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
   
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
@@ -955,6 +958,10 @@ export default function MapPage({
           isInvalidated={navTracker.isInvalidated}
           contiguousInfo={navTracker.contiguousInfo}
           activeReference={navTracker.activeReference}
+          headingDelta={navTracker.headingDelta}
+          stats={navTracker.stats}
+          approachSequenceValid={navTracker.approachSequenceValid}
+          geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
         />
       )}
 

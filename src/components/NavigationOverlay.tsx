@@ -3,14 +3,14 @@ import {
   Navigation, Play, Clock, AlertTriangle, MapPin,
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
-  ChevronRight, Target, Milestone,
+  ChevronRight, Target, Milestone, Wifi, WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
-import type { NavOperationalState, ContiguousInfo } from '@/hooks/useNavigationTracker';
+import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
 
 interface Props {
   segment: Segment;
@@ -36,6 +36,10 @@ interface Props {
   isInvalidated: boolean;
   contiguousInfo: ContiguousInfo;
   activeReference: 'ref_300m' | 'ref_150m' | 'ref_30m' | 'end_ref_300m' | 'end_ref_150m' | 'end_ref_30m' | null;
+  headingDelta: number;
+  stats: NavSegmentStats;
+  approachSequenceValid: boolean;
+  geometricRecoveryOnly: boolean;
 }
 
 function formatDistance(meters: number | null): string {
@@ -66,6 +70,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   ref_30m: { label: 'Referencia 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
   ready_f5_start: { label: '⏎ PULSAR F5 — INICIO', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
   recording: { label: 'En grabación', colorClass: 'bg-success/20 text-success border border-success/40', icon: Activity },
+  gps_unstable: { label: '⚠ GPS inestable', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse', icon: WifiOff },
   pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
   deviated: { label: '✖ INVALIDADO — Desvío', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: Ban },
   wrong_direction: { label: '✖ INVALIDADO — Sentido incorrecto', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: ArrowDownLeft },
@@ -79,7 +84,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
 };
 
 const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
-const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
+const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
 const INVALID_STATES: NavOperationalState[] = ['deviated', 'wrong_direction', 'invalidated'];
 
 export function NavigationOverlay({
@@ -106,6 +111,10 @@ export function NavigationOverlay({
   isInvalidated,
   contiguousInfo,
   activeReference,
+  headingDelta,
+  stats,
+  approachSequenceValid,
+  geometricRecoveryOnly,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
@@ -203,10 +212,6 @@ export function NavigationOverlay({
                     <p className="text-xs font-bold text-foreground">{formatDistance(distanceRemaining)}</p>
                   </div>
                   <div className="bg-secondary/60 rounded-lg p-1 text-center">
-                    <p className="text-[8px] text-muted-foreground">Total</p>
-                    <p className="text-xs font-bold text-foreground">{formatDistance(totalDistance)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1 text-center">
                     <Gauge className="w-3 h-3 mx-auto text-muted-foreground" />
                     <p className="text-xs font-bold text-foreground">{Math.round(speedKmh)}</p>
                   </div>
@@ -214,6 +219,30 @@ export function NavigationOverlay({
                     <Clock className="w-3 h-3 mx-auto text-muted-foreground" />
                     <p className="text-xs font-bold text-foreground">{formatDuration(elapsed)}</p>
                   </div>
+                  <div className={`rounded-lg p-1 text-center ${
+                    headingDelta <= 45
+                      ? 'bg-success/10'
+                      : headingDelta <= 90
+                        ? 'bg-amber-500/10'
+                        : 'bg-destructive/10'
+                  }`}>
+                    <p className="text-[8px] text-muted-foreground">Rumbo Δ</p>
+                    <p className={`text-xs font-bold ${
+                      headingDelta <= 45 ? 'text-success' : headingDelta <= 90 ? 'text-amber-400' : 'text-destructive'
+                    }`}>{Math.round(headingDelta)}°</p>
+                  </div>
+                </div>
+
+                {/* Validation metrics strip */}
+                <div className="flex items-center gap-2 text-[8px]">
+                  <span className="text-muted-foreground">Cobertura válida:</span>
+                  <span className={`font-bold ${stats.validCoveragePercent >= 85 ? 'text-success' : 'text-amber-400'}`}>
+                    {stats.validCoveragePercent.toFixed(0)}%
+                  </span>
+                  <span className="text-muted-foreground ml-auto">↕ {Math.round(deviationMeters)}m</span>
+                  {!approachSequenceValid && (
+                    <span className="text-destructive font-bold">⚠ Aprox. incompleta</span>
+                  )}
                 </div>
 
                 {/* End reference markers */}
@@ -230,6 +259,32 @@ export function NavigationOverlay({
         </div>
       </div>
 
+      {/* === GPS UNSTABLE WARNING === */}
+      {operationalState === 'gps_unstable' && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2.5 flex items-center gap-3">
+            <WifiOff className="w-5 h-5 text-amber-400 flex-shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-400">Señal GPS inestable</p>
+              <p className="text-[10px] text-amber-400/70">Posicionamiento poco fiable. El avance no se contabiliza como válido.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === GEOMETRIC RECOVERY WARNING (operational still invalid) === */}
+      {geometricRecoveryOnly && isInvalidated && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2 flex items-center gap-3">
+            <Wifi className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-[10px] font-bold text-amber-400">Recuperación solo geométrica</p>
+              <p className="text-[9px] text-amber-400/70">Estás sobre el eje, pero el tramo sigue invalidado operativamente. Debes reiniciar.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* === F5 START CONFIRMATION PROMPT === */}
       {showApproachPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
@@ -243,6 +298,11 @@ export function NavigationOverlay({
                 <p className="text-[10px] text-muted-foreground">
                   Estás a {formatDistance(distanceToStart)} del inicio — Pulsa F5 en HIWAY
                 </p>
+                {!approachSequenceValid && (
+                  <p className="text-[10px] text-destructive font-bold mt-0.5">
+                    ⚠ Secuencia 300→150→30 incompleta — El tramo puede requerir revisión
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
