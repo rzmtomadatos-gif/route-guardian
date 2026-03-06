@@ -33,6 +33,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<ParsedKmlResult | null>(null);
+  const [pendingRouteForCode, setPendingRouteForCode] = useState<RouteType | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const navigate = useNavigate();
