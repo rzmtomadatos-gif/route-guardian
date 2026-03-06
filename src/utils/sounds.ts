@@ -147,3 +147,11 @@ export function playInvalidationSound() {
   setTimeout(() => playTone(150, 0.5, 'sawtooth'), 550);
   try { navigator.vibrate?.([500, 200, 500]); } catch {}
 }
+
+/** GPS unstable warning — soft staccato */
+export function playGpsUnstableSound() {
+  playTone(400, 0.08, 'triangle');
+  setTimeout(() => playTone(400, 0.08, 'triangle'), 150);
+  setTimeout(() => playTone(400, 0.08, 'triangle'), 300);
+  try { navigator.vibrate?.([60, 60, 60]); } catch {}
+}
