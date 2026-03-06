@@ -43,6 +43,7 @@ interface Props {
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCloseBlockEndPrompt: () => void;
+  onSetWorkDay: (day: number) => void;
 }
 
 export default function MapPage({
@@ -67,6 +68,7 @@ export default function MapPage({
   onFinalizeTrack,
   onSkipSegment,
   onCloseBlockEndPrompt,
+  onSetWorkDay,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1064,6 +1066,8 @@ export default function MapPage({
           onSetRstGroupSize={onSetRstGroupSize}
           onFinalizeTrack={onFinalizeTrack}
           onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
+          workDay={state.workDay}
+          onSetWorkDay={onSetWorkDay}
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
           onVideoEndCancel={handleVideoEndCancel}
