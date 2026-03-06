@@ -31,9 +31,12 @@ export function useRouteState() {
     });
   }, []);
 
-  /** Get current max track number across all segments + track session */
-  const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null): number => {
-    const all = segments.flatMap((seg) => [
+  /** Get current max track number for a given work day across segments + track session */
+  const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null, workDay?: number): number => {
+    const daySegments = workDay != null
+      ? segments.filter((seg) => seg.workDay === workDay)
+      : segments;
+    const all = daySegments.flatMap((seg) => [
       ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
       ...seg.trackHistory,
     ]);
