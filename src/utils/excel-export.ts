@@ -152,7 +152,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     ids.forEach((id, idx) => trackOrderMap.set(id, idx + 1));
   });
 
-  // Sheet 1: Segments
+  // Sheet 1: Segments — exact column order per spec
   const segData = validatedSegments.map((seg) => {
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
@@ -161,22 +161,23 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     return {
       'ID_EMPRESA': seg.companySegmentId || '',
       'NOMBRE_TRAMO': seg.name,
+      'Ident. Tramo': seg.kmlMeta?.identtramo || '',
       'CAPA': seg.layer || 'Sin capa',
       'DIA': seg.workDay ?? '',
       'TRACK': trackReal,
       'ORDEN_EN_TRACK': seg.segmentOrder ?? trackOrderMap.get(seg.id) ?? '',
-      'Track planificado': seg.plannedTrackNumber ?? '',
-      'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
       'ESTADO': STATUS_LABELS[seg.status] || seg.status,
-      'Estado final': computeFinalStatus(seg),
       'INCIDENCIA': segIncidents.length > 0 ? segIncidents.map(i => i.category).join(', ') : '',
       'HORA_INICIO': seg.startedAt || seg.timestampInicio || '',
       'HORA_FIN': !seg.nonRecordable ? (seg.endedAt || seg.timestampFin || '') : '',
       'DURACION (s)': durSec ?? '',
       'DURACION': formatDuration(durSec),
       'Distancia (km)': Math.round(distKm * 100) / 100,
+      'Coord. Inicio Lat': seg.coordinates[0]?.lat ?? '',
+      'Coord. Inicio Lng': seg.coordinates[0]?.lng ?? '',
+      'Coord. Fin Lat': seg.coordinates[seg.coordinates.length - 1]?.lat ?? '',
+      'Coord. Fin Lng': seg.coordinates[seg.coordinates.length - 1]?.lng ?? '',
       'Carretera': seg.kmlMeta?.carretera || '',
-      'Ident. Tramo': seg.kmlMeta?.identtramo || '',
       'Tipo KML': seg.kmlMeta?.tipo || '',
       'Calzada': seg.kmlMeta?.calzada || '',
       'Sentido': seg.kmlMeta?.sentido || '',
@@ -184,16 +185,15 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'PK Final': seg.kmlMeta?.pkFinal || '',
       'Tipo': TYPE_LABELS[seg.type] || seg.type,
       'Dirección': DIRECTION_LABELS[seg.direction] || seg.direction,
+      'NOTAS': seg.notes || '',
+      'Track planificado': seg.plannedTrackNumber ?? '',
+      'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
+      'Estado final': computeFinalStatus(seg),
       'Nº repetición': seg.repeatNumber || 0,
       'No grabable': seg.nonRecordable ? 'Sí' : '',
       'Repetir': seg.needsRepeat ? 'Sí' : '',
       'Track invalidado por': seg.invalidatedByTrack ?? '',
-      'NOTAS': seg.notes || '',
       'Incidencias (total)': segIncidents.length,
-      'Coord. Inicio Lat': seg.coordinates[0]?.lat ?? '',
-      'Coord. Inicio Lng': seg.coordinates[0]?.lng ?? '',
-      'Coord. Fin Lat': seg.coordinates[seg.coordinates.length - 1]?.lat ?? '',
-      'Coord. Fin Lng': seg.coordinates[seg.coordinates.length - 1]?.lng ?? '',
     };
   });
 
@@ -262,7 +262,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     { 'Métrica': 'Tramos pendientes repetir', 'Valor': needsRepeat },
     { 'Métrica': 'Tramos no grabables', 'Valor': nonRecordable },
     { 'Métrica': 'Tramos pendientes', 'Valor': totalSegments - recorded - nonRecordable },
-    { 'Métrica': 'Tracks generados', 'Valor': uniqueTracks },
+    { 'Métrica': 'Tracks ejecutados', 'Valor': uniqueTracks },
     { 'Métrica': 'Días de trabajo', 'Valor': uniqueWorkDays },
     { 'Métrica': 'Tiempo total grabación', 'Valor': `${totalHours}h ${totalMins}m ${totalSecs}s` },
     { 'Métrica': 'Incidencias totales', 'Valor': exportIncidents.length },
