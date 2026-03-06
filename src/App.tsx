@@ -163,6 +163,8 @@ function AppRoutes() {
             <SettingsPage
               onClear={clearRoute}
               hasRoute={!!state.route}
+              route={state.route}
+              onUpdateRouteContext={updateRouteContext}
             />
           }
         />
