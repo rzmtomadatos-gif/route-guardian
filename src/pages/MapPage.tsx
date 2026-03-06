@@ -871,18 +871,6 @@ export default function MapPage({
     return colorMap;
   }, [route]);
 
-  if (!route) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full px-6">
-        <p className="text-muted-foreground mb-4">No hay ruta cargada</p>
-        <Button onClick={() => navigate('/')} className="driving-button bg-primary text-primary-foreground">
-          <Upload className="w-5 h-5 mr-2" />
-          Cargar archivo
-        </Button>
-      </div>
-    );
-  }
-
   // Compute block/counter info for NavigationOverlay
   const navCounters = useMemo(() => {
     if (!route) return { blockNumber: 0, segmentIndexInBlock: 0, totalSegmentsInBlock: 0, pendingCount: 0, completedCount: 0, repeatCount: 0 };
@@ -890,7 +878,6 @@ export default function MapPage({
     const pendingCount = segs.filter(s => s.status === 'pendiente').length;
     const completedCount = segs.filter(s => s.status === 'completado').length;
     const repeatCount = segs.filter(s => s.needsRepeat).length;
-    // Block info from RST mode
     let blockNumber = 0;
     let segmentIndexInBlock = 0;
     let totalSegmentsInBlock = 0;
@@ -905,6 +892,18 @@ export default function MapPage({
     }
     return { blockNumber, segmentIndexInBlock, totalSegmentsInBlock, pendingCount, completedCount, repeatCount };
   }, [route, visibleSegments, visibleOrder, state.rstMode, state.trackSession, state.rstGroupSize, activeSegment]);
+
+  if (!route) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6">
+        <p className="text-muted-foreground mb-4">No hay ruta cargada</p>
+        <Button onClick={() => navigate('/')} className="driving-button bg-primary text-primary-foreground">
+          <Upload className="w-5 h-5 mr-2" />
+          Cargar archivo
+        </Button>
+      </div>
+    );
+  }
 
   const showNavPanel = state.navigationActive && activeSegment && navTracker.operationalState !== 'idle';
 
