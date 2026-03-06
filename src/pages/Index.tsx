@@ -2,10 +2,11 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileUp, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { parseKMLFile, applyNamingField } from '@/utils/kml-parser';
+import { parseKMLFile, applyNamingField, applyProjectCode } from '@/utils/kml-parser';
 import type { ParsedKmlResult } from '@/utils/kml-parser';
 
 import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
+import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
 import {
   AlertDialog,
