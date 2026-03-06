@@ -298,6 +298,11 @@ export function NavigationOverlay({
                 <p className="text-[10px] text-muted-foreground">
                   Estás a {formatDistance(distanceToStart)} del inicio — Pulsa F5 en HIWAY
                 </p>
+                {!approachSequenceValid && (
+                  <p className="text-[10px] text-destructive font-bold mt-0.5">
+                    ⚠ Secuencia 300→150→30 incompleta — El tramo puede requerir revisión
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
