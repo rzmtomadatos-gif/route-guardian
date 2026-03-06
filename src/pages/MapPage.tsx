@@ -889,6 +889,36 @@ export default function MapPage({
           <Crosshair className="w-4 h-4" />
         </button>
       )}
+
+      {/* === NAVIGATION OVERLAY (operational HUD) === */}
+      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' && (
+        <NavigationOverlay
+          segment={activeSegment}
+          operationalState={navTracker.operationalState}
+          distanceToStart={navTracker.distanceToStart}
+          etaToStart={navTracker.etaToStart}
+          progressPercent={navTracker.progressPercent}
+          distanceRemaining={navTracker.distanceRemaining}
+          totalDistance={navTracker.totalDistance}
+          speedKmh={navTracker.speedKmh}
+          deviationMeters={navTracker.deviationMeters}
+          showApproachPrompt={navTracker.showApproachPrompt}
+          onStartSegment={() => {
+            navTracker.dismissApproachPrompt();
+            onConfirmStart(activeSegment.id, hiddenLayers);
+          }}
+          onCompleteSegment={() => onComplete(activeSegment.id, hiddenLayers)}
+          onSkipSegment={() => onSkipSegment(activeSegment.id, hiddenLayers)}
+          onPostpone={() => {
+            navTracker.dismissApproachPrompt();
+            onSkipSegment(activeSegment.id, hiddenLayers);
+          }}
+          onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
+          currentPosition={geo.position}
+          isBlocked={videoEndBlocking}
+        />
+      )}
+
       {/* Creation mode panel */}
       {creationMode && (
         <SegmentCreatorPanel
