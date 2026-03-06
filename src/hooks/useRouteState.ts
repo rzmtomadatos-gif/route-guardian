@@ -925,6 +925,26 @@ export function useRouteState() {
     setState((s) => ({ ...s, rstGroupSize: size }));
   }, [setState]);
 
+  /** Set the current work day. Resets track numbering for the new day. */
+  const setWorkDay = useCallback((day: number) => {
+    setState((s) => {
+      // Close any active track session when changing day
+      let trackSession = s.trackSession;
+      if (trackSession && trackSession.active) {
+        trackSession = { ...trackSession, active: false, endedAt: new Date().toISOString(), closedManually: true };
+      }
+      return { ...s, workDay: day, trackSession };
+    }, true);
+  }, [setState]);
+
+  /** Update route context fields (operator, vehicle, weather) */
+  const updateRouteContext = useCallback((updates: { operator?: string; vehicle?: string; weather?: string }) => {
+    setState((s) => {
+      if (!s.route) return s;
+      return { ...s, route: { ...s.route, ...updates } };
+    });
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -963,5 +983,7 @@ export function useRouteState() {
     finalizeTrack,
     skipSegment,
     closeBlockEndPrompt,
+    setWorkDay,
+    updateRouteContext,
   };
 }
