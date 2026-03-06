@@ -956,78 +956,170 @@ export default function MapPage({
           </div>
         )}
 
-      {/* Creation mode panel */}
-      {creationMode && (
-        <SegmentCreatorPanel
-          layers={layers}
-          onCreateSegment={handleCreateSegment}
-          onCancel={handleCancelCreation}
-          startPoint={creationStart}
-          endPoint={creationEnd}
-          routePreview={creationRoute}
-          isLoadingRoute={isLoadingRoute}
-          roadInfo={creationRoadInfo}
-          isLoadingRoadInfo={isLoadingRoadInfo}
-        />
-      )}
+        {/* Creation mode panel */}
+        {creationMode && (
+          <SegmentCreatorPanel
+            layers={layers}
+            onCreateSegment={handleCreateSegment}
+            onCancel={handleCancelCreation}
+            startPoint={creationStart}
+            endPoint={creationEnd}
+            routePreview={creationRoute}
+            isLoadingRoute={isLoadingRoute}
+            roadInfo={creationRoadInfo}
+            isLoadingRoadInfo={isLoadingRoadInfo}
+          />
+        )}
 
-      {/* Area selection panel */}
-      {areaMode !== 'none' && !showAreaDialog && (
-        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : areaMode === 'circle' ? <Circle className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
-              {areaMode === 'rectangle' ? 'Selección rectangular' : areaMode === 'circle' ? 'Selección circular' : 'Selección por polígono'}
-            </h3>
-            <button onClick={handleCancelArea} className="text-xs text-muted-foreground hover:text-foreground">
-              Cancelar
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            {areaMode === 'rectangle'
-              ? `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)`
-              : areaMode === 'circle'
-                ? `Haz click en el centro y luego en el borde del círculo. (${areaPoints.length}/2)`
-                : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
-          </p>
-          {areaMode === 'circle' && areaPoints.length >= 2 && (
-            <p className="text-[10px] text-accent mb-2">
-              ⓘ Las vías se completarán de inicio a fin, incluso si se extienden fuera del círculo.
+        {/* Area selection panel */}
+        {areaMode !== 'none' && !showAreaDialog && (
+          <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : areaMode === 'circle' ? <Circle className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
+                {areaMode === 'rectangle' ? 'Selección rectangular' : areaMode === 'circle' ? 'Selección circular' : 'Selección por polígono'}
+              </h3>
+              <button onClick={handleCancelArea} className="text-xs text-muted-foreground hover:text-foreground">
+                Cancelar
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">
+              {areaMode === 'rectangle'
+                ? `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)`
+                : areaMode === 'circle'
+                  ? `Haz click en el centro y luego en el borde del círculo. (${areaPoints.length}/2)`
+                  : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
             </p>
-          )}
-          {areaMode === 'polygon' && areaPoints.length >= 3 && (
-            <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
-              Cerrar polígono y generar
-            </Button>
-          )}
-        </div>
-      )}
+            {areaMode === 'circle' && areaPoints.length >= 2 && (
+              <p className="text-[10px] text-accent mb-2">
+                ⓘ Las vías se completarán de inicio a fin, incluso si se extienden fuera del círculo.
+              </p>
+            )}
+            {areaMode === 'polygon' && areaPoints.length >= 3 && (
+              <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
+                Cerrar polígono y generar
+              </Button>
+            )}
+          </div>
+        )}
 
-      {/* Zone selection panel */}
-      {zoneSelectMode !== 'none' && (
-        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-accent/30 rounded-xl shadow-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <BoxSelect className="w-4 h-4 text-accent" />
-              Seleccionar por zona
-            </h3>
-            <button onClick={cancelZoneSelect} className="text-xs text-muted-foreground hover:text-foreground">
-              Cancelar
+        {/* Zone selection panel */}
+        {zoneSelectMode !== 'none' && (
+          <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-accent/30 rounded-xl shadow-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <BoxSelect className="w-4 h-4 text-accent" />
+                Seleccionar por zona
+              </h3>
+              <button onClick={cancelZoneSelect} className="text-xs text-muted-foreground hover:text-foreground">
+                Cancelar
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">
+              {zoneSelectMode === 'rectangle'
+                ? `Haz click en 2 esquinas opuestas. (${zoneSelectPoints.length}/2)`
+                : zoneSelectMode === 'circle'
+                  ? `Haz click en el centro y luego en el borde. (${zoneSelectPoints.length}/2)`
+                  : `Haz click para definir los vértices. (${zoneSelectPoints.length} puntos)`}
+            </p>
+            {zoneSelectMode === 'polygon' && zoneSelectPoints.length >= 3 && (
+              <Button size="sm" onClick={finishZonePolygon} className="w-full h-8 text-xs bg-accent text-accent-foreground">
+                Cerrar polígono y seleccionar
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* FAB buttons — reduced to 2 in nav mode, full in edit mode */}
+        {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && !state.navigationActive && (
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode);
+                if (selectionMode) setSelectedSegmentIds(new Set());
+              }}
+              className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+                selectionMode
+                  ? 'bg-accent text-accent-foreground ring-2 ring-accent/50'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+              title={selectionMode ? 'Desactivar selección' : 'Seleccionar tramos'}
+            >
+              <MousePointer2 className="w-4 h-4" />
+            </button>
+            {selectionMode && (
+              <>
+                <button onClick={() => setZoneSelectMode('rectangle')} className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors" title="Seleccionar por rectángulo">
+                  <Square className="w-4 h-4" />
+                </button>
+                <button onClick={() => setZoneSelectMode('polygon')} className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors" title="Seleccionar por polígono">
+                  <Pentagon className="w-4 h-4" />
+                </button>
+                <button onClick={() => setZoneSelectMode('circle')} className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors" title="Seleccionar por círculo">
+                  <Circle className="w-4 h-4" />
+                </button>
+                <div className="w-6 h-px bg-border mx-auto" />
+              </>
+            )}
+            <button onClick={() => setCreationMode(true)} className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors" title="Crear tramo manual">
+              <Plus className="w-5 h-5" />
+            </button>
+            <button onClick={() => setAreaMode('rectangle')} className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors" title="Generar tramos - Rectángulo">
+              <Square className="w-4 h-4" />
+            </button>
+            <button onClick={() => setAreaMode('polygon')} className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors" title="Generar tramos - Polígono">
+              <Pentagon className="w-4 h-4" />
+            </button>
+            <button onClick={() => setAreaMode('circle')} className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors" title="Generar tramos - Círculo">
+              <Circle className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            {zoneSelectMode === 'rectangle'
-              ? `Haz click en 2 esquinas opuestas. (${zoneSelectPoints.length}/2)`
-              : zoneSelectMode === 'circle'
-                ? `Haz click en el centro y luego en el borde. (${zoneSelectPoints.length}/2)`
-                : `Haz click para definir los vértices. (${zoneSelectPoints.length} puntos)`}
-          </p>
-          {zoneSelectMode === 'polygon' && zoneSelectPoints.length >= 3 && (
-            <Button size="sm" onClick={finishZonePolygon} className="w-full h-8 text-xs bg-accent text-accent-foreground">
-              Cerrar polígono y seleccionar
-            </Button>
-          )}
-        </div>
+        )}
+      </div>{/* end map area */}
+
+      {/* === NAVIGATION PANEL (non-overlapping bottom section) === */}
+      {showNavPanel && (
+        <NavigationOverlay
+          segment={activeSegment!}
+          operationalState={navTracker.operationalState}
+          distanceToStart={navTracker.distanceToStart}
+          distanceToEnd={navTracker.distanceToEnd}
+          etaToStart={navTracker.etaToStart}
+          progressPercent={navTracker.progressPercent}
+          distanceRemaining={navTracker.distanceRemaining}
+          totalDistance={navTracker.totalDistance}
+          speedKmh={navTracker.speedKmh}
+          deviationMeters={navTracker.deviationMeters}
+          showApproachPrompt={navTracker.showApproachPrompt}
+          onStartSegment={() => {
+            navTracker.dismissApproachPrompt();
+            onConfirmStart(activeSegment!.id, hiddenLayers);
+          }}
+          onCompleteSegment={() => onComplete(activeSegment!.id, hiddenLayers)}
+          onSkipSegment={() => onSkipSegment(activeSegment!.id, hiddenLayers)}
+          onPostpone={() => {
+            navTracker.dismissApproachPrompt();
+            onSkipSegment(activeSegment!.id, hiddenLayers);
+          }}
+          onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment!.id, cat, impact, note, geo.position ?? undefined, nonRec)}
+          onRestartSegment={handleRestartSegment}
+          onMarkF5={handleMarkF5}
+          currentPosition={geo.position}
+          isBlocked={videoEndBlocking}
+          isInvalidated={navTracker.isInvalidated}
+          contiguousInfo={navTracker.contiguousInfo}
+          activeReference={navTracker.activeReference}
+          headingDelta={navTracker.headingDelta}
+          stats={navTracker.stats}
+          approachSequenceValid={navTracker.approachSequenceValid}
+          geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
+          blockNumber={navCounters.blockNumber}
+          segmentIndexInBlock={navCounters.segmentIndexInBlock}
+          totalSegmentsInBlock={navCounters.totalSegmentsInBlock}
+          pendingCount={navCounters.pendingCount}
+          completedCount={navCounters.completedCount}
+          repeatCount={navCounters.repeatCount}
+        />
       )}
 
       {/* Area selection dialog */}
@@ -1048,87 +1140,7 @@ export default function MapPage({
         ways={fetchedWays}
       />
 
-      {/* FAB buttons */}
-      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
-        <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
-          {/* Selection mode toggle */}
-          <button
-            onClick={() => {
-              setSelectionMode(!selectionMode);
-              if (selectionMode) setSelectedSegmentIds(new Set());
-            }}
-            className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${
-              selectionMode
-                ? 'bg-accent text-accent-foreground ring-2 ring-accent/50'
-                : 'bg-secondary text-muted-foreground hover:text-foreground'
-            }`}
-            title={selectionMode ? 'Desactivar selección' : 'Seleccionar tramos'}
-          >
-            <MousePointer2 className="w-4 h-4" />
-          </button>
-
-          {/* Zone selection buttons - only show in selection mode */}
-          {selectionMode && (
-            <>
-              <button
-                onClick={() => setZoneSelectMode('rectangle')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por rectángulo"
-              >
-                <Square className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setZoneSelectMode('polygon')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por polígono"
-              >
-                <Pentagon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setZoneSelectMode('circle')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por círculo"
-              >
-                <Circle className="w-4 h-4" />
-              </button>
-            </>
-          )}
-
-          {/* Divider */}
-          {selectionMode && <div className="w-6 h-px bg-border mx-auto" />}
-
-          <button
-            onClick={() => setCreationMode(true)}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
-            title="Crear tramo manual"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setAreaMode('rectangle')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Rectángulo"
-          >
-            <Square className="w-4 h-4" />
-          </button>
-           <button
-            onClick={() => setAreaMode('polygon')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Polígono"
-          >
-            <Pentagon className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setAreaMode('circle')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Círculo"
-          >
-            <Circle className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Control panel overlay */}
+      {/* Control panel (non-nav mode) */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapControlPanel
           segments={visibleSegments}
