@@ -205,3 +205,16 @@ export function applyNamingField(route: Route, field: 'carretera' | 'identtramo'
     })),
   };
 }
+
+/** Assign companySegmentId to every segment using a global counter */
+export function applyProjectCode(route: Route, code: string, projectName: string): Route {
+  return {
+    ...route,
+    projectCode: code,
+    projectName,
+    segments: route.segments.map((s, i) => ({
+      ...s,
+      companySegmentId: `${code}_${String(i).padStart(5, '0')}`,
+    })),
+  };
+}
