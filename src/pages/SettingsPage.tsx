@@ -127,7 +127,7 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
                     size="sm"
                   >
                     <Hash className="w-4 h-4 mr-2" />
-                    Generar IDs únicos
+                    GENERAR ID_EMPRESA
                   </Button>
                 </>
               ) : (
