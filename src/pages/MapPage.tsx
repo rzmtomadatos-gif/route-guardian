@@ -170,9 +170,11 @@ export default function MapPage({
 
     if (curr === 'ready' && prev === 'approaching') {
       playApproachSound();
-    } else if (curr === 'deviated' && prev === 'recording') {
+    } else if (curr === 'deviated' && (prev === 'recording' || prev === 'pre_alert')) {
       playDeviationAlertSound();
-    } else if (curr === 'recording' && prev === 'deviated') {
+    } else if (curr === 'wrong_direction') {
+      playDeviationAlertSound();
+    } else if (curr === 'recording' && (prev === 'deviated' || prev === 'wrong_direction')) {
       playRecoverySound();
     }
   }, [navTracker.operationalState]);
