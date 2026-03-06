@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   Navigation, Play, Clock, AlertTriangle, MapPin,
-  ArrowRight, Gauge, SkipForward, Activity,
+  ArrowRight, Gauge, SkipForward, Activity, ArrowDownLeft,
+  ShieldAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -55,7 +56,9 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   approaching: { label: 'En aproximación', colorClass: 'bg-accent/20 text-accent border border-accent/40', icon: Navigation },
   ready: { label: 'Listo para iniciar', colorClass: 'bg-primary/20 text-primary border border-primary/40 animate-pulse', icon: MapPin },
   recording: { label: 'En grabación', colorClass: 'bg-success/20 text-success border border-success/40', icon: Activity },
+  pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
   deviated: { label: 'Desviado', colorClass: 'bg-destructive/20 text-destructive border border-destructive/40 animate-pulse', icon: AlertTriangle },
+  wrong_direction: { label: 'Sentido incorrecto', colorClass: 'bg-destructive/20 text-destructive border border-destructive/40 animate-pulse', icon: ArrowDownLeft },
   interrupted: { label: 'Interrumpido', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: AlertTriangle },
   completed: { label: 'Completado', colorClass: 'bg-success/20 text-success', icon: Navigation },
 };
@@ -80,7 +83,7 @@ export function NavigationOverlay({
   isBlocked,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
-  const isRecording = operationalState === 'recording' || operationalState === 'deviated';
+  const isRecording = operationalState === 'recording' || operationalState === 'deviated' || operationalState === 'pre_alert' || operationalState === 'wrong_direction';
   const isApproach = operationalState === 'approaching' || operationalState === 'ready';
   const direction = segment.kmlMeta?.sentido || segment.direction || '—';
 
@@ -88,7 +91,6 @@ export function NavigationOverlay({
   const [, setTick] = useState(0);
   const startedAt = segment.startedAt ? new Date(segment.startedAt).getTime() : null;
 
-  // Force re-render every second during recording for elapsed time
   if (isRecording && startedAt) {
     setTimeout(() => setTick((t) => t + 1), 1000);
   }
@@ -103,14 +105,16 @@ export function NavigationOverlay({
           <div className={`px-3 py-1.5 flex items-center gap-2 ${config.colorClass}`}>
             <config.icon className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="text-xs font-bold uppercase tracking-wider">{config.label}</span>
-            {operationalState === 'deviated' && (
+            {(operationalState === 'deviated' || operationalState === 'pre_alert') && (
               <span className="text-[10px] ml-auto font-mono">↕ {Math.round(deviationMeters)}m</span>
+            )}
+            {operationalState === 'wrong_direction' && (
+              <span className="text-[10px] ml-auto font-mono">⇠ sentido opuesto</span>
             )}
           </div>
 
           {/* Segment info */}
           <div className="px-3 py-2 space-y-1.5">
-            {/* Name + ID */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <h2 className="text-sm font-bold text-foreground truncate">{segment.name}</h2>
@@ -152,7 +156,6 @@ export function NavigationOverlay({
             {/* === RECORDING METRICS === */}
             {isRecording && (
               <>
-                {/* Progress */}
                 <div>
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[9px] text-muted-foreground">Progreso</span>
@@ -235,8 +238,34 @@ export function NavigationOverlay({
           <div className="bg-destructive/10 border-2 border-destructive/60 rounded-xl p-2.5 flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-destructive flex-shrink-0 animate-pulse" />
             <div className="flex-1">
-              <p className="text-xs font-bold text-destructive">Desvío detectado</p>
+              <p className="text-xs font-bold text-destructive">Desvío confirmado</p>
               <p className="text-[10px] text-destructive/80">Estás a {Math.round(deviationMeters)}m del eje del tramo. Regresa a la ruta prevista.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === PRE-ALERT WARNING === */}
+      {operationalState === 'pre_alert' && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2 flex items-center gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-[10px] font-bold text-amber-400">Prealerta — {Math.round(deviationMeters)}m del eje</p>
+              <p className="text-[9px] text-amber-400/70">Corrige trayectoria para evitar desvío.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === WRONG DIRECTION WARNING === */}
+      {operationalState === 'wrong_direction' && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-destructive/10 border-2 border-destructive/60 rounded-xl p-2.5 flex items-center gap-3">
+            <ArrowDownLeft className="w-6 h-6 text-destructive flex-shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-destructive">Sentido incorrecto</p>
+              <p className="text-[10px] text-destructive/80">Estás circulando en sentido opuesto al planificado. Da la vuelta.</p>
             </div>
           </div>
         </div>
