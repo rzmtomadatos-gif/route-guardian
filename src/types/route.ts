@@ -51,6 +51,10 @@ export interface Segment {
   repeatNumber?: number;
   /** Unique company segment identifier, e.g. BOA_00012 */
   companySegmentId?: string;
+  /** Work day number when this segment was recorded */
+  workDay?: number;
+  /** Order of this segment within its track */
+  segmentOrder?: number;
 }
 
 export interface Route {
@@ -65,6 +69,12 @@ export interface Route {
   projectCode?: string;
   /** Full project name for headers/export, e.g. "Boadilla del Monte 2026" */
   projectName?: string;
+  /** Operator name for traceability */
+  operator?: string;
+  /** Vehicle identifier */
+  vehicle?: string;
+  /** Weather conditions note */
+  weather?: string;
 }
 
 export type IncidentCategory =
@@ -132,4 +142,6 @@ export interface AppState {
   rstGroupSize: number;
   trackSession: TrackSession | null;
   blockEndPrompt: BlockEndPrompt;
+  /** Current work day number (1-based). Tracks reset each day. */
+  workDay: number;
 }
