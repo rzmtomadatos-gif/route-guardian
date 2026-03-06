@@ -58,6 +58,7 @@ function AppRoutes() {
     closeBlockEndPrompt,
     setWorkDay,
     updateRouteContext,
+    applyRetroactiveIds,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -165,6 +166,7 @@ function AppRoutes() {
               hasRoute={!!state.route}
               route={state.route}
               onUpdateRouteContext={updateRouteContext}
+              onApplyRetroactiveIds={applyRetroactiveIds}
             />
           }
         />

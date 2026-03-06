@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
+import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
+import { toast } from 'sonner';
 import type { Route } from '@/types/route';
 
 interface Props {
@@ -11,9 +13,10 @@ interface Props {
   hasRoute: boolean;
   route: Route | null;
   onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
+  onApplyRetroactiveIds: (code: string, projectName: string) => void;
 }
 
-export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteContext }: Props) {
+export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteContext, onApplyRetroactiveIds }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -22,6 +25,12 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
   const [startHidden, setStartHidden] = useState(() => {
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
   });
+  const [showCodeDialog, setShowCodeDialog] = useState(false);
+
+  const missingIdCount = useMemo(() => {
+    if (!route) return 0;
+    return route.segments.filter((s) => !s.companySegmentId).length;
+  }, [route]);
 
   const handleSaveKey = () => {
     setGoogleMapsApiKey(apiKey);
@@ -40,42 +49,28 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
     if (!apiKey) return;
     setTesting(true);
     setTestResult(null);
-    // Save temporarily for testing
     setGoogleMapsApiKey(apiKey);
 
     try {
-      // Try loading the Google Maps script
       const existing = document.querySelector('script[src*="maps.googleapis.com"]');
       if (existing) existing.remove();
 
       const result = await new Promise<'ok' | 'error'>((resolve) => {
-        // Listen for gm_auth_failure
-        const authHandler = () => {
-          resolve('error');
-          window.removeEventListener('gm_authFailure' as any, authHandler);
-        };
         (window as any).gm_authFailure = () => resolve('error');
 
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=routes`;
         script.async = true;
         script.onload = () => {
-          // Check for error containers after a short delay
           setTimeout(() => {
             const errContainer = document.querySelector('.gm-err-container');
-            if (errContainer) {
-              resolve('error');
-            } else if ((window as any).google?.maps) {
-              resolve('ok');
-            } else {
-              resolve('error');
-            }
+            if (errContainer) resolve('error');
+            else if ((window as any).google?.maps) resolve('ok');
+            else resolve('error');
           }, 1000);
         };
         script.onerror = () => resolve('error');
         document.head.appendChild(script);
-
-        // Timeout after 8s
         setTimeout(() => resolve('error'), 8000);
       });
 
@@ -87,6 +82,25 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
     }
   };
 
+  const handleGenerateIds = () => {
+    if (!route) return;
+    if (route.projectCode) {
+      // Already has project code, apply directly
+      onApplyRetroactiveIds(route.projectCode, route.projectName || route.projectCode);
+      toast.success(`IDs únicos generados correctamente para ${missingIdCount} tramos.`);
+    } else {
+      // Need to ask for project code
+      setShowCodeDialog(true);
+    }
+  };
+
+  const handleCodeConfirm = (code: string, name: string) => {
+    setShowCodeDialog(false);
+    const count = missingIdCount;
+    onApplyRetroactiveIds(code, name);
+    toast.success(`IDs únicos generados correctamente para ${count} tramos.`);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-shrink-0 px-4 py-3 bg-card border-b border-border">
@@ -94,6 +108,38 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Retroactive IDs */}
+        {route && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Hash className="w-4 h-4" />
+              <span className="text-sm font-medium">Identificadores de tramo</span>
+            </div>
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              {missingIdCount > 0 ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Hay <span className="text-foreground font-medium">{missingIdCount}</span> tramos sin identificador único de empresa.
+                  </p>
+                  <Button
+                    onClick={handleGenerateIds}
+                    className="w-full"
+                    size="sm"
+                  >
+                    <Hash className="w-4 h-4 mr-2" />
+                    Generar IDs únicos
+                  </Button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  IDs únicos ya generados
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Google Maps API Key */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -269,6 +315,12 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
           </div>
         </div>
       </div>
+
+      {/* Project code dialog for retroactive IDs */}
+      <ProjectCodeDialog
+        open={showCodeDialog}
+        onConfirm={handleCodeConfirm}
+      />
     </div>
   );
 }
