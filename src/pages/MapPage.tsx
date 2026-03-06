@@ -166,6 +166,8 @@ export default function MapPage({
     activeSegment,
     geo.position,
     geo.speed,
+    geo.heading,
+    geo.accuracy,
     !!isRecording,
     state.navigationActive,
     undefined,
