@@ -56,6 +56,8 @@ function AppRoutes() {
     finalizeTrack,
     skipSegment,
     closeBlockEndPrompt,
+    setWorkDay,
+    updateRouteContext,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -121,6 +123,7 @@ function AppRoutes() {
               onFinalizeTrack={finalizeTrack}
               onSkipSegment={skipSegment}
               onCloseBlockEndPrompt={closeBlockEndPrompt}
+              onSetWorkDay={setWorkDay}
             />
           }
         />
