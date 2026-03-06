@@ -3,14 +3,14 @@ import {
   Navigation, Play, Clock, AlertTriangle, MapPin,
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
-  ChevronRight, Target, Milestone,
+  ChevronRight, Target, Milestone, Wifi, WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
-import type { NavOperationalState, ContiguousInfo } from '@/hooks/useNavigationTracker';
+import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
 
 interface Props {
   segment: Segment;
