@@ -283,7 +283,7 @@ export function NavigationOverlay({
             </div>
           </div>
         </div>
-      )
+      )}
 
       {/* === F5 START CONFIRMATION PROMPT === */}
       {showApproachPrompt && (
