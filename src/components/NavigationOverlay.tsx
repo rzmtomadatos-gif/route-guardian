@@ -212,10 +212,6 @@ export function NavigationOverlay({
                     <p className="text-xs font-bold text-foreground">{formatDistance(distanceRemaining)}</p>
                   </div>
                   <div className="bg-secondary/60 rounded-lg p-1 text-center">
-                    <p className="text-[8px] text-muted-foreground">Total</p>
-                    <p className="text-xs font-bold text-foreground">{formatDistance(totalDistance)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1 text-center">
                     <Gauge className="w-3 h-3 mx-auto text-muted-foreground" />
                     <p className="text-xs font-bold text-foreground">{Math.round(speedKmh)}</p>
                   </div>
@@ -223,6 +219,30 @@ export function NavigationOverlay({
                     <Clock className="w-3 h-3 mx-auto text-muted-foreground" />
                     <p className="text-xs font-bold text-foreground">{formatDuration(elapsed)}</p>
                   </div>
+                  <div className={`rounded-lg p-1 text-center ${
+                    headingDelta <= 45
+                      ? 'bg-success/10'
+                      : headingDelta <= 90
+                        ? 'bg-amber-500/10'
+                        : 'bg-destructive/10'
+                  }`}>
+                    <p className="text-[8px] text-muted-foreground">Rumbo Δ</p>
+                    <p className={`text-xs font-bold ${
+                      headingDelta <= 45 ? 'text-success' : headingDelta <= 90 ? 'text-amber-400' : 'text-destructive'
+                    }`}>{Math.round(headingDelta)}°</p>
+                  </div>
+                </div>
+
+                {/* Validation metrics strip */}
+                <div className="flex items-center gap-2 text-[8px]">
+                  <span className="text-muted-foreground">Cobertura válida:</span>
+                  <span className={`font-bold ${stats.validCoveragePercent >= 85 ? 'text-success' : 'text-amber-400'}`}>
+                    {stats.validCoveragePercent.toFixed(0)}%
+                  </span>
+                  <span className="text-muted-foreground ml-auto">↕ {Math.round(deviationMeters)}m</span>
+                  {!approachSequenceValid && (
+                    <span className="text-destructive font-bold">⚠ Aprox. incompleta</span>
+                  )}
                 </div>
 
                 {/* End reference markers */}
@@ -238,6 +258,32 @@ export function NavigationOverlay({
           </div>
         </div>
       </div>
+
+      {/* === GPS UNSTABLE WARNING === */}
+      {operationalState === 'gps_unstable' && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2.5 flex items-center gap-3">
+            <WifiOff className="w-5 h-5 text-amber-400 flex-shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-400">Señal GPS inestable</p>
+              <p className="text-[10px] text-amber-400/70">Posicionamiento poco fiable. El avance no se contabiliza como válido.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === GEOMETRIC RECOVERY WARNING (operational still invalid) === */}
+      {geometricRecoveryOnly && isInvalidated && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2 flex items-center gap-3">
+            <Wifi className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-[10px] font-bold text-amber-400">Recuperación solo geométrica</p>
+              <p className="text-[9px] text-amber-400/70">Estás sobre el eje, pero el tramo sigue invalidado operativamente. Debes reiniciar.</p>
+            </div>
+          </div>
+        </div>
+      )
 
       {/* === F5 START CONFIRMATION PROMPT === */}
       {showApproachPrompt && (
