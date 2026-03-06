@@ -155,7 +155,7 @@ export function useRouteState() {
         trackSession = { ...trackSession, active: false, endedAt: now };
       }
 
-      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null);
+      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null, s.workDay);
 
       // Create or update track session
       if (!trackSession || !trackSession.active) {
@@ -226,7 +226,7 @@ export function useRouteState() {
       let autoTrack: number | null = null;
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (seg && seg.trackNumber === null) {
-        autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null);
+        autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null, s.workDay);
       }
 
       // Only complete THIS segment with invariants enforced
