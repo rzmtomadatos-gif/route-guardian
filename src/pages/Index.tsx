@@ -52,8 +52,8 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
         if (result.hasBothNamingFields) {
           setPendingResult(result);
         } else {
-          onRouteLoaded(result.route);
-          navigate('/map');
+          // Go to project code dialog
+          setPendingRouteForCode(result.route);
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error al procesar el archivo';
@@ -108,11 +108,22 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
     (field: 'carretera' | 'identtramo') => {
       if (!pendingResult) return;
       const r = applyNamingField(pendingResult.route, field);
-      onRouteLoaded(r);
       setPendingResult(null);
+      // Go to project code dialog
+      setPendingRouteForCode(r);
+    },
+    [pendingResult]
+  );
+
+  const handleProjectCode = useCallback(
+    (code: string, projectName: string) => {
+      if (!pendingRouteForCode) return;
+      const r = applyProjectCode(pendingRouteForCode, code, projectName);
+      setPendingRouteForCode(null);
+      onRouteLoaded(r);
       navigate('/map');
     },
-    [pendingResult, onRouteLoaded, navigate]
+    [pendingRouteForCode, onRouteLoaded, navigate]
   );
 
   const handleDrop = useCallback(
