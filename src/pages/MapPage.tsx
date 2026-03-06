@@ -173,7 +173,9 @@ export default function MapPage({
     } else if (curr === 'deviated' && (prev === 'recording' || prev === 'pre_alert')) {
       playDeviationAlertSound();
     } else if (curr === 'wrong_direction') {
-      playDeviationAlertSound();
+      playWrongDirectionSound();
+    } else if (curr === 'pre_alert' && prev === 'recording') {
+      playPreAlertSound();
     } else if (curr === 'recording' && (prev === 'deviated' || prev === 'wrong_direction')) {
       playRecoverySound();
     }
