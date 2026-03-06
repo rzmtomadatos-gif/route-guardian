@@ -160,17 +160,20 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     const durSec = durationSeconds(seg.startedAt || seg.timestampInicio, seg.endedAt || seg.timestampFin);
     return {
       'ID_EMPRESA': seg.companySegmentId || '',
-      'Track': trackReal,
-      'Orden en track': trackOrderMap.get(seg.id) ?? '',
+      'NOMBRE_TRAMO': seg.name,
+      'CAPA': seg.layer || 'Sin capa',
+      'DIA': seg.workDay ?? '',
+      'TRACK': trackReal,
+      'ORDEN_EN_TRACK': seg.segmentOrder ?? trackOrderMap.get(seg.id) ?? '',
       'Track planificado': seg.plannedTrackNumber ?? '',
       'Tracks anteriores': seg.trackHistory.length > 0 ? seg.trackHistory.join(', ') : '',
-      'ID Tramo': seg.kmlId,
-      'Nombre': seg.name,
-      'Capa': seg.layer || 'Sin capa',
-      'Inicio tramo': seg.startedAt || seg.timestampInicio || '',
-      'Fin tramo': !seg.nonRecordable ? (seg.endedAt || seg.timestampFin || '') : '',
-      'Duración (s)': durSec ?? '',
-      'Duración': formatDuration(durSec),
+      'ESTADO': STATUS_LABELS[seg.status] || seg.status,
+      'Estado final': computeFinalStatus(seg),
+      'INCIDENCIA': segIncidents.length > 0 ? segIncidents.map(i => i.category).join(', ') : '',
+      'HORA_INICIO': seg.startedAt || seg.timestampInicio || '',
+      'HORA_FIN': !seg.nonRecordable ? (seg.endedAt || seg.timestampFin || '') : '',
+      'DURACION (s)': durSec ?? '',
+      'DURACION': formatDuration(durSec),
       'Distancia (km)': Math.round(distKm * 100) / 100,
       'Carretera': seg.kmlMeta?.carretera || '',
       'Ident. Tramo': seg.kmlMeta?.identtramo || '',
@@ -181,14 +184,12 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'PK Final': seg.kmlMeta?.pkFinal || '',
       'Tipo': TYPE_LABELS[seg.type] || seg.type,
       'Dirección': DIRECTION_LABELS[seg.direction] || seg.direction,
-      'Estado': STATUS_LABELS[seg.status] || seg.status,
-      'Estado final': computeFinalStatus(seg),
       'Nº repetición': seg.repeatNumber || 0,
       'No grabable': seg.nonRecordable ? 'Sí' : '',
       'Repetir': seg.needsRepeat ? 'Sí' : '',
       'Track invalidado por': seg.invalidatedByTrack ?? '',
-      'Notas': seg.notes || '',
-      'Incidencias': segIncidents.length,
+      'NOTAS': seg.notes || '',
+      'Incidencias (total)': segIncidents.length,
       'Coord. Inicio Lat': seg.coordinates[0]?.lat ?? '',
       'Coord. Inicio Lng': seg.coordinates[0]?.lng ?? '',
       'Coord. Fin Lat': seg.coordinates[seg.coordinates.length - 1]?.lat ?? '',
@@ -234,7 +235,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const recorded = validatedSegments.filter((s) => s.status === 'completado').length;
   const repeated = validatedSegments.filter((s) => (s.repeatNumber || 0) > 1 && s.status === 'completado').length;
   const nonRecordable = validatedSegments.filter((s) => s.nonRecordable).length;
+  const needsRepeat = validatedSegments.filter((s) => s.needsRepeat).length;
   const uniqueTracks = new Set(validatedSegments.filter((s) => s.trackNumber !== null).map((s) => s.trackNumber)).size;
+  const uniqueWorkDays = new Set(validatedSegments.filter((s) => s.workDay != null).map((s) => s.workDay)).size;
 
   // Total recording time
   let totalRecordingMs = 0;
@@ -247,17 +250,25 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const totalSecs = Math.floor((totalRecordingMs % 60000) / 1000);
 
   const summaryData = [
+    { 'Métrica': 'Código proyecto', 'Valor': route.projectCode || '' },
+    { 'Métrica': 'Nombre proyecto', 'Valor': route.projectName || '' },
+    { 'Métrica': 'Operador', 'Valor': route.operator || '' },
+    { 'Métrica': 'Vehículo', 'Valor': route.vehicle || '' },
+    { 'Métrica': 'Climatología', 'Valor': route.weather || '' },
+    { 'Métrica': '', 'Valor': '' },
     { 'Métrica': 'Tramos totales', 'Valor': totalSegments },
     { 'Métrica': 'Tramos grabados', 'Valor': recorded },
     { 'Métrica': 'Tramos repetidos', 'Valor': repeated },
+    { 'Métrica': 'Tramos pendientes repetir', 'Valor': needsRepeat },
     { 'Métrica': 'Tramos no grabables', 'Valor': nonRecordable },
     { 'Métrica': 'Tramos pendientes', 'Valor': totalSegments - recorded - nonRecordable },
     { 'Métrica': 'Tracks generados', 'Valor': uniqueTracks },
+    { 'Métrica': 'Días de trabajo', 'Valor': uniqueWorkDays },
     { 'Métrica': 'Tiempo total grabación', 'Valor': `${totalHours}h ${totalMins}m ${totalSecs}s` },
     { 'Métrica': 'Incidencias totales', 'Valor': exportIncidents.length },
   ];
   const ws3 = XLSX.utils.json_to_sheet(summaryData);
-  ws3['!cols'] = [{ wch: 25 }, { wch: 20 }];
+  ws3['!cols'] = [{ wch: 25 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;

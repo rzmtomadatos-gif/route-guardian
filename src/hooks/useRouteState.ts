@@ -31,9 +31,12 @@ export function useRouteState() {
     });
   }, []);
 
-  /** Get current max track number across all segments + track session */
-  const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null): number => {
-    const all = segments.flatMap((seg) => [
+  /** Get current max track number for a given work day across segments + track session */
+  const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null, workDay?: number): number => {
+    const daySegments = workDay != null
+      ? segments.filter((seg) => seg.workDay === workDay)
+      : segments;
+    const all = daySegments.flatMap((seg) => [
       ...(seg.trackNumber !== null ? [seg.trackNumber] : []),
       ...seg.trackHistory,
     ]);
@@ -97,11 +100,11 @@ export function useRouteState() {
     setState((s) => ({ ...s, navigationActive: false, activeSegmentId: null }));
   }, [setState]);
 
-  /** Allocate the next track number based on mode */
-  const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null): number => {
+  /** Allocate the next track number based on mode. Resets per workDay. */
+  const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null, workDay?: number): number => {
     if (!rstMode) {
       // RST OFF: every segment gets a unique track = max + 1
-      const maxTrack = getMaxTrack(segments, trackSession);
+      const maxTrack = getMaxTrack(segments, trackSession, workDay);
       return maxTrack + 1;
     }
     // RST ON: reuse current track if session active and has room
@@ -109,7 +112,7 @@ export function useRouteState() {
       return trackSession.trackNumber;
     }
     // Otherwise new track
-    const maxTrack = getMaxTrack(segments, trackSession);
+    const maxTrack = getMaxTrack(segments, trackSession, workDay);
     return maxTrack + 1;
   };
 
@@ -152,7 +155,7 @@ export function useRouteState() {
         trackSession = { ...trackSession, active: false, endedAt: now };
       }
 
-      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null);
+      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null, s.workDay);
 
       // Create or update track session
       if (!trackSession || !trackSession.active) {
@@ -172,12 +175,18 @@ export function useRouteState() {
         };
       }
 
+      // Compute segmentOrder: count how many segments already have this track number + 1
+      const existingInTrack = s.route.segments.filter(
+        (seg) => seg.trackNumber === nextTrack && seg.id !== segmentId
+      ).length;
+      const segmentOrder = existingInTrack + 1;
+
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
-      // Start this segment – assign real trackNumber
+      // Start this segment – assign real trackNumber, workDay, segmentOrder
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now }
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now, workDay: s.workDay, segmentOrder }
           : seg
       );
 
@@ -217,7 +226,7 @@ export function useRouteState() {
       let autoTrack: number | null = null;
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (seg && seg.trackNumber === null) {
-        autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null);
+        autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null, s.workDay);
       }
 
       // Only complete THIS segment with invariants enforced
@@ -604,6 +613,7 @@ export function useRouteState() {
       rstGroupSize: s.rstGroupSize,
       trackSession: null,
       blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
+      workDay: s.workDay,
     }));
   }, [setState]);
 
@@ -918,6 +928,26 @@ export function useRouteState() {
     setState((s) => ({ ...s, rstGroupSize: size }));
   }, [setState]);
 
+  /** Set the current work day. Resets track numbering for the new day. */
+  const setWorkDay = useCallback((day: number) => {
+    setState((s) => {
+      // Close any active track session when changing day
+      let trackSession = s.trackSession;
+      if (trackSession && trackSession.active) {
+        trackSession = { ...trackSession, active: false, endedAt: new Date().toISOString(), closedManually: true };
+      }
+      return { ...s, workDay: day, trackSession };
+    }, true);
+  }, [setState]);
+
+  /** Update route context fields (operator, vehicle, weather) */
+  const updateRouteContext = useCallback((updates: { operator?: string; vehicle?: string; weather?: string }) => {
+    setState((s) => {
+      if (!s.route) return s;
+      return { ...s, route: { ...s.route, ...updates } };
+    });
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -956,5 +986,7 @@ export function useRouteState() {
     finalizeTrack,
     skipSegment,
     closeBlockEndPrompt,
+    setWorkDay,
+    updateRouteContext,
   };
 }

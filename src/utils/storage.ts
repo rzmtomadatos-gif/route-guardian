@@ -46,6 +46,7 @@ export function loadState(): AppState {
       // Ensure trackSession exists (migration)
       if (!('trackSession' in parsed)) parsed.trackSession = null;
       if (!('blockEndPrompt' in parsed)) parsed.blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
+      if (!('workDay' in parsed)) parsed.workDay = 1;
       return parsed;
     }
   } catch (e) {
@@ -62,6 +63,7 @@ export function loadState(): AppState {
     rstGroupSize: 3,
     trackSession: null,
     blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
+    workDay: 1,
   };
 }
 

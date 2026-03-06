@@ -56,6 +56,8 @@ function AppRoutes() {
     finalizeTrack,
     skipSegment,
     closeBlockEndPrompt,
+    setWorkDay,
+    updateRouteContext,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -121,6 +123,7 @@ function AppRoutes() {
               onFinalizeTrack={finalizeTrack}
               onSkipSegment={skipSegment}
               onCloseBlockEndPrompt={closeBlockEndPrompt}
+              onSetWorkDay={setWorkDay}
             />
           }
         />
@@ -160,6 +163,8 @@ function AppRoutes() {
             <SettingsPage
               onClear={clearRoute}
               hasRoute={!!state.route}
+              route={state.route}
+              onUpdateRouteContext={updateRouteContext}
             />
           }
         />

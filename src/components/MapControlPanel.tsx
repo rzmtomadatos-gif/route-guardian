@@ -50,6 +50,7 @@ interface Props {
   rstMode: boolean;
   rstGroupSize: number;
   trackSession: TrackSession | null;
+  workDay: number;
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
@@ -69,6 +70,7 @@ interface Props {
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string) => void;
+  onSetWorkDay: (day: number) => void;
   /** Whether the end-of-video modal is blocking actions */
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
@@ -114,6 +116,8 @@ export function MapControlPanel({
   onFinalizeTrack,
   trackSession,
   onSkipSegment,
+  onSetWorkDay,
+  workDay,
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
@@ -359,6 +363,7 @@ export function MapControlPanel({
             {/* === SUMMARY + GPS === */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <span className="text-accent font-medium">D{workDay}</span>
                 <span>{pending} pend.</span>
                 <span className="text-success">{completed} compl.</span>
                 {posibleRepetir > 0 && <span className="text-amber-400">{posibleRepetir} rep.</span>}
@@ -430,6 +435,24 @@ export function MapControlPanel({
                     </Button>
                   </BaseLocationDialog>
                 </div>
+                {/* Work Day */}
+                <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
+                  <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <label className="text-[10px] text-muted-foreground flex-shrink-0">Día</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={workDay}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v) && v >= 1) onSetWorkDay(v);
+                    }}
+                    className="w-14 h-6 text-[10px] text-center px-1 py-0"
+                  />
+                  <span className="text-[9px] text-accent whitespace-nowrap">Día {workDay}</span>
+                </div>
+
                 {/* RST Mode */}
                 <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
                   <Repeat className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
