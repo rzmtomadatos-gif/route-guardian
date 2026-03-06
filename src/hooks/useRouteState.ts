@@ -604,6 +604,7 @@ export function useRouteState() {
       rstGroupSize: s.rstGroupSize,
       trackSession: null,
       blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
+      workDay: s.workDay,
     }));
   }, [setState]);
 
