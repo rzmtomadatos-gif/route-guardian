@@ -957,6 +957,10 @@ export default function MapPage({
           isInvalidated={navTracker.isInvalidated}
           contiguousInfo={navTracker.contiguousInfo}
           activeReference={navTracker.activeReference}
+          headingDelta={navTracker.headingDelta}
+          stats={navTracker.stats}
+          approachSequenceValid={navTracker.approachSequenceValid}
+          geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
         />
       )}
 
