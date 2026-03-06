@@ -159,6 +159,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     const trackReal = seg.nonRecordable ? '' : (seg.trackNumber ?? '');
     const durSec = durationSeconds(seg.startedAt || seg.timestampInicio, seg.endedAt || seg.timestampFin);
     return {
+      'ID_EMPRESA': seg.companySegmentId || '',
       'Track': trackReal,
       'Orden en track': trackOrderMap.get(seg.id) ?? '',
       'Track planificado': seg.plannedTrackNumber ?? '',

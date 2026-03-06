@@ -2,10 +2,11 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileUp, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { parseKMLFile, applyNamingField } from '@/utils/kml-parser';
+import { parseKMLFile, applyNamingField, applyProjectCode } from '@/utils/kml-parser';
 import type { ParsedKmlResult } from '@/utils/kml-parser';
 
 import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
+import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
 import {
   AlertDialog,
@@ -32,6 +33,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<ParsedKmlResult | null>(null);
+  const [pendingRouteForCode, setPendingRouteForCode] = useState<RouteType | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const navigate = useNavigate();
@@ -50,8 +52,8 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
         if (result.hasBothNamingFields) {
           setPendingResult(result);
         } else {
-          onRouteLoaded(result.route);
-          navigate('/map');
+          // Go to project code dialog
+          setPendingRouteForCode(result.route);
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error al procesar el archivo';
@@ -106,11 +108,22 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
     (field: 'carretera' | 'identtramo') => {
       if (!pendingResult) return;
       const r = applyNamingField(pendingResult.route, field);
-      onRouteLoaded(r);
       setPendingResult(null);
+      // Go to project code dialog
+      setPendingRouteForCode(r);
+    },
+    [pendingResult]
+  );
+
+  const handleProjectCode = useCallback(
+    (code: string, projectName: string) => {
+      if (!pendingRouteForCode) return;
+      const r = applyProjectCode(pendingRouteForCode, code, projectName);
+      setPendingRouteForCode(null);
+      onRouteLoaded(r);
       navigate('/map');
     },
-    [pendingResult, onRouteLoaded, navigate]
+    [pendingRouteForCode, onRouteLoaded, navigate]
   );
 
   const handleDrop = useCallback(
@@ -198,6 +211,13 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           sampleCarretera={pendingResult.sampleCarretera}
           sampleIdenttramo={pendingResult.sampleIdenttramo}
           onChoice={handleNamingChoice}
+        />
+      )}
+
+      {pendingRouteForCode && (
+        <ProjectCodeDialog
+          open
+          onConfirm={handleProjectCode}
         />
       )}
 
