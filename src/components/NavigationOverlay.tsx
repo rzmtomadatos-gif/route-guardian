@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Navigation, Play, Clock, AlertTriangle, MapPin,
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
-  ChevronRight, Target, Milestone, Wifi, WifiOff,
+  ChevronRight, Target, Milestone, WifiOff, Wifi,
+  ChevronUp, ChevronDown, Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -11,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
 import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
+
+export type PanelMode = 'mini' | 'operation' | 'expanded';
 
 interface Props {
   segment: Segment;
@@ -40,6 +43,14 @@ interface Props {
   stats: NavSegmentStats;
   approachSequenceValid: boolean;
   geometricRecoveryOnly: boolean;
+  // Block/segment counters
+  blockNumber?: number;
+  segmentIndexInBlock?: number;
+  totalSegmentsInBlock?: number;
+  // Counters
+  pendingCount?: number;
+  completedCount?: number;
+  repeatCount?: number;
 }
 
 function formatDistance(meters: number | null): string {
@@ -62,25 +73,60 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: string; icon: typeof Navigation }> = {
-  idle: { label: 'Inactivo', colorClass: 'bg-muted text-muted-foreground', icon: Navigation },
-  approaching: { label: 'En aproximación', colorClass: 'bg-accent/20 text-accent border border-accent/40', icon: Navigation },
-  ref_300m: { label: 'Referencia 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Milestone },
-  ref_150m: { label: 'Referencia 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Milestone },
-  ref_30m: { label: 'Referencia 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
-  ready_f5_start: { label: '⏎ PULSAR F5 — INICIO', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
-  recording: { label: 'En grabación', colorClass: 'bg-success/20 text-success border border-success/40', icon: Activity },
-  gps_unstable: { label: '⚠ GPS inestable', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse', icon: WifiOff },
-  pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
-  deviated: { label: '✖ INVALIDADO — Desvío', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: Ban },
-  wrong_direction: { label: '✖ INVALIDADO — Sentido incorrecto', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: ArrowDownLeft },
-  end_ref_300m: { label: 'Cierre — 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Flag },
-  end_ref_150m: { label: 'Cierre — 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Flag },
-  end_ref_30m: { label: 'Cierre — 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
-  ready_f5_end: { label: '⏎ PULSAR F5 — CIERRE', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
-  invalidated: { label: '✖ TRAMO INVALIDADO', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60', icon: Ban },
-  interrupted: { label: 'Interrumpido', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: AlertTriangle },
-  completed: { label: 'Completado', colorClass: 'bg-success/20 text-success', icon: Navigation },
+// Status colors: green=in progress, blue=pending, orange=repeat, red=incident
+function getStatusColor(state: NavOperationalState): string {
+  const RECORDING_STATES: NavOperationalState[] = ['recording', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
+  const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
+  const INVALID_STATES: NavOperationalState[] = ['deviated', 'wrong_direction', 'invalidated'];
+
+  if (RECORDING_STATES.includes(state)) return 'bg-success/20 text-success border-success/40';
+  if (APPROACH_STATES.includes(state)) return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
+  if (INVALID_STATES.includes(state)) return 'bg-destructive/20 text-destructive border-destructive/60';
+  if (state === 'pre_alert' || state === 'gps_unstable') return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+  if (state === 'completed') return 'bg-success/20 text-success border-success/40';
+  return 'bg-muted text-muted-foreground border-border';
+}
+
+const STATE_LABELS: Record<NavOperationalState, string> = {
+  idle: 'Inactivo',
+  approaching: 'En aproximación',
+  ref_300m: 'Ref. 300 m',
+  ref_150m: 'Ref. 150 m',
+  ref_30m: 'Ref. 30 m',
+  ready_f5_start: '⏎ F5 INICIO',
+  recording: 'Grabando',
+  gps_unstable: '⚠ GPS inestable',
+  pre_alert: 'Prealerta',
+  deviated: '✖ Desvío',
+  wrong_direction: '✖ Sentido incorrecto',
+  end_ref_300m: 'Cierre 300 m',
+  end_ref_150m: 'Cierre 150 m',
+  end_ref_30m: 'Cierre 30 m',
+  ready_f5_end: '⏎ F5 CIERRE',
+  invalidated: '✖ INVALIDADO',
+  interrupted: 'Interrumpido',
+  completed: 'Completado',
+};
+
+const STATE_ICONS: Record<NavOperationalState, typeof Navigation> = {
+  idle: Navigation,
+  approaching: Navigation,
+  ref_300m: Milestone,
+  ref_150m: Milestone,
+  ref_30m: Target,
+  ready_f5_start: Zap,
+  recording: Activity,
+  gps_unstable: WifiOff,
+  pre_alert: ShieldAlert,
+  deviated: Ban,
+  wrong_direction: ArrowDownLeft,
+  end_ref_300m: Flag,
+  end_ref_150m: Flag,
+  end_ref_30m: Target,
+  ready_f5_end: Zap,
+  invalidated: Ban,
+  interrupted: AlertTriangle,
+  completed: Navigation,
 };
 
 const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
@@ -115,362 +161,307 @@ export function NavigationOverlay({
   stats,
   approachSequenceValid,
   geometricRecoveryOnly,
+  blockNumber = 0,
+  segmentIndexInBlock = 0,
+  totalSegmentsInBlock = 0,
+  pendingCount = 0,
+  completedCount = 0,
+  repeatCount = 0,
 }: Props) {
-  const config = STATE_CONFIG[operationalState];
+  const [mode, setMode] = useState<PanelMode>('mini');
+
   const isApproach = APPROACH_STATES.includes(operationalState);
   const isRecording = RECORDING_STATES.includes(operationalState);
   const isInvalid = INVALID_STATES.includes(operationalState);
   const direction = segment.kmlMeta?.sentido || segment.direction || '—';
 
-  const [, setTick] = useState(0);
   const startedAt = segment.startedAt ? new Date(segment.startedAt).getTime() : null;
+  const [, setTick] = useState(0);
   if (isRecording && startedAt) {
     setTimeout(() => setTick((t) => t + 1), 1000);
   }
   const elapsed = startedAt ? (Date.now() - startedAt) / 1000 : 0;
 
+  const StatusIcon = STATE_ICONS[operationalState];
+  const statusColor = getStatusColor(operationalState);
+
+  const cycleMode = useCallback(() => {
+    setMode((m) => {
+      if (m === 'mini') return 'operation';
+      if (m === 'operation') return 'expanded';
+      return 'mini';
+    });
+  }, []);
+
+  const panelHeight = mode === 'mini' ? 'max-h-[18vh]' : mode === 'operation' ? 'max-h-[30vh]' : 'max-h-[45vh]';
+
   return (
-    <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
-      {/* === TOP HUD BAR === */}
-      <div className="mx-2 mt-2 pointer-events-auto">
-        <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl overflow-hidden">
-          {/* Status bar */}
-          <div className={`px-3 py-1.5 flex items-center gap-2 ${config.colorClass}`}>
-            <config.icon className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="text-xs font-bold uppercase tracking-wider">{config.label}</span>
-            {(operationalState === 'deviated' || operationalState === 'pre_alert') && (
-              <span className="text-[10px] ml-auto font-mono">↕ {Math.round(deviationMeters)}m</span>
-            )}
-            {operationalState === 'wrong_direction' && (
-              <span className="text-[10px] ml-auto font-mono">⇠ sentido opuesto</span>
-            )}
-          </div>
+    <div className={`flex flex-col bg-card border-t border-border ${panelHeight} overflow-y-auto transition-all duration-200`}>
+      {/* ── Drag handle + mode toggle ── */}
+      <button
+        onClick={cycleMode}
+        className="flex items-center justify-center py-1 gap-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+      >
+        <div className="w-8 h-1 rounded-full bg-border" />
+        {mode === 'mini' ? <ChevronUp className="w-3 h-3" /> : mode === 'expanded' ? <ChevronDown className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+      </button>
 
-          {/* Segment info */}
-          <div className="px-3 py-2 space-y-1.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-bold text-foreground truncate">{segment.name}</h2>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {segment.companySegmentId && (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-mono">
-                      {segment.companySegmentId}
-                    </Badge>
-                  )}
-                  {segment.layer && (
-                    <span className="text-[9px] text-muted-foreground truncate">{segment.layer}</span>
-                  )}
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-[10px] text-muted-foreground">Sentido</p>
-                <p className="text-xs font-medium text-foreground">{direction}</p>
-              </div>
-            </div>
+      {/* ── Status strip ── */}
+      <div className={`px-3 py-1 flex items-center gap-2 border-b ${statusColor} flex-shrink-0`}>
+        <StatusIcon className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="text-xs font-bold uppercase tracking-wider flex-1 truncate">{STATE_LABELS[operationalState]}</span>
+        {(operationalState === 'deviated' || operationalState === 'pre_alert') && (
+          <span className="text-[10px] font-mono">↕ {Math.round(deviationMeters)}m</span>
+        )}
+        {blockNumber > 0 && (
+          <span className="text-[10px] font-medium opacity-70">
+            Bloque {blockNumber} · Tramo {segmentIndexInBlock}/{totalSegmentsInBlock}
+          </span>
+        )}
+      </div>
 
-            {/* === APPROACH METRICS + REFERENCE MARKERS === */}
-            {isApproach && (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
-                    <p className="text-[9px] text-muted-foreground">Dist. inicio</p>
-                    <p className="text-sm font-bold text-foreground">{formatDistance(distanceToStart)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
-                    <p className="text-[9px] text-muted-foreground">ETA</p>
-                    <p className="text-sm font-bold text-foreground">{formatEta(etaToStart)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
-                    <p className="text-[9px] text-muted-foreground">Velocidad</p>
-                    <p className="text-sm font-bold text-foreground">{Math.round(speedKmh)} <span className="text-[9px] font-normal">km/h</span></p>
-                  </div>
-                </div>
+      {/* ── MINI MODE: core info + action buttons ── */}
+      <div className="px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-bold text-foreground truncate">{segment.name}</h2>
+          {segment.companySegmentId && (
+            <span className="text-[9px] font-mono text-muted-foreground">{segment.companySegmentId}</span>
+          )}
+        </div>
 
-                {/* Reference markers indicator */}
-                <ReferenceMarkers
-                  distanceToStart={distanceToStart}
-                  activeReference={activeReference}
-                  type="start"
-                />
-              </>
-            )}
-
-            {/* === RECORDING METRICS === */}
-            {isRecording && (
-              <>
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[9px] text-muted-foreground">Progreso</span>
-                    <span className="text-[9px] font-bold text-foreground">{Math.round(progressPercent)}%</span>
-                  </div>
-                  <Progress value={progressPercent} className="h-2" />
-                </div>
-
-                <div className="grid grid-cols-4 gap-1.5">
-                  <div className="bg-secondary/60 rounded-lg p-1 text-center">
-                    <p className="text-[8px] text-muted-foreground">Restante</p>
-                    <p className="text-xs font-bold text-foreground">{formatDistance(distanceRemaining)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1 text-center">
-                    <Gauge className="w-3 h-3 mx-auto text-muted-foreground" />
-                    <p className="text-xs font-bold text-foreground">{Math.round(speedKmh)}</p>
-                  </div>
-                  <div className="bg-secondary/60 rounded-lg p-1 text-center">
-                    <Clock className="w-3 h-3 mx-auto text-muted-foreground" />
-                    <p className="text-xs font-bold text-foreground">{formatDuration(elapsed)}</p>
-                  </div>
-                  <div className={`rounded-lg p-1 text-center ${
-                    headingDelta <= 45
-                      ? 'bg-success/10'
-                      : headingDelta <= 90
-                        ? 'bg-amber-500/10'
-                        : 'bg-destructive/10'
-                  }`}>
-                    <p className="text-[8px] text-muted-foreground">Rumbo Δ</p>
-                    <p className={`text-xs font-bold ${
-                      headingDelta <= 45 ? 'text-success' : headingDelta <= 90 ? 'text-amber-400' : 'text-destructive'
-                    }`}>{Math.round(headingDelta)}°</p>
-                  </div>
-                </div>
-
-                {/* Validation metrics strip */}
-                <div className="flex items-center gap-2 text-[8px]">
-                  <span className="text-muted-foreground">Cobertura válida:</span>
-                  <span className={`font-bold ${stats.validCoveragePercent >= 85 ? 'text-success' : 'text-amber-400'}`}>
-                    {stats.validCoveragePercent.toFixed(0)}%
-                  </span>
-                  <span className="text-muted-foreground ml-auto">↕ {Math.round(deviationMeters)}m</span>
-                  {!approachSequenceValid && (
-                    <span className="text-destructive font-bold">⚠ Aprox. incompleta</span>
-                  )}
-                </div>
-
-                {/* End reference markers */}
-                {(operationalState === 'end_ref_300m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_30m' || operationalState === 'ready_f5_end') && (
-                  <ReferenceMarkers
-                    distanceToStart={distanceRemaining}
-                    activeReference={activeReference}
-                    type="end"
-                  />
-                )}
-              </>
-            )}
-          </div>
+        {/* Speed indicator */}
+        <div className="text-center flex-shrink-0">
+          <p className="text-lg font-bold text-foreground leading-none">{Math.round(speedKmh)}</p>
+          <p className="text-[8px] text-muted-foreground">km/h</p>
         </div>
       </div>
 
-      {/* === GPS UNSTABLE WARNING === */}
-      {operationalState === 'gps_unstable' && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2.5 flex items-center gap-3">
-            <WifiOff className="w-5 h-5 text-amber-400 flex-shrink-0 animate-pulse" />
-            <div className="flex-1">
-              <p className="text-xs font-bold text-amber-400">Señal GPS inestable</p>
-              <p className="text-[10px] text-amber-400/70">Posicionamiento poco fiable. El avance no se contabiliza como válido.</p>
-            </div>
+      {/* Progress bar (always visible in recording) */}
+      {isRecording && (
+        <div className="px-3 pb-1 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Progress value={progressPercent} className="h-1.5 flex-1" />
+            <span className="text-[10px] font-bold text-foreground w-8 text-right">{Math.round(progressPercent)}%</span>
           </div>
         </div>
       )}
 
-      {/* === GEOMETRIC RECOVERY WARNING (operational still invalid) === */}
-      {geometricRecoveryOnly && isInvalidated && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2 flex items-center gap-3">
-            <Wifi className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-[10px] font-bold text-amber-400">Recuperación solo geométrica</p>
-              <p className="text-[9px] text-amber-400/70">Estás sobre el eje, pero el tramo sigue invalidado operativamente. Debes reiniciar.</p>
-            </div>
+      {/* Distance to start (approach) */}
+      {isApproach && (
+        <div className="px-3 pb-1 flex-shrink-0">
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-muted-foreground">Al inicio:</span>
+            <span className="font-bold text-foreground">{formatDistance(distanceToStart)}</span>
+            <span className="text-muted-foreground ml-auto">ETA:</span>
+            <span className="font-bold text-foreground">{formatEta(etaToStart)}</span>
           </div>
         </div>
       )}
 
-      {/* === F5 START CONFIRMATION PROMPT === */}
-      {showApproachPrompt && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-                <Zap className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">Zona de inicio alcanzada</p>
-                <p className="text-[10px] text-muted-foreground">
-                  Estás a {formatDistance(distanceToStart)} del inicio — Pulsa F5 en HIWAY
-                </p>
-                {!approachSequenceValid && (
-                  <p className="text-[10px] text-destructive font-bold mt-0.5">
-                    ⚠ Secuencia 300→150→30 incompleta — El tramo puede requerir revisión
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                disabled={isBlocked}
-                onClick={() => { onMarkF5(); onStartSegment(); }}
-                className="h-14 text-sm font-bold bg-primary text-primary-foreground"
-              >
-                <Play className="w-5 h-5 mr-1" />
-                F5 Inicio
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onPostpone}
-                className="h-14 text-sm border-border"
-              >
-                <SkipForward className="w-4 h-4 mr-1" />
-                Posponer
-              </Button>
-              <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
-                <Button
-                  variant="outline"
-                  className="h-14 text-sm border-destructive/40 text-destructive"
-                >
-                  <AlertTriangle className="w-4 h-4 mr-1" />
-                  Incidencia
-                </Button>
-              </IncidentDialog>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Action buttons (always visible) ── */}
+      <div className="px-3 py-1.5 flex gap-2 flex-shrink-0">
+        {/* F5 Start prompt */}
+        {showApproachPrompt && (
+          <Button
+            disabled={isBlocked}
+            onClick={() => { onMarkF5(); onStartSegment(); }}
+            className="flex-1 driving-button bg-primary text-primary-foreground"
+          >
+            <Play className="w-5 h-5 mr-1" />
+            F5 Inicio
+          </Button>
+        )}
 
-      {/* === F5 END / COMPLETION PROMPT === */}
-      {operationalState === 'ready_f5_end' && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-                <Flag className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">Fin de tramo alcanzado</p>
-                <p className="text-[10px] text-muted-foreground">
-                  Pulsa F5 en HIWAY para cerrar el tramo
-                </p>
-                {contiguousInfo.isContiguous && (
-                  <p className="text-[10px] text-accent font-bold mt-0.5">
-                    ⚡ Transición directa → {contiguousInfo.nextSegmentName}
-                  </p>
-                )}
-              </div>
+        {/* F5 End prompt */}
+        {operationalState === 'ready_f5_end' && (
+          <Button
+            onClick={() => { onMarkF5(); onCompleteSegment(); }}
+            className="flex-1 driving-button bg-primary text-primary-foreground"
+          >
+            <Flag className="w-5 h-5 mr-1" />
+            {contiguousInfo.isContiguous ? 'F5 Fin/Inicio' : 'F5 Cierre'}
+          </Button>
+        )}
+
+        {/* Recording: F5 mark button */}
+        {isRecording && operationalState !== 'ready_f5_end' && !showApproachPrompt && (
+          <Button
+            onClick={() => { onMarkF5(); onCompleteSegment(); }}
+            className="flex-1 driving-button bg-success text-success-foreground"
+          >
+            <Flag className="w-5 h-5 mr-1" />
+            Finalizar
+          </Button>
+        )}
+
+        {/* Invalidation: restart button */}
+        {isInvalid && (
+          <Button
+            onClick={onRestartSegment}
+            className="flex-1 driving-button bg-primary text-primary-foreground"
+          >
+            <RotateCcw className="w-5 h-5 mr-1" />
+            Reiniciar
+          </Button>
+        )}
+
+        {/* Skip / postpone */}
+        {!isRecording && !isInvalid && !showApproachPrompt && operationalState !== 'ready_f5_end' && (
+          <Button
+            onClick={onSkipSegment}
+            variant="outline"
+            className="flex-1 driving-button border-border"
+          >
+            <SkipForward className="w-5 h-5 mr-1" />
+            Saltar
+          </Button>
+        )}
+        {showApproachPrompt && (
+          <Button onClick={onPostpone} variant="outline" className="driving-button border-border px-4">
+            <SkipForward className="w-5 h-5" />
+          </Button>
+        )}
+
+        {/* Incident always available */}
+        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
+          <Button variant="outline" className="driving-button border-destructive/40 text-destructive px-4">
+            <AlertTriangle className="w-5 h-5" />
+          </Button>
+        </IncidentDialog>
+      </div>
+
+      {/* ── OPERATION MODE: additional info ── */}
+      {mode !== 'mini' && (
+        <div className="px-3 py-1.5 border-t border-border space-y-2 flex-shrink-0">
+          {/* Counters row */}
+          <div className="flex items-center gap-3 text-[10px]">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+              <span className="text-muted-foreground">Pendientes:</span>
+              <span className="font-bold text-foreground">{pendingCount}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-success inline-block" />
+              <span className="text-muted-foreground">Completados:</span>
+              <span className="font-bold text-foreground">{completedCount}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+              <span className="text-muted-foreground">Repetir:</span>
+              <span className="font-bold text-foreground">{repeatCount}</span>
+            </span>
+          </div>
+
+          {/* Segment details */}
+          <div className="grid grid-cols-4 gap-1.5">
+            <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+              <p className="text-[8px] text-muted-foreground">Sentido</p>
+              <p className="text-xs font-bold text-foreground truncate">{direction}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={() => { onMarkF5(); onCompleteSegment(); }}
-                className="h-14 text-sm font-bold bg-primary text-primary-foreground"
-              >
-                <Flag className="w-5 h-5 mr-1" />
-                {contiguousInfo.isContiguous ? 'F5 Fin/Inicio' : 'F5 Cierre'}
-              </Button>
-              <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
-                <Button
-                  variant="outline"
-                  className="h-14 text-sm border-destructive/40 text-destructive"
-                >
-                  <AlertTriangle className="w-4 h-4 mr-1" />
-                  Incidencia
-                </Button>
-              </IncidentDialog>
+            {segment.layer && (
+              <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+                <p className="text-[8px] text-muted-foreground">Capa</p>
+                <p className="text-xs font-bold text-foreground truncate">{segment.layer}</p>
+              </div>
+            )}
+            <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+              <p className="text-[8px] text-muted-foreground">Total</p>
+              <p className="text-xs font-bold text-foreground">{formatDistance(totalDistance)}</p>
             </div>
-            {contiguousInfo.isContiguous && (
-              <div className="bg-accent/10 border border-accent/30 rounded-lg p-2 flex items-center gap-2">
-                <ChevronRight className="w-4 h-4 text-accent flex-shrink-0" />
-                <div>
-                  <p className="text-[10px] font-bold text-accent">Tramo contiguo detectado</p>
-                  <p className="text-[9px] text-muted-foreground">
-                    F5 cerrará este tramo e iniciará «{contiguousInfo.nextSegmentName}» ({Math.round(contiguousInfo.distanceBetween)}m)
-                  </p>
-                </div>
+            {isRecording && (
+              <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+                <Clock className="w-3 h-3 mx-auto text-muted-foreground" />
+                <p className="text-xs font-bold text-foreground">{formatDuration(elapsed)}</p>
               </div>
             )}
           </div>
+
+          {/* Reference markers */}
+          {isApproach && (
+            <ReferenceMarkers distanceToStart={distanceToStart} activeReference={activeReference} type="start" />
+          )}
+          {(operationalState === 'end_ref_300m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_30m' || operationalState === 'ready_f5_end') && (
+            <ReferenceMarkers distanceToStart={distanceRemaining} activeReference={activeReference} type="end" />
+          )}
+
+          {/* Contiguous transition notice */}
+          {contiguousInfo.isContiguous && operationalState === 'ready_f5_end' && (
+            <div className="bg-accent/10 border border-accent/30 rounded-lg p-2 flex items-center gap-2">
+              <ChevronRight className="w-4 h-4 text-accent flex-shrink-0" />
+              <p className="text-[10px] text-accent">
+                Transición directa → <strong>{contiguousInfo.nextSegmentName}</strong> ({Math.round(contiguousInfo.distanceBetween)}m)
+              </p>
+            </div>
+          )}
+
+          {/* Invalidation detail */}
+          {isInvalid && (
+            <div className="bg-destructive/10 border border-destructive/40 rounded-lg p-2">
+              <p className="text-[10px] text-destructive">
+                {operationalState === 'wrong_direction'
+                  ? 'Circulación en sentido contrario al planificado.'
+                  : operationalState === 'deviated'
+                    ? `Desvío confirmado a ${Math.round(deviationMeters)}m del eje.`
+                    : 'Validez operativa perdida. Reiniciar desde posición de aproximación.'}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* === INVALIDATION PANEL === */}
-      {isInvalid && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-destructive/10 border-2 border-destructive/60 rounded-xl p-3 space-y-2">
-            <div className="flex items-center gap-3">
-              <Ban className="w-7 h-7 text-destructive flex-shrink-0 animate-pulse" />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-destructive">Tramo invalidado</p>
-                <p className="text-[10px] text-destructive/80">
-                  {operationalState === 'wrong_direction'
-                    ? 'Circulación en sentido contrario al planificado.'
-                    : operationalState === 'deviated'
-                      ? `Desvío confirmado a ${Math.round(deviationMeters)}m del eje. No se permite reincorporación.`
-                      : 'El tramo ha perdido validez operativa. Debe reiniciarse desde posición de aproximación.'}
-                </p>
-              </div>
+      {/* ── EXPANDED MODE: validation metrics ── */}
+      {mode === 'expanded' && (
+        <div className="px-3 py-1.5 border-t border-border space-y-2 flex-shrink-0">
+          {/* Validation strip */}
+          <div className="grid grid-cols-4 gap-1.5">
+            <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+              <p className="text-[8px] text-muted-foreground">Cobertura</p>
+              <p className={`text-xs font-bold ${stats.validCoveragePercent >= 85 ? 'text-success' : 'text-amber-400'}`}>
+                {stats.validCoveragePercent.toFixed(0)}%
+              </p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                onClick={onRestartSegment}
-                className="h-12 text-xs font-bold bg-primary text-primary-foreground"
-              >
-                <RotateCcw className="w-4 h-4 mr-1" />
-                Reiniciar
-              </Button>
-              <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
-                <Button
-                  variant="outline"
-                  className="h-12 text-xs border-destructive/40 text-destructive"
-                >
-                  <AlertTriangle className="w-4 h-4 mr-1" />
-                  Incidencia
-                </Button>
-              </IncidentDialog>
-              <Button
-                variant="outline"
-                onClick={onSkipSegment}
-                className="h-12 text-xs border-border"
-              >
-                <SkipForward className="w-4 h-4 mr-1" />
-                Repetir después
-              </Button>
+            <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+              <p className="text-[8px] text-muted-foreground">Desv. lat.</p>
+              <p className="text-xs font-bold text-foreground">{Math.round(deviationMeters)}m</p>
+            </div>
+            <div className={`rounded-lg p-1.5 text-center ${
+              headingDelta <= 45 ? 'bg-success/10' : headingDelta <= 90 ? 'bg-amber-500/10' : 'bg-destructive/10'
+            }`}>
+              <p className="text-[8px] text-muted-foreground">Rumbo Δ</p>
+              <p className={`text-xs font-bold ${
+                headingDelta <= 45 ? 'text-success' : headingDelta <= 90 ? 'text-amber-400' : 'text-destructive'
+              }`}>{Math.round(headingDelta)}°</p>
+            </div>
+            <div className="bg-secondary/60 rounded-lg p-1.5 text-center">
+              <p className="text-[8px] text-muted-foreground">Intento</p>
+              <p className="text-xs font-bold text-foreground">{stats.attemptNumber}</p>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* === PRE-ALERT WARNING === */}
-      {operationalState === 'pre_alert' && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-2 flex items-center gap-3">
-            <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-[10px] font-bold text-amber-400">Prealerta — {Math.round(deviationMeters)}m del eje</p>
-              <p className="text-[9px] text-amber-400/70">Corrige trayectoria o el tramo será invalidado.</p>
+          {/* Warnings */}
+          {!approachSequenceValid && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-2 py-1">
+              <p className="text-[9px] text-destructive font-bold">⚠ Secuencia de aproximación 300→150→30 incompleta</p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* === RECORDING ACTION BAR === */}
-      {isRecording && operationalState !== 'ready_f5_end' && (
-        <div className="mx-2 mt-2 pointer-events-auto">
-          <div className="flex gap-2">
-            <Button
-              onClick={() => { onMarkF5(); onCompleteSegment(); }}
-              size="sm"
-              className="flex-1 h-10 text-xs bg-primary/80 text-primary-foreground"
-            >
-              <Flag className="w-3.5 h-3.5 mr-1" />
-              F5 Marcar
-            </Button>
-            <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-10 text-xs border-destructive/40 text-destructive"
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-              </Button>
-            </IncidentDialog>
-          </div>
+          )}
+          {geometricRecoveryOnly && isInvalidated && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 flex items-center gap-2">
+              <Wifi className="w-3 h-3 text-amber-400 flex-shrink-0" />
+              <p className="text-[9px] text-amber-400">Recuperación solo geométrica — tramo sigue invalidado</p>
+            </div>
+          )}
+          {operationalState === 'gps_unstable' && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 flex items-center gap-2">
+              <WifiOff className="w-3 h-3 text-amber-400 flex-shrink-0 animate-pulse" />
+              <p className="text-[9px] text-amber-400">Señal GPS inestable — avance no se contabiliza</p>
+            </div>
+          )}
+          {operationalState === 'pre_alert' && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 flex items-center gap-2">
+              <ShieldAlert className="w-3 h-3 text-amber-400 flex-shrink-0" />
+              <p className="text-[9px] text-amber-400">Prealerta — {Math.round(deviationMeters)}m del eje. Corrige trayectoria.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -478,7 +469,6 @@ export function NavigationOverlay({
 }
 
 // ─── Reference Markers Sub-component ──────────────────────────────────
-
 function ReferenceMarkers({
   distanceToStart,
   activeReference,
