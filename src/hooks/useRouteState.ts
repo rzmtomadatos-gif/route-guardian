@@ -100,11 +100,11 @@ export function useRouteState() {
     setState((s) => ({ ...s, navigationActive: false, activeSegmentId: null }));
   }, [setState]);
 
-  /** Allocate the next track number based on mode */
-  const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null): number => {
+  /** Allocate the next track number based on mode. Resets per workDay. */
+  const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null, workDay?: number): number => {
     if (!rstMode) {
       // RST OFF: every segment gets a unique track = max + 1
-      const maxTrack = getMaxTrack(segments, trackSession);
+      const maxTrack = getMaxTrack(segments, trackSession, workDay);
       return maxTrack + 1;
     }
     // RST ON: reuse current track if session active and has room
@@ -112,7 +112,7 @@ export function useRouteState() {
       return trackSession.trackNumber;
     }
     // Otherwise new track
-    const maxTrack = getMaxTrack(segments, trackSession);
+    const maxTrack = getMaxTrack(segments, trackSession, workDay);
     return maxTrack + 1;
   };
 
