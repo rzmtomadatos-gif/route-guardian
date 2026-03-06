@@ -66,6 +66,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   ref_30m: { label: 'Referencia 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
   ready_f5_start: { label: '⏎ PULSAR F5 — INICIO', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
   recording: { label: 'En grabación', colorClass: 'bg-success/20 text-success border border-success/40', icon: Activity },
+  gps_unstable: { label: '⚠ GPS inestable', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse', icon: WifiOff },
   pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
   deviated: { label: '✖ INVALIDADO — Desvío', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: Ban },
   wrong_direction: { label: '✖ INVALIDADO — Sentido incorrecto', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: ArrowDownLeft },
