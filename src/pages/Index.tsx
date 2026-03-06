@@ -214,6 +214,13 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
         />
       )}
 
+      {pendingRouteForCode && (
+        <ProjectCodeDialog
+          open
+          onConfirm={handleProjectCode}
+        />
+      )}
+
       {/* Unsaved changes dialog */}
       <AlertDialog open={unsavedDialogOpen} onOpenChange={setUnsavedDialogOpen}>
         <AlertDialogContent>
