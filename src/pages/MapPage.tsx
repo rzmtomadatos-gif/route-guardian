@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
+import { NavigationOverlay } from '@/components/NavigationOverlay';
+import { useNavigationTracker } from '@/hooks/useNavigationTracker';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
