@@ -172,12 +172,18 @@ export function useRouteState() {
         };
       }
 
+      // Compute segmentOrder: count how many segments already have this track number + 1
+      const existingInTrack = s.route.segments.filter(
+        (seg) => seg.trackNumber === nextTrack && seg.id !== segmentId
+      ).length;
+      const segmentOrder = existingInTrack + 1;
+
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
-      // Start this segment – assign real trackNumber
+      // Start this segment – assign real trackNumber, workDay, segmentOrder
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now }
+          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now, workDay: s.workDay, segmentOrder }
           : seg
       );
 
