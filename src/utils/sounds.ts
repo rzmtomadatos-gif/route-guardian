@@ -78,3 +78,25 @@ export function playDeviationSound() {
   playTone(440, 0.3, 'sawtooth');
   setTimeout(() => playTone(440, 0.3, 'sawtooth'), 400);
 }
+
+/** Sound when vehicle reaches the approach radius of a segment start */
+export function playApproachSound() {
+  playTone(660, 0.12);
+  setTimeout(() => playTone(880, 0.12), 130);
+  setTimeout(() => playTone(1100, 0.15), 260);
+  try { navigator.vibrate?.([100, 50, 100, 50, 200]); } catch {}
+}
+
+/** Sound when deviation is first detected */
+export function playDeviationAlertSound() {
+  playTone(330, 0.4, 'sawtooth');
+  setTimeout(() => playTone(220, 0.5, 'sawtooth'), 450);
+  try { navigator.vibrate?.([300, 100, 300]); } catch {}
+}
+
+/** Sound when driver recovers from a deviation */
+export function playRecoverySound() {
+  playTone(440, 0.1);
+  setTimeout(() => playTone(660, 0.1), 120);
+  setTimeout(() => playTone(880, 0.15), 240);
+}
