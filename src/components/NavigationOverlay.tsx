@@ -36,6 +36,10 @@ interface Props {
   isInvalidated: boolean;
   contiguousInfo: ContiguousInfo;
   activeReference: 'ref_300m' | 'ref_150m' | 'ref_30m' | 'end_ref_300m' | 'end_ref_150m' | 'end_ref_30m' | null;
+  headingDelta: number;
+  stats: NavSegmentStats;
+  approachSequenceValid: boolean;
+  geometricRecoveryOnly: boolean;
 }
 
 function formatDistance(meters: number | null): string {
@@ -80,7 +84,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
 };
 
 const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
-const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
+const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
 const INVALID_STATES: NavOperationalState[] = ['deviated', 'wrong_direction', 'invalidated'];
 
 export function NavigationOverlay({
@@ -107,6 +111,10 @@ export function NavigationOverlay({
   isInvalidated,
   contiguousInfo,
   activeReference,
+  headingDelta,
+  stats,
+  approachSequenceValid,
+  geometricRecoveryOnly,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
