@@ -50,6 +50,7 @@ interface Props {
   rstMode: boolean;
   rstGroupSize: number;
   trackSession: TrackSession | null;
+  workDay: number;
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
@@ -69,6 +70,7 @@ interface Props {
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string) => void;
+  onSetWorkDay: (day: number) => void;
   /** Whether the end-of-video modal is blocking actions */
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
@@ -114,6 +116,8 @@ export function MapControlPanel({
   onFinalizeTrack,
   trackSession,
   onSkipSegment,
+  onSetWorkDay,
+  workDay,
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
