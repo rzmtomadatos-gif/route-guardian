@@ -149,6 +149,33 @@ export default function MapPage({
 
   // Deviation detection during active recording
   const activeSegment = state.route?.segments.find((s) => s.id === state.activeSegmentId);
+  const isRecording = activeSegment?.status === 'en_progreso';
+  
+  // Navigation tracker
+  const navTracker = useNavigationTracker(
+    activeSegment,
+    geo.position,
+    geo.speed,
+    !!isRecording,
+    state.navigationActive,
+  );
+
+  // Sound effects for navigation state changes
+  const prevNavState = useRef(navTracker.operationalState);
+  useEffect(() => {
+    const prev = prevNavState.current;
+    const curr = navTracker.operationalState;
+    prevNavState.current = curr;
+    if (prev === curr) return;
+
+    if (curr === 'ready' && prev === 'approaching') {
+      playApproachSound();
+    } else if (curr === 'deviated' && prev === 'recording') {
+      playDeviationAlertSound();
+    } else if (curr === 'recording' && prev === 'deviated') {
+      playRecoverySound();
+    }
+  }, [navTracker.operationalState]);
   
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
