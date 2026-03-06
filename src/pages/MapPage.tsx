@@ -929,6 +929,7 @@ export default function MapPage({
           segment={activeSegment}
           operationalState={navTracker.operationalState}
           distanceToStart={navTracker.distanceToStart}
+          distanceToEnd={navTracker.distanceToEnd}
           etaToStart={navTracker.etaToStart}
           progressPercent={navTracker.progressPercent}
           distanceRemaining={navTracker.distanceRemaining}
@@ -947,8 +948,13 @@ export default function MapPage({
             onSkipSegment(activeSegment.id, hiddenLayers);
           }}
           onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
+          onRestartSegment={handleRestartSegment}
+          onMarkF5={handleMarkF5}
           currentPosition={geo.position}
           isBlocked={videoEndBlocking}
+          isInvalidated={navTracker.isInvalidated}
+          contiguousInfo={navTracker.contiguousInfo}
+          activeReference={navTracker.activeReference}
         />
       )}
 
