@@ -235,7 +235,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const recorded = validatedSegments.filter((s) => s.status === 'completado').length;
   const repeated = validatedSegments.filter((s) => (s.repeatNumber || 0) > 1 && s.status === 'completado').length;
   const nonRecordable = validatedSegments.filter((s) => s.nonRecordable).length;
+  const needsRepeat = validatedSegments.filter((s) => s.needsRepeat).length;
   const uniqueTracks = new Set(validatedSegments.filter((s) => s.trackNumber !== null).map((s) => s.trackNumber)).size;
+  const uniqueWorkDays = new Set(validatedSegments.filter((s) => s.workDay != null).map((s) => s.workDay)).size;
 
   // Total recording time
   let totalRecordingMs = 0;
@@ -248,17 +250,25 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const totalSecs = Math.floor((totalRecordingMs % 60000) / 1000);
 
   const summaryData = [
+    { 'Métrica': 'Código proyecto', 'Valor': route.projectCode || '' },
+    { 'Métrica': 'Nombre proyecto', 'Valor': route.projectName || '' },
+    { 'Métrica': 'Operador', 'Valor': route.operator || '' },
+    { 'Métrica': 'Vehículo', 'Valor': route.vehicle || '' },
+    { 'Métrica': 'Climatología', 'Valor': route.weather || '' },
+    { 'Métrica': '', 'Valor': '' },
     { 'Métrica': 'Tramos totales', 'Valor': totalSegments },
     { 'Métrica': 'Tramos grabados', 'Valor': recorded },
     { 'Métrica': 'Tramos repetidos', 'Valor': repeated },
+    { 'Métrica': 'Tramos pendientes repetir', 'Valor': needsRepeat },
     { 'Métrica': 'Tramos no grabables', 'Valor': nonRecordable },
     { 'Métrica': 'Tramos pendientes', 'Valor': totalSegments - recorded - nonRecordable },
     { 'Métrica': 'Tracks generados', 'Valor': uniqueTracks },
+    { 'Métrica': 'Días de trabajo', 'Valor': uniqueWorkDays },
     { 'Métrica': 'Tiempo total grabación', 'Valor': `${totalHours}h ${totalMins}m ${totalSecs}s` },
     { 'Métrica': 'Incidencias totales', 'Valor': exportIncidents.length },
   ];
   const ws3 = XLSX.utils.json_to_sheet(summaryData);
-  ws3['!cols'] = [{ wch: 25 }, { wch: 20 }];
+  ws3['!cols'] = [{ wch: 25 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;
