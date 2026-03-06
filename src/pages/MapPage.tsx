@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
-import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound } from '@/utils/sounds';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -150,6 +150,16 @@ export default function MapPage({
   // Deviation detection during active recording
   const activeSegment = state.route?.segments.find((s) => s.id === state.activeSegmentId);
   const isRecording = activeSegment?.status === 'en_progreso';
+
+  // Find next segment in optimized order for contiguous detection
+  const nextSegment = useMemo(() => {
+    if (!state.route || !state.activeSegmentId) return null;
+    const order = state.route.optimizedOrder;
+    const idx = order.indexOf(state.activeSegmentId);
+    if (idx < 0 || idx >= order.length - 1) return null;
+    const nextId = order[idx + 1];
+    return state.route.segments.find((s) => s.id === nextId) ?? null;
+  }, [state.route, state.activeSegmentId]);
   
   // Navigation tracker
   const navTracker = useNavigationTracker(
@@ -158,9 +168,30 @@ export default function MapPage({
     geo.speed,
     !!isRecording,
     state.navigationActive,
+    undefined,
+    nextSegment,
   );
 
-  // Sound effects for navigation state changes
+  // F5 marker log
+  const f5LogRef = useRef<Array<{ type: 'start' | 'end'; timestamp: string; segmentId: string; position: LatLng | null }>>([]);
+  const handleMarkF5 = useCallback(() => {
+    f5LogRef.current.push({
+      type: isRecording ? 'end' : 'start',
+      timestamp: new Date().toISOString(),
+      segmentId: activeSegment?.companySegmentId || activeSegment?.id || '',
+      position: geo.position,
+    });
+  }, [isRecording, activeSegment, geo.position]);
+
+  // Handle restart after invalidation
+  const handleRestartSegment = useCallback(() => {
+    if (!activeSegment) return;
+    navTracker.resetInvalidation();
+    onResetSegment(activeSegment.id);
+    toast.info('Tramo reiniciado — vuelve a la posición de aproximación.');
+  }, [activeSegment, navTracker, onResetSegment]);
+
+  // Sound effects for RST navigation state changes
   const prevNavState = useRef(navTracker.operationalState);
   useEffect(() => {
     const prev = prevNavState.current;
@@ -168,18 +199,25 @@ export default function MapPage({
     prevNavState.current = curr;
     if (prev === curr) return;
 
-    if (curr === 'ready' && prev === 'approaching') {
-      playApproachSound();
-    } else if (curr === 'deviated' && (prev === 'recording' || prev === 'pre_alert')) {
-      playDeviationAlertSound();
-    } else if (curr === 'wrong_direction') {
-      playWrongDirectionSound();
-    } else if (curr === 'pre_alert' && prev === 'recording') {
-      playPreAlertSound();
-    } else if (curr === 'recording' && (prev === 'deviated' || prev === 'wrong_direction')) {
-      playRecoverySound();
+    // Approach reference sounds
+    if (curr === 'ref_300m' && prev === 'approaching') playRef300Sound();
+    else if (curr === 'ref_150m' && prev === 'ref_300m') playRef150Sound();
+    else if (curr === 'ref_30m' && prev === 'ref_150m') playRef30Sound();
+    else if (curr === 'ready_f5_start') playF5ReadySound();
+    // End reference sounds
+    else if (curr === 'end_ref_300m' && prev === 'recording') playRef300Sound();
+    else if (curr === 'end_ref_150m') playRef150Sound();
+    else if (curr === 'end_ref_30m') playRef30Sound();
+    else if (curr === 'ready_f5_end') {
+      playF5ReadySound();
+      if (navTracker.contiguousInfo.isContiguous) playContiguousTransitionSound();
     }
-  }, [navTracker.operationalState]);
+    // Deviation / invalidation
+    else if (curr === 'deviated' || curr === 'invalidated') playInvalidationSound();
+    else if (curr === 'wrong_direction') playWrongDirectionSound();
+    else if (curr === 'pre_alert') playPreAlertSound();
+    else if (curr === 'recording' && prev === 'pre_alert') playRecoverySound();
+  }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
   
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
@@ -189,15 +227,6 @@ export default function MapPage({
       onStopNavigation();
     }
   }, [activeSegment, hiddenLayers, state.navigationActive, onStopNavigation]);
-
-  useEffect(() => {
-    if (!geo.position || !activeSegment || activeSegment.status !== 'en_progreso') return;
-    const dist = distanceToSegment(geo.position, activeSegment);
-    if (dist > DEVIATION_THRESHOLD && Date.now() - lastDeviationRef.current > 10000) {
-      playDeviationSound();
-      lastDeviationRef.current = Date.now();
-    }
-  }, [geo.position, activeSegment]);
 
   // Auto-calculate route when both points are set
   const [creationRoadInfo, setCreationRoadInfo] = useState<{ name: string; highway: string; oneway: boolean } | null>(null);
