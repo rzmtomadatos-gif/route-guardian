@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
+import type { Route } from '@/types/route';
 
 interface Props {
   onClear: () => void;
   hasRoute: boolean;
+  route: Route | null;
+  onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
 }
 
-export default function SettingsPage({ onClear, hasRoute }: Props) {
+export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteContext }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
