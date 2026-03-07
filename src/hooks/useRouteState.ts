@@ -263,6 +263,7 @@ export function useRouteState() {
         // RST ON: count valid completed segments in this track
         const validInTrack = segments.filter(
           (seg) =>
+            seg.workDay === s.workDay &&
             seg.trackNumber === trackSession!.trackNumber &&
             seg.status === 'completado' &&
             !seg.nonRecordable &&
@@ -936,7 +937,12 @@ export function useRouteState() {
       if (trackSession && trackSession.active) {
         trackSession = { ...trackSession, active: false, endedAt: new Date().toISOString(), closedManually: true };
       }
-      return { ...s, workDay: day, trackSession };
+      return {
+        ...s,
+        workDay: day,
+        trackSession: null,
+        blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
+      };
     }, true);
   }, [setState]);
 

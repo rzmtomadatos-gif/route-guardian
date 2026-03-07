@@ -787,9 +787,6 @@ export default function MapPage({
     onCloseBlockEndPrompt();
   }, [onCloseBlockEndPrompt]);
 
-  const handleVideoEndCancel = useCallback(() => {
-    onCloseBlockEndPrompt();
-  }, [onCloseBlockEndPrompt]);
 
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;
@@ -1176,7 +1173,7 @@ export default function MapPage({
           onSetWorkDay={onSetWorkDay}
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
-          onVideoEndCancel={handleVideoEndCancel}
+          
           copilotSession={copilot.session}
           copilotActive={copilot.active}
           onCopilotStart={copilot.createSession}

@@ -6,7 +6,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogAction,
-  AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { AlertOctagon, CheckCircle2, Square } from 'lucide-react';
 import { useState } from 'react';
@@ -16,7 +15,6 @@ interface Props {
   trackNumber: number;
   rstGroupSize?: number;
   onContinue: () => void;
-  onCancel: () => void;
 }
 
 const STEPS = [
@@ -42,7 +40,7 @@ const STEPS = [
   },
 ];
 
-export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContinue, onCancel }: Props) {
+export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContinue }: Props) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
 
   const allChecked = checked.size === STEPS.length;
@@ -61,14 +59,9 @@ export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContin
     onContinue();
   }
 
-  function handleCancel() {
-    setChecked(new Set());
-    onCancel();
-  }
-
   return (
     <AlertDialog open={open}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="max-w-md" onEscapeKeyDown={(e) => e.preventDefault()}>
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0">
@@ -122,8 +115,11 @@ export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContin
           </AlertDialogDescription>
         </AlertDialogHeader>
 
+        <p className="text-xs text-destructive font-medium text-center">
+          El siguiente tramo no puede iniciarse hasta confirmar que el equipo está preparado.
+        </p>
+
         <AlertDialogFooter className="mt-3">
-          <AlertDialogCancel onClick={handleCancel}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleContinue}
             disabled={!allChecked}
