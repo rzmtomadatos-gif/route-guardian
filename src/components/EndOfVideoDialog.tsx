@@ -62,7 +62,7 @@ export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContin
 
   return (
     <AlertDialog open={open}>
-      <AlertDialogContent className="max-w-md" onEscapeKeyDown={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
+      <AlertDialogContent className="max-w-md" onEscapeKeyDown={(e) => e.preventDefault()}>
         <AlertDialogHeader>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0">
