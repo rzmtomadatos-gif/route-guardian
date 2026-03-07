@@ -562,10 +562,17 @@ export function useNavigationTracker(
         logTransition(prev, newState, reason, currentPosition, { distanceToStart: distToStart });
       }
 
+      // Strategic point: ~50m before start, within approach
+      const strategicPointDist = distToStart > 50 ? distToStart - 50 : null;
+
+      // Distance to next segment
+      const distToNext = nextSegment ? haversine(endPoint, nextSegment.coordinates[0]) : null;
+
       setState({
         operationalState: newState,
         distanceToStart: distToStart,
         distanceToEnd: distToEnd,
+        distancePastEnd: null,
         etaToStart: eta,
         progressPercent: 0,
         distanceRemaining: totalDist,
@@ -583,6 +590,11 @@ export function useNavigationTracker(
         stats: statsRef.current,
         approachSequenceValid: approachSeqRef.current.sequenceValid,
         geometricRecoveryOnly: false,
+        strategicPointDistance: strategicPointDist,
+        showF9PrePrompt: false,
+        showF7Prompt: false,
+        showF9PostPrompt: false,
+        distanceToNextSegment: distToNext,
       });
     } else {
       // ── RECORDING PHASE ─────────────────────────────────────────
@@ -700,15 +712,21 @@ export function useNavigationTracker(
         ? Math.min(100, (statsRef.current.validDistanceM / totalDist) * 100)
         : 0;
 
-      // ── End-of-segment references ──────────────────────────────────
+      // ── End-of-segment references (AFTER passing the end) ─────────
       let activeRef: NavTrackerState['activeReference'] = null;
+      const distPastEnd = progress >= 100 ? haversine(currentPosition, endPoint) : 0;
+
+      // Distance to next segment start
+      const distToNextSeg = nextSegment ? haversine(currentPosition, nextSegment.coordinates[0]) : null;
 
       // ── State machine ──────────────────────────────────────────────
       let newState: NavOperationalState = prev;
       let reason = '';
+      let showF7 = false;
+      let showF9Post = false;
 
       const isInRecordingState = prev === 'recording' || prev === 'pre_alert' || prev === 'gps_unstable'
-        || prev === 'end_ref_300m' || prev === 'end_ref_150m' || prev === 'end_ref_30m';
+        || prev === 'past_end' || prev === 'end_ref_30m' || prev === 'end_ref_150m' || prev === 'end_ref_300m';
 
       if (isInRecordingState) {
         // Check invalidation conditions first
@@ -736,39 +754,56 @@ export function useNavigationTracker(
           deviationWindowRef.current.reset();
         }
 
-        // End references (only in valid recording states)
-        if (!invalidatedRef.current && (newState === 'recording' || newState === prev)) {
-          if (remaining <= thresholds.f5ReadyRadius) {
-            newState = 'ready_f5_end';
-            reason = `within_${thresholds.f5ReadyRadius}m_of_end_F5_ready`;
-          } else if (remaining <= thresholds.ref30m) {
-            if (prev !== 'end_ref_30m') {
-              newState = 'end_ref_30m';
-              reason = `end_ref_30m_remaining=${Math.round(remaining)}m`;
+        // End references — AFTER passing the geometric end (distPastEnd)
+        if (!invalidatedRef.current && (newState === 'recording' || newState === prev || newState === 'past_end')) {
+          if (progress >= 100) {
+            // Vehicle has passed the geometric end
+            if (contiguousInfo.isContiguous) {
+              // Contiguous (<200m): single F5 closes current + opens next
+              newState = 'ready_f5_end';
+              reason = `contiguous_transition_dist=${Math.round(contiguousInfo.distanceBetween)}m`;
+            } else if (distPastEnd >= thresholds.ref300m) {
+              newState = 'ready_f5_end';
+              reason = `past_end_${Math.round(distPastEnd)}m_F5_ready`;
+            } else if (distPastEnd >= thresholds.ref150m) {
+              if (prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+                newState = 'end_ref_300m';
+                reason = `end_ref_+300m_past=${Math.round(distPastEnd)}m`;
+              } else {
+                newState = prev;
+              }
+              activeRef = 'end_ref_300m';
+            } else if (distPastEnd >= thresholds.ref30m) {
+              if (prev !== 'end_ref_150m' && prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+                newState = 'end_ref_150m';
+                reason = `end_ref_+150m_past=${Math.round(distPastEnd)}m`;
+              } else if (prev === 'end_ref_150m') {
+                newState = prev;
+              }
+              activeRef = 'end_ref_150m';
+            } else if (distPastEnd > 0) {
+              if (prev !== 'end_ref_30m' && prev !== 'end_ref_150m' && prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+                newState = 'end_ref_30m';
+                reason = `end_ref_+30m_past=${Math.round(distPastEnd)}m`;
+              } else if (prev === 'end_ref_30m') {
+                newState = prev;
+              }
+              activeRef = 'end_ref_30m';
             } else {
-              newState = 'end_ref_30m';
+              // Just crossed the end point
+              newState = 'past_end';
+              reason = `vehicle_past_geometric_end`;
             }
-            activeRef = 'end_ref_30m';
-          } else if (remaining <= thresholds.ref150m) {
-            if (prev !== 'end_ref_150m' && prev !== 'end_ref_30m') {
-              newState = 'end_ref_150m';
-              reason = `end_ref_150m_remaining=${Math.round(remaining)}m`;
-            } else if (prev !== 'end_ref_30m') {
-              newState = 'end_ref_150m';
-            }
-            activeRef = 'end_ref_150m';
-          } else if (remaining <= thresholds.ref300m) {
-            if (prev !== 'end_ref_300m' && prev !== 'end_ref_150m' && prev !== 'end_ref_30m') {
-              newState = 'end_ref_300m';
-              reason = `end_ref_300m_remaining=${Math.round(remaining)}m`;
-            } else if (prev !== 'end_ref_150m' && prev !== 'end_ref_30m') {
-              newState = 'end_ref_300m';
-            }
-            activeRef = 'end_ref_300m';
           }
         }
       } else if (prev === 'ready_f5_end') {
         newState = 'ready_f5_end';
+      } else if (prev === 'ready_f7') {
+        newState = 'ready_f7';
+        showF7 = true;
+      } else if (prev === 'ready_f9_post') {
+        newState = 'ready_f9_post';
+        showF9Post = true;
       } else if (prev === 'deviated' || prev === 'wrong_direction' || prev === 'invalidated') {
         newState = 'invalidated';
         if (prev !== 'invalidated') {
@@ -799,6 +834,7 @@ export function useNavigationTracker(
         operationalState: newState,
         distanceToStart: distToStart,
         distanceToEnd: distToEnd,
+        distancePastEnd: distPastEnd > 0 ? distPastEnd : null,
         etaToStart: null,
         progressPercent: progress,
         distanceRemaining: remaining,
@@ -816,6 +852,11 @@ export function useNavigationTracker(
         stats: statsRef.current,
         approachSequenceValid: approachSeqRef.current.sequenceValid,
         geometricRecoveryOnly: geometricRecoveryOnlyRef.current,
+        strategicPointDistance: null,
+        showF9PrePrompt: false,
+        showF7Prompt: showF7,
+        showF9PostPrompt: showF9Post,
+        distanceToNextSegment: distToNextSeg,
       });
     }
   }, [activeSegment?.id, currentPosition?.lat, currentPosition?.lng, gpsSpeed, gpsHeading, gpsAccuracy, isRecording, navigationActive, totalDist, thresholds, cumLens, logTransition, contiguousInfo]);
