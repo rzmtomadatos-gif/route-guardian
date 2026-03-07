@@ -643,9 +643,9 @@ function ReferenceMarkers({
         { key: 'ref_30m', label: '30m', dist: 30 },
       ]
     : [
-        { key: 'end_ref_300m', label: '300m', dist: 300 },
-        { key: 'end_ref_150m', label: '150m', dist: 150 },
-        { key: 'end_ref_30m', label: '30m', dist: 30 },
+        { key: 'end_ref_30m', label: '+30m', dist: 30 },
+        { key: 'end_ref_150m', label: '+150m', dist: 150 },
+        { key: 'end_ref_300m', label: '+300m', dist: 300 },
       ];
 
   const d = distanceToStart ?? Infinity;
