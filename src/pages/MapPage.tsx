@@ -787,9 +787,6 @@ export default function MapPage({
     onCloseBlockEndPrompt();
   }, [onCloseBlockEndPrompt]);
 
-  const handleVideoEndCancel = useCallback(() => {
-    onCloseBlockEndPrompt();
-  }, [onCloseBlockEndPrompt]);
 
   const handleExportToGoogleMaps = useCallback(() => {
     if (!state.route) return;
