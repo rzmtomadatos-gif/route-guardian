@@ -333,6 +333,7 @@ export function useNavigationTracker(
     operationalState: 'idle',
     distanceToStart: null,
     distanceToEnd: null,
+    distancePastEnd: null,
     etaToStart: null,
     progressPercent: 0,
     distanceRemaining: null,
@@ -350,6 +351,11 @@ export function useNavigationTracker(
     stats: defaultStats(),
     approachSequenceValid: false,
     geometricRecoveryOnly: false,
+    strategicPointDistance: null,
+    showF9PrePrompt: false,
+    showF7Prompt: false,
+    showF9PostPrompt: false,
+    distanceToNextSegment: null,
   });
 
   // Time-based windows
@@ -464,6 +470,12 @@ export function useNavigationTracker(
         stats: statsRef.current,
         approachSequenceValid: approachSeqRef.current.sequenceValid,
         geometricRecoveryOnly: false,
+        distancePastEnd: null,
+        strategicPointDistance: null,
+        showF9PrePrompt: false,
+        showF7Prompt: false,
+        showF9PostPrompt: false,
+        distanceToNextSegment: null,
       }));
       return;
     }
