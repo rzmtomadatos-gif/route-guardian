@@ -57,6 +57,30 @@ export interface Segment {
   segmentOrder?: number;
 }
 
+/** F5 confirmation event recorded by operator */
+export interface F5Event {
+  segmentId: string;
+  companySegmentId?: string;
+  eventType: 'inicio' | 'pk' | 'fin';
+  distanceMarker: number | null; // e.g. 1000, 2000, 3000 for PK events
+  confirmedAt: string; // ISO
+  confirmedByUser: boolean;
+  trackNumber?: number | null;
+  workDay?: number;
+  attemptNumber?: number;
+}
+
+/** Compute required PK markers for a segment length */
+export function getRequiredPkMarkers(segmentLengthMeters: number): number[] {
+  const markers: number[] = [];
+  let pk = 1000;
+  while (pk < segmentLengthMeters) {
+    markers.push(pk);
+    pk += 1000;
+  }
+  return markers;
+}
+
 export interface Route {
   id: string;
   name: string;

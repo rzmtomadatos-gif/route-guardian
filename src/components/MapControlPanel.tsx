@@ -319,34 +319,6 @@ export function MapControlPanel({
                   Navegar
                 </Button>
               )}
-              <GoogleMapsItineraryDialog
-                segments={segments}
-                optimizedOrder={optimizedOrder}
-                activeSegmentId={activeSegmentId}
-                currentPosition={currentPosition}
-                base={base}
-                rstMode={rstMode}
-                rstGroupSize={rstGroupSize}
-                selectedSegmentIds={selectedSegmentIds}
-              >
-                <Button variant="outline" className="h-12 px-3">
-                  <ExternalLink className="w-4 h-4" />
-                </Button>
-              </GoogleMapsItineraryDialog>
-              <DriverShareDialog
-                segments={segments}
-                optimizedOrder={optimizedOrder}
-                activeSegmentId={activeSegmentId}
-                currentPosition={currentPosition}
-                base={base}
-                rstMode={rstMode}
-                rstGroupSize={rstGroupSize}
-                selectedSegmentIds={selectedSegmentIds}
-              >
-                <Button variant="outline" className="h-12 px-3" title="Enviar al conductor">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </DriverShareDialog>
               <CopilotPanel
                 session={copilotSession}
                 active={copilotActive}
