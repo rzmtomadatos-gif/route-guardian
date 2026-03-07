@@ -5,6 +5,8 @@ import type { Segment, LatLng } from '@/types/route';
 export type NavOperationalState =
   | 'idle'
   | 'approaching'
+  | 'strategic_point'
+  | 'ready_f9_pre'
   | 'ref_300m'
   | 'ref_150m'
   | 'ref_30m'
@@ -14,10 +16,13 @@ export type NavOperationalState =
   | 'deviated'
   | 'wrong_direction'
   | 'gps_unstable'
-  | 'end_ref_300m'
-  | 'end_ref_150m'
+  | 'past_end'
   | 'end_ref_30m'
+  | 'end_ref_150m'
+  | 'end_ref_300m'
   | 'ready_f5_end'
+  | 'ready_f7'
+  | 'ready_f9_post'
   | 'invalidated'
   | 'interrupted'
   | 'completed';
@@ -137,7 +142,7 @@ const DEFAULT_THRESHOLDS: NavThresholds = {
   maxGpsJumpSpeed: 50, // ~180 km/h
   gpsUnstableDurationMs: 3000,
 
-  contiguousThreshold: 50,
+  contiguousThreshold: 200,
   f5ReadyRadius: 15,
 
   minValidCoveragePercent: 85,
