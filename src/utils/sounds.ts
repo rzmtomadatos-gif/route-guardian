@@ -148,6 +148,21 @@ export function playInvalidationSound() {
   try { navigator.vibrate?.([500, 200, 500]); } catch {}
 }
 
+/** F7 — End acquisition: descending strong tone */
+export function playF7Sound() {
+  playTone(900, 0.2, 'triangle');
+  setTimeout(() => playTone(700, 0.2, 'triangle'), 220);
+  setTimeout(() => playTone(500, 0.3, 'triangle'), 440);
+  try { navigator.vibrate?.([200, 100, 300]); } catch {}
+}
+
+/** F9 — Transport mode: two soft low tones */
+export function playF9Sound() {
+  playTone(400, 0.2, 'sine');
+  setTimeout(() => playTone(350, 0.25, 'sine'), 250);
+  try { navigator.vibrate?.([150, 80, 150]); } catch {}
+}
+
 /** GPS unstable warning — soft staccato */
 export function playGpsUnstableSound() {
   playTone(400, 0.08, 'triangle');

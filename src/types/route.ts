@@ -61,7 +61,7 @@ export interface Segment {
 export interface F5Event {
   segmentId: string;
   companySegmentId?: string;
-  eventType: 'inicio' | 'pk' | 'fin';
+  eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte';
   distanceMarker: number | null; // e.g. 1000, 2000, 3000 for PK events
   confirmedAt: string; // ISO
   confirmedByUser: boolean;

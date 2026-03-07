@@ -33,7 +33,7 @@ interface Props {
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
   onRestartSegment: () => void;
-  onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin', distanceMarker?: number) => void;
+  onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte', distanceMarker?: number) => void;
   currentPosition: LatLng | null;
   isBlocked: boolean;
   isInvalidated: boolean;
@@ -45,6 +45,10 @@ interface Props {
   geometricRecoveryOnly: boolean;
   f5Events: F5Event[];
   distanceCovered: number;
+  distancePastEnd: number | null;
+  showF7Prompt: boolean;
+  showF9PostPrompt: boolean;
+  distanceToNextSegment: number | null;
 }
 
 function formatDistance(meters: number | null): string {
@@ -70,6 +74,8 @@ function formatDuration(seconds: number): string {
 const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: string; icon: typeof Navigation }> = {
   idle: { label: 'Inactivo', colorClass: 'bg-muted text-muted-foreground', icon: Navigation },
   approaching: { label: 'En aproximación', colorClass: 'bg-accent/20 text-accent border border-accent/40', icon: Navigation },
+  strategic_point: { label: 'Punto estratégico', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: MapPin },
+  ready_f9_pre: { label: '⏎ CONFIRMAR F9 — Salir transporte', colorClass: 'bg-amber-500/20 text-amber-400 border-2 border-amber-500/60 animate-pulse', icon: Zap },
   ref_300m: { label: 'Referencia 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Milestone },
   ref_150m: { label: 'Referencia 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Milestone },
   ref_30m: { label: 'Referencia 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
@@ -79,17 +85,20 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
   deviated: { label: '✖ INVALIDADO — Desvío', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: Ban },
   wrong_direction: { label: '✖ INVALIDADO — Sentido incorrecto', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60 animate-pulse', icon: ArrowDownLeft },
-  end_ref_300m: { label: 'Cierre — 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Flag },
-  end_ref_150m: { label: 'Cierre — 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Flag },
-  end_ref_30m: { label: 'Cierre — 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
+  past_end: { label: 'Fin de tramo — referencias', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Flag },
+  end_ref_30m: { label: 'Cierre — +30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Flag },
+  end_ref_150m: { label: 'Cierre — +150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Flag },
+  end_ref_300m: { label: 'Cierre — +300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Flag },
   ready_f5_end: { label: '⏎ CONFIRMAR F5 — CIERRE', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
+  ready_f7: { label: '⏎ CONFIRMAR F7 — Fin adquisición', colorClass: 'bg-amber-500/20 text-amber-400 border-2 border-amber-500/60 animate-pulse', icon: Flag },
+  ready_f9_post: { label: '⏎ CONFIRMAR F9 — Modo transporte', colorClass: 'bg-amber-500/20 text-amber-400 border-2 border-amber-500/60 animate-pulse', icon: Navigation },
   invalidated: { label: '✖ TRAMO INVALIDADO', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60', icon: Ban },
   interrupted: { label: 'Interrumpido', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: AlertTriangle },
   completed: { label: 'Completado', colorClass: 'bg-success/20 text-success', icon: Navigation },
 };
 
-const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
-const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
+const APPROACH_STATES: NavOperationalState[] = ['approaching', 'strategic_point', 'ready_f9_pre', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
+const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'past_end', 'end_ref_30m', 'end_ref_150m', 'end_ref_300m', 'ready_f5_end', 'ready_f7', 'ready_f9_post'];
 const INVALID_STATES: NavOperationalState[] = ['deviated', 'wrong_direction', 'invalidated'];
 
 export function NavigationOverlay({
@@ -122,6 +131,10 @@ export function NavigationOverlay({
   geometricRecoveryOnly,
   f5Events,
   distanceCovered,
+  distancePastEnd,
+  showF7Prompt,
+  showF9PostPrompt,
+  distanceToNextSegment,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
@@ -313,10 +326,10 @@ export function NavigationOverlay({
                   confirmedPks={confirmedPks}
                 />
 
-                {/* End reference markers */}
-                {(operationalState === 'end_ref_300m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_30m' || operationalState === 'ready_f5_end') && (
+                {/* End reference markers - show past-end distance */}
+                {(operationalState === 'past_end' || operationalState === 'end_ref_30m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_300m' || operationalState === 'ready_f5_end') && (
                   <ReferenceMarkers
-                    distanceToStart={distanceRemaining}
+                    distanceToStart={distancePastEnd}
                     activeReference={activeReference}
                     type="end"
                   />
@@ -488,6 +501,62 @@ export function NavigationOverlay({
         </div>
       )}
 
+      {/* === F7 — END ACQUISITION PROMPT === */}
+      {showF7Prompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Flag className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Fin de adquisición</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Siguiente tramo a {distanceToNextSegment ? formatDistance(distanceToNextSegment) : '> 1500 m'}.
+                  Realiza F7 en el sistema del equipo y confirma.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => onConfirmF5('f7_fin_adquisicion')}
+              className="w-full h-12 text-sm font-bold bg-amber-500 text-amber-950"
+            >
+              <CheckCircle2 className="w-5 h-5 mr-1.5" />
+              Confirmar F7 — Fin adquisición
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* === F9 — TRANSPORT MODE PROMPT === */}
+      {showF9PostPrompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Navigation className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Activar modo transporte</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {distanceToNextSegment
+                    ? `Siguiente tramo a ${formatDistance(distanceToNextSegment)}. `
+                    : 'No hay más tramos. '}
+                  Realiza F9 en el sistema del equipo y confirma.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => onConfirmF5('f9_modo_transporte')}
+              className="w-full h-12 text-sm font-bold bg-amber-500 text-amber-950"
+            >
+              <CheckCircle2 className="w-5 h-5 mr-1.5" />
+              Confirmar F9 — Modo transporte
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* === INVALIDATION PANEL === */}
       {isInvalid && (
         <div className="mx-2 mt-2 pointer-events-auto">
@@ -549,7 +618,7 @@ export function NavigationOverlay({
       )}
 
       {/* === RECORDING ACTION BAR === */}
-      {isRecording && operationalState !== 'ready_f5_end' && (
+      {isRecording && operationalState !== 'ready_f5_end' && !showF7Prompt && !showF9PostPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="flex gap-2">
             <Button
@@ -630,21 +699,21 @@ function ReferenceMarkers({
         { key: 'ref_30m', label: '30m', dist: 30 },
       ]
     : [
-        { key: 'end_ref_300m', label: '300m', dist: 300 },
-        { key: 'end_ref_150m', label: '150m', dist: 150 },
-        { key: 'end_ref_30m', label: '30m', dist: 30 },
+        { key: 'end_ref_30m', label: '+30m', dist: 30 },
+        { key: 'end_ref_150m', label: '+150m', dist: 150 },
+        { key: 'end_ref_300m', label: '+300m', dist: 300 },
       ];
 
-  const d = distanceToStart ?? Infinity;
+  const d = distanceToStart ?? (type === 'start' ? Infinity : 0);
 
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[8px] text-muted-foreground uppercase tracking-wider">
-        {type === 'start' ? 'Refs. inicio' : 'Refs. cierre'}
+        {type === 'start' ? 'Refs. inicio' : 'Refs. cierre (post-fin)'}
       </span>
       <div className="flex gap-1 flex-1">
         {refs.map((ref) => {
-          const isPassed = d <= ref.dist;
+          const isPassed = type === 'start' ? d <= ref.dist : d >= ref.dist;
           const isActive = activeReference === ref.key;
           return (
             <div
