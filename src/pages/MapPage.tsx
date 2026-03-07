@@ -1173,7 +1173,7 @@ export default function MapPage({
           onSetWorkDay={onSetWorkDay}
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
-          onVideoEndCancel={handleVideoEndCancel}
+          
           copilotSession={copilot.session}
           copilotActive={copilot.active}
           onCopilotStart={copilot.createSession}
