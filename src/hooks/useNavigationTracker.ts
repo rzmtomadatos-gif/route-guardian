@@ -153,6 +153,7 @@ export interface NavTrackerState {
   operationalState: NavOperationalState;
   distanceToStart: number | null;
   distanceToEnd: number | null;
+  distancePastEnd: number | null;
   etaToStart: number | null;
   progressPercent: number;
   distanceRemaining: number | null;
@@ -172,6 +173,16 @@ export interface NavTrackerState {
   approachSequenceValid: boolean;
   /** Geometric recovery happened but operational validity not restored */
   geometricRecoveryOnly: boolean;
+  /** Distance to strategic point (50m before segment start) */
+  strategicPointDistance: number | null;
+  /** Show F9 pre-segment prompt (exit transport mode) */
+  showF9PrePrompt: boolean;
+  /** Show F7 prompt (end acquisition) */
+  showF7Prompt: boolean;
+  /** Show F9 post-segment prompt (enter transport mode) */
+  showF9PostPrompt: boolean;
+  /** Distance to next segment start */
+  distanceToNextSegment: number | null;
 }
 
 // ─── Geometry helpers ─────────────────────────────────────────────────
