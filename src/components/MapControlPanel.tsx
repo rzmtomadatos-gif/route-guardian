@@ -597,7 +597,6 @@ export function MapControlPanel({
         trackNumber={trackSession?.trackNumber ?? 0}
         rstGroupSize={rstGroupSize}
         onContinue={() => onVideoEndContinue?.()}
-        onCancel={() => onVideoEndCancel?.()}
       />
     </div>
   );
