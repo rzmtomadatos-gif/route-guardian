@@ -13,7 +13,6 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { CopilotPanel } from '@/components/CopilotPanel';
-import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
