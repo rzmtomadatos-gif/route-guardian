@@ -212,14 +212,17 @@ export default function MapPage({
     else if (curr === 'ref_150m' && prev === 'ref_300m') playRef150Sound();
     else if (curr === 'ref_30m' && prev === 'ref_150m') playRef30Sound();
     else if (curr === 'ready_f5_start') playF5ReadySound();
-    // End reference sounds
-    else if (curr === 'end_ref_300m' && prev === 'recording') playRef300Sound();
+    // End reference sounds (now fire AFTER passing end)
+    else if (curr === 'end_ref_30m' && (prev === 'past_end' || prev === 'recording')) playRef30Sound();
     else if (curr === 'end_ref_150m') playRef150Sound();
-    else if (curr === 'end_ref_30m') playRef30Sound();
+    else if (curr === 'end_ref_300m') playRef300Sound();
     else if (curr === 'ready_f5_end') {
       playF5ReadySound();
       if (navTracker.contiguousInfo.isContiguous) playContiguousTransitionSound();
     }
+    // F7/F9 sounds
+    else if (curr === 'ready_f7') playF7Sound();
+    else if (curr === 'ready_f9_post' || curr === 'ready_f9_pre') playF9Sound();
     // Deviation / invalidation
     else if (curr === 'deviated' || curr === 'invalidated') playInvalidationSound();
     else if (curr === 'wrong_direction') playWrongDirectionSound();

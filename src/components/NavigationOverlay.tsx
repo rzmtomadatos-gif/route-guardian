@@ -326,10 +326,10 @@ export function NavigationOverlay({
                   confirmedPks={confirmedPks}
                 />
 
-                {/* End reference markers */}
-                {(operationalState === 'end_ref_300m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_30m' || operationalState === 'ready_f5_end') && (
+                {/* End reference markers - show past-end distance */}
+                {(operationalState === 'past_end' || operationalState === 'end_ref_30m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_300m' || operationalState === 'ready_f5_end') && (
                   <ReferenceMarkers
-                    distanceToStart={distanceRemaining}
+                    distanceToStart={distancePastEnd}
                     activeReference={activeReference}
                     type="end"
                   />
