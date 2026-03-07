@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
-  ExternalLink, LocateFixed, LocateOff, RefreshCw, Home, Check,
+  LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward, Send, Film, Radio,
+  SkipForward, Film, Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,8 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
 import { BaseLocationDialog } from '@/components/BaseLocationDialog';
-import { GoogleMapsItineraryDialog } from '@/components/GoogleMapsItineraryDialog';
-import { DriverShareDialog } from '@/components/DriverShareDialog';
+import { CopilotPanel } from '@/components/CopilotPanel';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
