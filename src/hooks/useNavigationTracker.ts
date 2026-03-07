@@ -766,7 +766,7 @@ export function useNavigationTracker(
               newState = 'ready_f5_end';
               reason = `past_end_${Math.round(distPastEnd)}m_F5_ready`;
             } else if (distPastEnd >= thresholds.ref150m) {
-              if (prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+              if (prev !== 'end_ref_300m') {
                 newState = 'end_ref_300m';
                 reason = `end_ref_+300m_past=${Math.round(distPastEnd)}m`;
               } else {
@@ -774,7 +774,7 @@ export function useNavigationTracker(
               }
               activeRef = 'end_ref_300m';
             } else if (distPastEnd >= thresholds.ref30m) {
-              if (prev !== 'end_ref_150m' && prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+              if (prev !== 'end_ref_150m' && prev !== 'end_ref_300m') {
                 newState = 'end_ref_150m';
                 reason = `end_ref_+150m_past=${Math.round(distPastEnd)}m`;
               } else if (prev === 'end_ref_150m') {
@@ -782,7 +782,7 @@ export function useNavigationTracker(
               }
               activeRef = 'end_ref_150m';
             } else if (distPastEnd > 0) {
-              if (prev !== 'end_ref_30m' && prev !== 'end_ref_150m' && prev !== 'end_ref_300m' && prev !== 'ready_f5_end') {
+              if (prev !== 'end_ref_30m' && prev !== 'end_ref_150m' && prev !== 'end_ref_300m') {
                 newState = 'end_ref_30m';
                 reason = `end_ref_+30m_past=${Math.round(distPastEnd)}m`;
               } else if (prev === 'end_ref_30m') {
