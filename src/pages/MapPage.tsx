@@ -955,7 +955,7 @@ export default function MapPage({
           }}
           onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
           onRestartSegment={handleRestartSegment}
-          onMarkF5={handleMarkF5}
+          onConfirmF5={handleConfirmF5}
           currentPosition={geo.position}
           isBlocked={videoEndBlocking}
           isInvalidated={navTracker.isInvalidated}
@@ -965,6 +965,8 @@ export default function MapPage({
           stats={navTracker.stats}
           approachSequenceValid={navTracker.approachSequenceValid}
           geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
+          f5Events={f5EventsRef.current}
+          distanceCovered={navTracker.stats.validDistanceM + navTracker.stats.invalidDistanceM}
         />
       )}
 
