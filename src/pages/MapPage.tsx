@@ -967,6 +967,10 @@ export default function MapPage({
           geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
           f5Events={f5EventsRef.current}
           distanceCovered={navTracker.stats.validDistanceM + navTracker.stats.invalidDistanceM}
+          distancePastEnd={navTracker.distancePastEnd}
+          showF7Prompt={navTracker.showF7Prompt}
+          showF9PostPrompt={navTracker.showF9PostPrompt}
+          distanceToNextSegment={navTracker.distanceToNextSegment}
         />
       )}
 
