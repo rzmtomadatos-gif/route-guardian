@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Navigation, Play, Clock, AlertTriangle, MapPin,
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
   ChevronRight, Target, Milestone, Wifi, WifiOff,
+  CheckCircle2, CircleDot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
-import type { Segment, LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, IncidentImpact, F5Event } from '@/types/route';
+import { getRequiredPkMarkers } from '@/types/route';
 import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
+import { playRef300Sound } from '@/utils/sounds';
 
 interface Props {
   segment: Segment;
@@ -30,7 +33,7 @@ interface Props {
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
   onRestartSegment: () => void;
-  onMarkF5: () => void;
+  onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin', distanceMarker?: number) => void;
   currentPosition: LatLng | null;
   isBlocked: boolean;
   isInvalidated: boolean;
@@ -40,6 +43,8 @@ interface Props {
   stats: NavSegmentStats;
   approachSequenceValid: boolean;
   geometricRecoveryOnly: boolean;
+  f5Events: F5Event[];
+  distanceCovered: number;
 }
 
 function formatDistance(meters: number | null): string {
@@ -68,7 +73,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   ref_300m: { label: 'Referencia 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Milestone },
   ref_150m: { label: 'Referencia 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Milestone },
   ref_30m: { label: 'Referencia 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
-  ready_f5_start: { label: '⏎ PULSAR F5 — INICIO', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
+  ready_f5_start: { label: '⏎ CONFIRMAR F5 — INICIO', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
   recording: { label: 'En grabación', colorClass: 'bg-success/20 text-success border border-success/40', icon: Activity },
   gps_unstable: { label: '⚠ GPS inestable', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse', icon: WifiOff },
   pre_alert: { label: 'Prealerta desvío', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: ShieldAlert },
@@ -77,7 +82,7 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   end_ref_300m: { label: 'Cierre — 300 m', colorClass: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: Flag },
   end_ref_150m: { label: 'Cierre — 150 m', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: Flag },
   end_ref_30m: { label: 'Cierre — 30 m', colorClass: 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse', icon: Target },
-  ready_f5_end: { label: '⏎ PULSAR F5 — CIERRE', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
+  ready_f5_end: { label: '⏎ CONFIRMAR F5 — CIERRE', colorClass: 'bg-primary/20 text-primary border-2 border-primary/60 animate-pulse', icon: Zap },
   invalidated: { label: '✖ TRAMO INVALIDADO', colorClass: 'bg-destructive/20 text-destructive border-2 border-destructive/60', icon: Ban },
   interrupted: { label: 'Interrumpido', colorClass: 'bg-amber-500/20 text-amber-400 border border-amber-500/40', icon: AlertTriangle },
   completed: { label: 'Completado', colorClass: 'bg-success/20 text-success', icon: Navigation },
@@ -105,7 +110,7 @@ export function NavigationOverlay({
   onPostpone,
   onAddIncident,
   onRestartSegment,
-  onMarkF5,
+  onConfirmF5,
   currentPosition,
   isBlocked,
   isInvalidated,
@@ -115,6 +120,8 @@ export function NavigationOverlay({
   stats,
   approachSequenceValid,
   geometricRecoveryOnly,
+  f5Events,
+  distanceCovered,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
@@ -128,6 +135,59 @@ export function NavigationOverlay({
     setTimeout(() => setTick((t) => t + 1), 1000);
   }
   const elapsed = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+
+  // PK milestone tracking
+  const requiredPkMarkers = useMemo(() => getRequiredPkMarkers(totalDistance), [totalDistance]);
+  const [pendingPk, setPendingPk] = useState<number | null>(null);
+  const triggeredPksRef = useRef<Set<number>>(new Set());
+
+  // Reset triggered PKs when segment changes
+  const segIdRef = useRef(segment.id);
+  useEffect(() => {
+    if (segment.id !== segIdRef.current) {
+      segIdRef.current = segment.id;
+      triggeredPksRef.current = new Set();
+      setPendingPk(null);
+    }
+  }, [segment.id]);
+
+  // Detect when a PK milestone is reached
+  useEffect(() => {
+    if (!isRecording || pendingPk !== null) return;
+    for (const pk of requiredPkMarkers) {
+      if (distanceCovered >= pk && !triggeredPksRef.current.has(pk)) {
+        // Check if already confirmed via f5Events
+        const alreadyConfirmed = f5Events.some(
+          (e) => e.eventType === 'pk' && e.distanceMarker === pk && e.segmentId === segment.id
+        );
+        if (!alreadyConfirmed) {
+          triggeredPksRef.current.add(pk);
+          setPendingPk(pk);
+          // Play sound
+          try { playRef300Sound(); } catch {}
+          try { navigator.vibrate?.([150, 50, 150]); } catch {}
+          break;
+        } else {
+          triggeredPksRef.current.add(pk);
+        }
+      }
+    }
+  }, [distanceCovered, isRecording, requiredPkMarkers, pendingPk, f5Events, segment.id]);
+
+  const handleConfirmPk = () => {
+    if (pendingPk !== null) {
+      onConfirmF5('pk', pendingPk);
+      setPendingPk(null);
+    }
+  };
+
+  // F5 summary helper
+  const f5StartConfirmed = f5Events.some((e) => e.eventType === 'inicio' && e.segmentId === segment.id);
+  const f5EndConfirmed = f5Events.some((e) => e.eventType === 'fin' && e.segmentId === segment.id);
+  const confirmedPks = new Set(
+    f5Events.filter((e) => e.eventType === 'pk' && e.segmentId === segment.id).map((e) => e.distanceMarker)
+  );
+  const hasPendingF5 = requiredPkMarkers.some((pk) => !confirmedPks.has(pk));
 
   return (
     <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
@@ -245,6 +305,14 @@ export function NavigationOverlay({
                   )}
                 </div>
 
+                {/* F5 Summary strip */}
+                <F5SummaryStrip
+                  f5StartConfirmed={f5StartConfirmed}
+                  f5EndConfirmed={f5EndConfirmed}
+                  requiredPkMarkers={requiredPkMarkers}
+                  confirmedPks={confirmedPks}
+                />
+
                 {/* End reference markers */}
                 {(operationalState === 'end_ref_300m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_30m' || operationalState === 'ready_f5_end') && (
                   <ReferenceMarkers
@@ -285,6 +353,32 @@ export function NavigationOverlay({
         </div>
       )}
 
+      {/* === PK MILESTONE ALERT === */}
+      {pendingPk !== null && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-accent rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <CircleDot className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">PK {pendingPk} m alcanzado</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Realiza F5 en el sistema del equipo y confirma en la app.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleConfirmPk}
+              className="w-full h-12 text-sm font-bold bg-accent text-accent-foreground"
+            >
+              <CheckCircle2 className="w-5 h-5 mr-1.5" />
+              Confirmar F5 realizado
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* === F5 START CONFIRMATION PROMPT === */}
       {showApproachPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
@@ -296,7 +390,7 @@ export function NavigationOverlay({
               <div>
                 <p className="text-sm font-bold text-foreground">Zona de inicio alcanzada</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Estás a {formatDistance(distanceToStart)} del inicio — Pulsa F5 en HIWAY
+                  Realiza F5 en el sistema del equipo y confirma en la app.
                 </p>
                 {!approachSequenceValid && (
                   <p className="text-[10px] text-destructive font-bold mt-0.5">
@@ -308,11 +402,11 @@ export function NavigationOverlay({
             <div className="grid grid-cols-3 gap-2">
               <Button
                 disabled={isBlocked}
-                onClick={() => { onMarkF5(); onStartSegment(); }}
+                onClick={() => { onConfirmF5('inicio'); onStartSegment(); }}
                 className="h-14 text-sm font-bold bg-primary text-primary-foreground"
               >
-                <Play className="w-5 h-5 mr-1" />
-                F5 Inicio
+                <CheckCircle2 className="w-5 h-5 mr-1" />
+                Confirmar F5
               </Button>
               <Button
                 variant="outline"
@@ -347,8 +441,13 @@ export function NavigationOverlay({
               <div>
                 <p className="text-sm font-bold text-foreground">Fin de tramo alcanzado</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Pulsa F5 en HIWAY para cerrar el tramo
+                  Realiza F5 fin de tramo en el sistema del equipo y confirma.
                 </p>
+                {hasPendingF5 && (
+                  <p className="text-[10px] text-amber-400 font-bold mt-0.5">
+                    ⚠ F5 intermedio pendiente de confirmar en este tramo
+                  </p>
+                )}
                 {contiguousInfo.isContiguous && (
                   <p className="text-[10px] text-accent font-bold mt-0.5">
                     ⚡ Transición directa → {contiguousInfo.nextSegmentName}
@@ -358,11 +457,11 @@ export function NavigationOverlay({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
-                onClick={() => { onMarkF5(); onCompleteSegment(); }}
+                onClick={() => { onConfirmF5('fin'); onCompleteSegment(); }}
                 className="h-14 text-sm font-bold bg-primary text-primary-foreground"
               >
-                <Flag className="w-5 h-5 mr-1" />
-                {contiguousInfo.isContiguous ? 'F5 Fin/Inicio' : 'F5 Cierre'}
+                <CheckCircle2 className="w-5 h-5 mr-1" />
+                {contiguousInfo.isContiguous ? 'Confirmar F5 Fin/Inicio' : 'Confirmar F5 Cierre'}
               </Button>
               <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
                 <Button
@@ -454,12 +553,12 @@ export function NavigationOverlay({
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="flex gap-2">
             <Button
-              onClick={() => { onMarkF5(); onCompleteSegment(); }}
+              onClick={() => { onConfirmF5('fin'); onCompleteSegment(); }}
               size="sm"
               className="flex-1 h-10 text-xs bg-primary/80 text-primary-foreground"
             >
-              <Flag className="w-3.5 h-3.5 mr-1" />
-              F5 Marcar
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+              Confirmar F5 Cierre
             </Button>
             <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
               <Button
@@ -473,6 +572,42 @@ export function NavigationOverlay({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── F5 Summary Sub-component ─────────────────────────────────────────
+
+function F5SummaryStrip({
+  f5StartConfirmed,
+  f5EndConfirmed,
+  requiredPkMarkers,
+  confirmedPks,
+}: {
+  f5StartConfirmed: boolean;
+  f5EndConfirmed: boolean;
+  requiredPkMarkers: number[];
+  confirmedPks: Set<number | null>;
+}) {
+  if (requiredPkMarkers.length === 0 && !f5StartConfirmed && !f5EndConfirmed) return null;
+
+  return (
+    <div className="flex items-center gap-1 text-[8px] flex-wrap">
+      <span className="text-muted-foreground mr-0.5">F5:</span>
+      <span className={`px-1 py-0.5 rounded ${f5StartConfirmed ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}`}>
+        Inicio {f5StartConfirmed ? '✓' : '…'}
+      </span>
+      {requiredPkMarkers.map((pk) => (
+        <span
+          key={pk}
+          className={`px-1 py-0.5 rounded ${confirmedPks.has(pk) ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}`}
+        >
+          PK{pk / 1000}k {confirmedPks.has(pk) ? '✓' : '…'}
+        </span>
+      ))}
+      <span className={`px-1 py-0.5 rounded ${f5EndConfirmed ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}`}>
+        Fin {f5EndConfirmed ? '✓' : '…'}
+      </span>
     </div>
   );
 }
