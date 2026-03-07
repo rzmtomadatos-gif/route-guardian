@@ -302,3 +302,4 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;
   XLSX.writeFile(wb, fileName);
+}
