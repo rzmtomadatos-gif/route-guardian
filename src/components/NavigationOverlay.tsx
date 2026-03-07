@@ -648,16 +648,16 @@ function ReferenceMarkers({
         { key: 'end_ref_300m', label: '+300m', dist: 300 },
       ];
 
-  const d = distanceToStart ?? Infinity;
+  const d = distanceToStart ?? (type === 'start' ? Infinity : 0);
 
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[8px] text-muted-foreground uppercase tracking-wider">
-        {type === 'start' ? 'Refs. inicio' : 'Refs. cierre'}
+        {type === 'start' ? 'Refs. inicio' : 'Refs. cierre (post-fin)'}
       </span>
       <div className="flex gap-1 flex-1">
         {refs.map((ref) => {
-          const isPassed = d <= ref.dist;
+          const isPassed = type === 'start' ? d <= ref.dist : d >= ref.dist;
           const isActive = activeReference === ref.key;
           return (
             <div
