@@ -501,6 +501,62 @@ export function NavigationOverlay({
         </div>
       )}
 
+      {/* === F7 — END ACQUISITION PROMPT === */}
+      {showF7Prompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Flag className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Fin de adquisición</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Siguiente tramo a {distanceToNextSegment ? formatDistance(distanceToNextSegment) : '> 1500 m'}.
+                  Realiza F7 en el sistema del equipo y confirma.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => onConfirmF5('f7_fin_adquisicion')}
+              className="w-full h-12 text-sm font-bold bg-amber-500 text-amber-950"
+            >
+              <CheckCircle2 className="w-5 h-5 mr-1.5" />
+              Confirmar F7 — Fin adquisición
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* === F9 — TRANSPORT MODE PROMPT === */}
+      {showF9PostPrompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Navigation className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Activar modo transporte</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {distanceToNextSegment
+                    ? `Siguiente tramo a ${formatDistance(distanceToNextSegment)}. `
+                    : 'No hay más tramos. '}
+                  Realiza F9 en el sistema del equipo y confirma.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => onConfirmF5('f9_modo_transporte')}
+              className="w-full h-12 text-sm font-bold bg-amber-500 text-amber-950"
+            >
+              <CheckCircle2 className="w-5 h-5 mr-1.5" />
+              Confirmar F9 — Modo transporte
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* === INVALIDATION PANEL === */}
       {isInvalid && (
         <div className="mx-2 mt-2 pointer-events-auto">
