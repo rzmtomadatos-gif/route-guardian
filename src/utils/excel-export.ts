@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { Route, Segment, Incident } from '@/types/route';
+import type { Route, Segment, Incident, F5Event } from '@/types/route';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -125,7 +125,7 @@ function computeFinalStatus(seg: Segment): string {
   return 'Pendiente';
 }
 
-export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>) {
+export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[]) {
   const wb = XLSX.utils.book_new();
 
   const exportSegments = selectedIds && selectedIds.size > 0
@@ -270,6 +270,35 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const ws3 = XLSX.utils.json_to_sheet(summaryData);
   ws3['!cols'] = [{ wch: 25 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
+
+  // Sheet 4: F5 Events
+  const exportF5Events = f5Events || [];
+  const relevantF5 = selectedIds && selectedIds.size > 0
+    ? exportF5Events.filter((e) => selectedIds.has(e.segmentId))
+    : exportF5Events;
+
+  if (relevantF5.length > 0) {
+    const f5Data = relevantF5.map((evt) => {
+      const seg = route.segments.find((s) => s.id === evt.segmentId);
+      return {
+        'ID_EMPRESA': evt.companySegmentId || seg?.companySegmentId || '',
+        'NOMBRE_TRAMO': seg?.name || evt.segmentId,
+        'DIA': evt.workDay ?? '',
+        'TRACK': evt.trackNumber ?? '',
+        'TIPO_EVENTO_F5': evt.eventType,
+        'PK_METROS': evt.distanceMarker ?? '',
+        'HORA_CONFIRMACION': evt.confirmedAt ? new Date(evt.confirmedAt).toLocaleString('es-ES') : '',
+        'ESTADO_CONFIRMACION': evt.confirmedByUser ? 'Confirmado' : 'Pendiente',
+        'INTENTO': evt.attemptNumber ?? 0,
+      };
+    });
+    const ws4 = XLSX.utils.json_to_sheet(f5Data);
+    const colWidths4 = Object.keys(f5Data[0] || {}).map((key) => ({
+      wch: Math.max(key.length, ...f5Data.map((r) => String((r as any)[key]).length)) + 2,
+    }));
+    ws4['!cols'] = colWidths4;
+    XLSX.utils.book_append_sheet(wb, ws4, 'Eventos F5');
+  }
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;
   XLSX.writeFile(wb, fileName);

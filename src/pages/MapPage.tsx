@@ -174,16 +174,22 @@ export default function MapPage({
     nextSegment,
   );
 
-  // F5 marker log
-  const f5LogRef = useRef<Array<{ type: 'start' | 'end'; timestamp: string; segmentId: string; position: LatLng | null }>>([]);
-  const handleMarkF5 = useCallback(() => {
-    f5LogRef.current.push({
-      type: isRecording ? 'end' : 'start',
-      timestamp: new Date().toISOString(),
-      segmentId: activeSegment?.companySegmentId || activeSegment?.id || '',
-      position: geo.position,
-    });
-  }, [isRecording, activeSegment, geo.position]);
+  // F5 event log
+  const f5EventsRef = useRef<Array<import('@/types/route').F5Event>>([]);
+  const handleConfirmF5 = useCallback((eventType: 'inicio' | 'pk' | 'fin', distanceMarker?: number) => {
+    const evt: import('@/types/route').F5Event = {
+      segmentId: activeSegment?.id || '',
+      companySegmentId: activeSegment?.companySegmentId || '',
+      eventType,
+      distanceMarker: distanceMarker ?? null,
+      confirmedAt: new Date().toISOString(),
+      confirmedByUser: true,
+      trackNumber: activeSegment?.trackNumber ?? null,
+      workDay: state.workDay,
+      attemptNumber: activeSegment?.repeatNumber ?? 0,
+    };
+    f5EventsRef.current = [...f5EventsRef.current, evt];
+  }, [activeSegment, state.workDay]);
 
   // Handle restart after invalidation
   const handleRestartSegment = useCallback(() => {
@@ -949,7 +955,7 @@ export default function MapPage({
           }}
           onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
           onRestartSegment={handleRestartSegment}
-          onMarkF5={handleMarkF5}
+          onConfirmF5={handleConfirmF5}
           currentPosition={geo.position}
           isBlocked={videoEndBlocking}
           isInvalidated={navTracker.isInvalidated}
@@ -959,6 +965,8 @@ export default function MapPage({
           stats={navTracker.stats}
           approachSequenceValid={navTracker.approachSequenceValid}
           geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
+          f5Events={f5EventsRef.current}
+          distanceCovered={navTracker.stats.validDistanceM + navTracker.stats.invalidDistanceM}
         />
       )}
 
