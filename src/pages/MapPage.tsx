@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
-import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound } from '@/utils/sounds';
+import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound, playF7Sound, playF9Sound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
 import { MapControlPanel } from '@/components/MapControlPanel';
@@ -176,7 +176,7 @@ export default function MapPage({
 
   // F5 event log
   const f5EventsRef = useRef<Array<import('@/types/route').F5Event>>([]);
-  const handleConfirmF5 = useCallback((eventType: 'inicio' | 'pk' | 'fin', distanceMarker?: number) => {
+  const handleConfirmF5 = useCallback((eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte', distanceMarker?: number) => {
     const evt: import('@/types/route').F5Event = {
       segmentId: activeSegment?.id || '',
       companySegmentId: activeSegment?.companySegmentId || '',
