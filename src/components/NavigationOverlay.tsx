@@ -618,7 +618,7 @@ export function NavigationOverlay({
       )}
 
       {/* === RECORDING ACTION BAR === */}
-      {isRecording && operationalState !== 'ready_f5_end' && (
+      {isRecording && operationalState !== 'ready_f5_end' && !showF7Prompt && !showF9PostPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="flex gap-2">
             <Button
