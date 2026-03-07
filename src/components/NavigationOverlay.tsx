@@ -33,7 +33,7 @@ interface Props {
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
   onRestartSegment: () => void;
-  onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin', distanceMarker?: number) => void;
+  onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte', distanceMarker?: number) => void;
   currentPosition: LatLng | null;
   isBlocked: boolean;
   isInvalidated: boolean;
@@ -45,6 +45,10 @@ interface Props {
   geometricRecoveryOnly: boolean;
   f5Events: F5Event[];
   distanceCovered: number;
+  distancePastEnd: number | null;
+  showF7Prompt: boolean;
+  showF9PostPrompt: boolean;
+  distanceToNextSegment: number | null;
 }
 
 function formatDistance(meters: number | null): string {
@@ -93,8 +97,8 @@ const STATE_CONFIG: Record<NavOperationalState, { label: string; colorClass: str
   completed: { label: 'Completado', colorClass: 'bg-success/20 text-success', icon: Navigation },
 };
 
-const APPROACH_STATES: NavOperationalState[] = ['approaching', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
-const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'end_ref_300m', 'end_ref_150m', 'end_ref_30m', 'ready_f5_end'];
+const APPROACH_STATES: NavOperationalState[] = ['approaching', 'strategic_point', 'ready_f9_pre', 'ref_300m', 'ref_150m', 'ref_30m', 'ready_f5_start'];
+const RECORDING_STATES: NavOperationalState[] = ['recording', 'pre_alert', 'gps_unstable', 'past_end', 'end_ref_30m', 'end_ref_150m', 'end_ref_300m', 'ready_f5_end', 'ready_f7', 'ready_f9_post'];
 const INVALID_STATES: NavOperationalState[] = ['deviated', 'wrong_direction', 'invalidated'];
 
 export function NavigationOverlay({
@@ -127,6 +131,10 @@ export function NavigationOverlay({
   geometricRecoveryOnly,
   f5Events,
   distanceCovered,
+  distancePastEnd,
+  showF7Prompt,
+  showF9PostPrompt,
+  distanceToNextSegment,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
