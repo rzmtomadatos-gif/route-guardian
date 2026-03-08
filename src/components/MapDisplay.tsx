@@ -19,14 +19,14 @@ interface Props {
   arrowSegmentIds?: string[];
 }
 
-/** Create an arrow SVG icon for Leaflet */
+/** Create an arrow SVG icon for Leaflet — 60% of original size */
 function arrowIcon(angle: number, color: string): L.DivIcon {
   return L.divIcon({
     className: '',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-    html: `<svg width="14" height="14" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
-      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.65"/>
+    iconSize: [9, 9],
+    iconAnchor: [4, 4],
+    html: `<svg width="9" height="9" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
+      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.55"/>
     </svg>`,
   });
 }
