@@ -92,6 +92,8 @@ export function LayerPanel({
   onMoveToLayer,
   onMergeSegments,
   onAddLayer,
+  vehicleDistanceMap,
+  recommendedSegmentId,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
