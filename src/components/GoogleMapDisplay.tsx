@@ -565,6 +565,7 @@ export function GoogleMapDisplay({
         onSegmentClick={onSegmentClick}
         fitToActiveSegment={fitToActiveSegment}
         centerActiveRequest={centerActiveRequest}
+        arrowSegmentIds={arrowSegmentIds}
       />
     );
   }
