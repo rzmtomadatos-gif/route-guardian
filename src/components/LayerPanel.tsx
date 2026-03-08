@@ -439,6 +439,26 @@ export function LayerPanel({
                           </div>
                         </div>
                         <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {onReorderInRoute && displayOrder !== undefined && (
+                            <>
+                              <button
+                                onClick={() => onReorderInRoute(seg.id, 'up')}
+                                disabled={displayOrder <= 1}
+                                className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                                title="Subir en ruta"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => onReorderInRoute(seg.id, 'down')}
+                                disabled={displayOrder >= (optimizedOrderLength || Infinity)}
+                                className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                                title="Bajar en ruta"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => onViewOnMap(seg.id)}
                             className="p-1 rounded text-muted-foreground hover:text-accent"
