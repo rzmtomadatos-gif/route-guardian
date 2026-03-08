@@ -1,15 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentEditDialog } from '@/components/SegmentEditDialog';
 import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
-import { Download, Search, Plus, MapPin, Wand2, ArrowUpDown, AlertTriangle } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CampaignSummary } from '@/components/CampaignSummary';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star } from 'lucide-react';
 import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
 import { segmentDistanceKm } from '@/utils/geo-distance';
-import type { AppState, Incident, Segment, SegmentStatus } from '@/types/route';
+import type { AppState, Incident, LatLng, Segment, SegmentStatus } from '@/types/route';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,19 @@ const STATUS_OPTIONS: { value: SegmentStatus | 'todos'; label: string }[] = [
   { value: 'completado', label: 'Completados' },
   { value: 'posible_repetir', label: 'Posible repetir' },
 ];
+
+/** Haversine distance in meters between two LatLng points */
+function haversineMeters(a: LatLng, b: LatLng): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 interface Props {
   state: AppState;
@@ -91,13 +105,17 @@ export default function SegmentsPage({
   });
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
+  const [sortByProximity, setSortByProximity] = useState(false);
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
+
+  // Geolocation for proximity features
+  const geo = useGeolocation(true);
 
   const route = state.route;
   const incidents = state.incidents;
 
-  // Cache distances
+  // Cache segment lengths
   const distanceMap = useMemo(() => {
     if (!route) return new Map<string, number>();
     const m = new Map<string, number>();
@@ -105,7 +123,19 @@ export default function SegmentsPage({
     return m;
   }, [route]);
 
-  // Filter segments (hook before early return)
+  // Distance from vehicle to segment start (meters)
+  const vehicleDistanceMap = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!route || !geo.position) return m;
+    route.segments.forEach((s) => {
+      if (s.coordinates.length > 0) {
+        m.set(s.id, haversineMeters(geo.position!, s.coordinates[0]));
+      }
+    });
+    return m;
+  }, [route, geo.position]);
+
+  // Filter segments
   const filtered = useMemo(() => {
     if (!route) return [];
     let segs = [...route.segments];
@@ -122,11 +152,13 @@ export default function SegmentsPage({
           (s.layer || '').toLowerCase().includes(q)
       );
     }
-    if (sortByDistance) {
+    if (sortByProximity && geo.position) {
+      segs.sort((a, b) => (vehicleDistanceMap.get(a.id) || Infinity) - (vehicleDistanceMap.get(b.id) || Infinity));
+    } else if (sortByDistance) {
       segs.sort((a, b) => (distanceMap.get(b.id) || 0) - (distanceMap.get(a.id) || 0));
     }
     return segs;
-  }, [route, statusFilter, search, sortByDistance, distanceMap]);
+  }, [route, statusFilter, search, sortByDistance, sortByProximity, distanceMap, vehicleDistanceMap, geo.position]);
 
   // Total distance of filtered segments
   const totalDistanceKm = useMemo(() => {
@@ -141,13 +173,34 @@ export default function SegmentsPage({
     return total;
   }, [selectedIds, distanceMap]);
 
-  // All layer names: from segments + from availableLayers metadata
+  // All layer names
   const allLayerNames = useMemo(() => {
     if (!route) return [];
     const fromSegments = route.segments.map((s) => s.layer).filter(Boolean) as string[];
     const fromMeta = route.availableLayers || [];
     return [...new Set([...fromSegments, ...fromMeta])].sort();
   }, [route]);
+
+  // Recommended next segment: nearest visible pending segment
+  const recommendedSegmentId = useMemo(() => {
+    if (!route || !geo.position) return null;
+    let best: { id: string; dist: number } | null = null;
+    route.segments.forEach((s) => {
+      if (s.status !== 'pendiente') return;
+      if (s.layer && hiddenLayers.has(s.layer)) return;
+      const dist = vehicleDistanceMap.get(s.id);
+      if (dist !== undefined && (!best || dist < best.dist)) {
+        best = { id: s.id, dist };
+      }
+    });
+    return best?.id ?? null;
+  }, [route, geo.position, vehicleDistanceMap, hiddenLayers]);
+
+  // Stats
+  const pending = route?.segments.filter((s) => s.status === 'pendiente').length ?? 0;
+  const inProgress = route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0;
+  const completed = route?.segments.filter((s) => s.status === 'completado').length ?? 0;
+  const possibleRepeat = route?.segments.filter((s) => s.status === 'posible_repetir').length ?? 0;
 
   if (!route) {
     return (
@@ -165,7 +218,6 @@ export default function SegmentsPage({
       </div>
     );
   }
-
 
   const handleExport = () => {
     const errors = validateForExport(
@@ -205,13 +257,25 @@ export default function SegmentsPage({
     navigate('/map?selected=' + Array.from(selectedIds).join(','));
   };
 
-  const pending = route.segments.filter((s) => s.status === 'pendiente').length;
-  const inProgress = route.segments.filter((s) => s.status === 'en_progreso').length;
-  const completed = route.segments.filter((s) => s.status === 'completado').length;
+  const handleGoToNearest = () => {
+    if (recommendedSegmentId) {
+      onSetActiveSegment(recommendedSegmentId);
+      navigate('/map');
+    }
+  };
+
+  const handleCenterMapOnVisible = () => {
+    navigate('/map?fitVisible=true');
+  };
+
+  const formatDistance = (meters: number): string => {
+    if (meters < 1000) return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(1)} km`;
+  };
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top toolbar – Google My Maps style */}
+      {/* Top toolbar */}
       <div className="flex-shrink-0 px-3 py-2 bg-card border-b border-border">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-bold text-foreground">{route.name}</h2>
@@ -229,7 +293,7 @@ export default function SegmentsPage({
           </div>
         </div>
 
-        {/* Stats bar */}
+        {/* Progress bar */}
         <div className="flex items-center gap-3 mb-2">
           <div className="flex gap-1 flex-1">
             <div className="h-1.5 rounded-full bg-muted flex-1 overflow-hidden">
@@ -250,8 +314,8 @@ export default function SegmentsPage({
           </span>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2">
+        {/* Filters row */}
+        <div className="flex gap-2 mb-2">
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
             <Input
@@ -264,33 +328,103 @@ export default function SegmentsPage({
           <Button
             size="sm"
             variant={sortByDistance ? 'default' : 'outline'}
-            onClick={() => setSortByDistance((v) => !v)}
+            onClick={() => { setSortByDistance((v) => !v); setSortByProximity(false); }}
             className="h-7 text-[10px] gap-1 px-2"
-            title="Ordenar por km"
+            title="Ordenar por longitud del tramo"
           >
             <ArrowUpDown className="w-3 h-3" />
             km
           </Button>
-          <div className="flex gap-0.5">
-            {STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  setStatusFilter(opt.value);
-                  try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
-                }}
-                className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-                  statusFilter === opt.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <Button
+            size="sm"
+            variant={sortByProximity ? 'default' : 'outline'}
+            onClick={() => { setSortByProximity((v) => !v); setSortByDistance(false); }}
+            className="h-7 text-[10px] gap-1 px-2"
+            title="Ordenar por proximidad al vehículo"
+            disabled={!geo.position}
+          >
+            <Navigation className="w-3 h-3" />
+            GPS
+          </Button>
+        </div>
+
+        {/* Status filter chips */}
+        <div className="flex gap-0.5 mb-2">
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setStatusFilter(opt.value);
+                try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
+              }}
+              className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                statusFilter === opt.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleGoToNearest}
+            disabled={!recommendedSegmentId}
+            className="h-7 text-[10px] gap-1 flex-1"
+          >
+            <Navigation className="w-3 h-3" />
+            Ir al más cercano
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCenterMapOnVisible}
+            className="h-7 text-[10px] gap-1 flex-1"
+          >
+            <Crosshair className="w-3 h-3" />
+            Centrar mapa
+          </Button>
         </div>
       </div>
+
+      {/* Campaign summary */}
+      <CampaignSummary
+        total={route.segments.length}
+        pending={pending}
+        inProgress={inProgress}
+        completed={completed}
+        incidents={incidents.length}
+        possibleRepeat={possibleRepeat}
+      />
+
+      {/* Recommended segment banner */}
+      {recommendedSegmentId && (() => {
+        const recSeg = route.segments.find((s) => s.id === recommendedSegmentId);
+        const recDist = vehicleDistanceMap.get(recommendedSegmentId);
+        if (!recSeg) return null;
+        return (
+          <div
+            className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+            onClick={handleGoToNearest}
+          >
+            <Star className="w-4 h-4 text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-primary truncate">Siguiente recomendado</p>
+              <p className="text-[10px] text-foreground truncate">{recSeg.name}</p>
+            </div>
+            {recDist !== undefined && (
+              <span className="text-[10px] font-mono text-primary flex-shrink-0">
+                {formatDistance(recDist)}
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Selection toolbar */}
       {selectedIds.size > 0 && (
@@ -332,6 +466,8 @@ export default function SegmentsPage({
           onMoveToLayer={onMoveToLayer}
           onMergeSegments={onMergeSegments}
           onAddLayer={onAddLayer}
+          vehicleDistanceMap={vehicleDistanceMap}
+          recommendedSegmentId={recommendedSegmentId}
         />
       </div>
 
