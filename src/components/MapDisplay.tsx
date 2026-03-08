@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { resolveSegmentColor } from '@/utils/segment-colors';
+import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 
 interface Props {
   segments: Segment[];
