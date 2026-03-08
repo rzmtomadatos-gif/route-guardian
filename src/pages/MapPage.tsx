@@ -687,8 +687,9 @@ export default function MapPage({
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     primeAudio();
+    recalcBlock();
     onStartNavigation(hiddenLayers);
-  }, [gpsEnabled, onStartNavigation, hiddenLayers]);
+  }, [gpsEnabled, onStartNavigation, hiddenLayers, recalcBlock]);
 
   // Play sound/vibration when blockEndPrompt opens
   const prevBlockOpenRef = useRef(false);
