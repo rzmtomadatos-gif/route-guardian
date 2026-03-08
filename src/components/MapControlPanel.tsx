@@ -399,7 +399,7 @@ export function MapControlPanel({
                 <div className="flex gap-1.5">
                   <Button variant="outline" onClick={onReoptimize} size="sm" className="flex-1 h-9 text-xs border-border text-foreground">
                     <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                    Reoptimizar
+                    Optimizar todo
                   </Button>
                   <BaseLocationDialog currentBase={base} currentPosition={currentPosition} onSetBase={onSetBase}>
                     <Button variant="outline" size="sm" className={`h-9 text-xs ${base ? 'border-accent/40 text-accent' : 'border-border text-foreground'}`}>
@@ -408,6 +408,14 @@ export function MapControlPanel({
                     </Button>
                   </BaseLocationDialog>
                 </div>
+                {/* Active route block indicator */}
+                {activeRouteBlock && activeRouteBlock.length > 0 && (
+                  <div className="bg-secondary/60 border border-border rounded-lg px-2.5 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">
+                      Bloque activo: <span className="font-bold text-foreground">{activeRouteBlock.length}</span> tramos próximos
+                    </p>
+                  </div>
+                )}
                 {/* Work Day */}
                 <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
                   <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
