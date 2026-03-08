@@ -117,12 +117,15 @@ export function MapDisplay({
 
       bounds.extend(latLngs);
 
-      // Direction arrows
-      const arrows = getSegmentArrows(seg.id, seg.coordinates);
-      arrows.forEach(({ pos, angle }) => {
-        L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
-          .addTo(layersRef.current!);
-      });
+      // Direction arrows — only for segments in arrowSegmentIds
+      const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
+      if (!arrowSet || arrowSet.has(seg.id)) {
+        const arrows = getSegmentArrows(seg.id, seg.coordinates);
+        arrows.forEach(({ pos, angle }) => {
+          L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
+            .addTo(layersRef.current!);
+        });
+      }
 
       // Number marker at start
       const orderIdx = optimizedOrder?.indexOf(seg.id);
