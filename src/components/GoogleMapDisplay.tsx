@@ -39,7 +39,22 @@ const STATUS_COLORS: Record<string, string> = {
   pendiente: '#6b7280',
   en_progreso: '#f59e0b',
   completado: '#22c55e',
+  posible_repetir: '#f97316',
 };
+
+/** Resolve display color with operational priority: status > layer */
+function resolveSegmentColor(seg: Segment, activeSegmentId?: string | null, layerColor?: string | null): string {
+  // 1. Active / in-progress → yellow
+  if (seg.id === activeSegmentId || seg.status === 'en_progreso') return '#f59e0b';
+  // 2. Completed → green (reserved)
+  if (seg.status === 'completado') return '#22c55e';
+  // 3. Non-recordable → dark gray
+  if (seg.nonRecordable) return '#3f3f46';
+  // 4. Needs repeat → orange
+  if (seg.needsRepeat || seg.status === 'posible_repetir') return '#f97316';
+  // 5. Pending → layer color or default gray
+  return layerColor || seg.color || '#6b7280';
+}
 
 let googleMapsPromise: Promise<void> | null = null;
 
@@ -225,13 +240,10 @@ export function GoogleMapDisplay({
       const path = seg.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }));
       const isActive = seg.id === activeSegmentId;
       const isSelected = selectedSegmentIds?.has(seg.id);
-      // Status colors take priority for non-pending segments; layer color only for pendiente
       const layerColor = seg.color || layerColorMap?.get(seg.id);
       const color = isSelected
         ? '#8b5cf6'
-        : seg.status !== 'pendiente'
-          ? STATUS_COLORS[seg.status]
-          : (layerColor || STATUS_COLORS[seg.status]);
+        : resolveSegmentColor(seg, activeSegmentId, layerColor);
 
       const polyline = new google.maps.Polyline({
         path,
