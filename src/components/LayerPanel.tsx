@@ -379,6 +379,7 @@ export function LayerPanel({
                     const incCount = getIncidentCount(seg.id);
                     const isRecommended = recommendedSegmentId === seg.id;
                     const vehDist = vehicleDistanceMap?.get(seg.id);
+                    const displayOrder = displayOrderMap?.get(seg.id);
                     return (
                       <div
                         key={seg.id}
