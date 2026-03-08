@@ -49,6 +49,7 @@ interface Props {
   rstGroupSize: number;
   trackSession: TrackSession | null;
   workDay: number;
+  activeRouteBlock?: string[];
   onToggleGps: (enabled: boolean) => void;
   onConfirmStart: (segmentId: string) => void;
   onComplete: (segmentId: string) => void;
