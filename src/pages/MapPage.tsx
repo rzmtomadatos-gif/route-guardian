@@ -1241,6 +1241,7 @@ export default function MapPage({
           onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
           workDay={state.workDay}
           onSetWorkDay={onSetWorkDay}
+          activeRouteBlock={activeRouteBlock}
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
           
