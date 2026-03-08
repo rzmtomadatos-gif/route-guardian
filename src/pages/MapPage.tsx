@@ -213,7 +213,23 @@ export default function MapPage({
     }
     return null;
   }, [state.route, state.activeSegmentId, hiddenLayers, activeRouteBlock]);
-  
+
+  // Arrow segment IDs — only show arrows on the next N navigation segments
+  const arrowSegmentIds = useMemo(() => {
+    if (!state.route) return [];
+    const order = activeRouteBlock.length > 0 ? activeRouteBlock : state.route.optimizedOrder;
+    // Include active segment + next segments up to MAX_ARROW_SEGMENTS
+    const ids: string[] = [];
+    if (state.activeSegmentId && !order.includes(state.activeSegmentId)) {
+      ids.push(state.activeSegmentId);
+    }
+    for (const id of order) {
+      if (ids.length >= MAX_ARROW_SEGMENTS) break;
+      if (!ids.includes(id)) ids.push(id);
+    }
+    return ids;
+  }, [state.route, activeRouteBlock, state.activeSegmentId]);
+
   // Navigation tracker
   const navTracker = useNavigationTracker(
     activeSegment,
