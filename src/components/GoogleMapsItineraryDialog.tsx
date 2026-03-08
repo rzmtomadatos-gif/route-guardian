@@ -89,6 +89,8 @@ export function GoogleMapsItineraryDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
 
+  const displayOrderMap = useMemo(() => buildDisplayOrderMap(optimizedOrder), [optimizedOrder]);
+
   const pendingIds = useMemo(() => {
     return optimizedOrder.filter((id) => {
       const seg = segments.find((s) => s.id === id);
