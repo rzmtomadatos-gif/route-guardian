@@ -192,6 +192,7 @@ export function GoogleMapDisplay({
       if (typeof map.getCenter !== 'function') return;
     } catch { return; }
     clearOverlays();
+    clearArrowCache();
 
     const bounds = new google.maps.LatLngBounds();
     if (optimizedOrder && optimizedOrder.length > 1) {
