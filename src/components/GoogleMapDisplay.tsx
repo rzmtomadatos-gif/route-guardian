@@ -86,6 +86,7 @@ export function GoogleMapDisplay({
   onAreaClick,
   fitToActiveSegment = false,
   centerActiveRequest = 0,
+  arrowSegmentIds,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
