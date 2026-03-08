@@ -679,7 +679,10 @@ export default function MapPage({
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     onReoptimize(geo.position);
-  }, [gpsEnabled, geo.position, onReoptimize]);
+    // After full reoptimize, recalculate block
+    setTimeout(() => recalcBlock(), 50);
+    toast.success('Itinerario completo reoptimizado');
+  }, [gpsEnabled, geo.position, onReoptimize, recalcBlock]);
 
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
