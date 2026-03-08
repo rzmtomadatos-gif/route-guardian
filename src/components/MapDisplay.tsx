@@ -40,6 +40,7 @@ export function MapDisplay({
   onSegmentClick,
   fitToActiveSegment = false,
   centerActiveRequest = 0,
+  arrowSegmentIds,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
