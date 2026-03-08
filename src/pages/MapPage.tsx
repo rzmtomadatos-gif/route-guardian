@@ -184,9 +184,22 @@ export default function MapPage({
   // Find next segment in optimized order for contiguous detection — only visible segments
   const nextSegment = useMemo(() => {
     if (!state.route || !state.activeSegmentId) return null;
-    const order = state.route.optimizedOrder;
+    // Use activeRouteBlock first, fall back to optimizedOrder
+    const order = activeRouteBlock.length > 0 ? activeRouteBlock : state.route.optimizedOrder;
     const idx = order.indexOf(state.activeSegmentId);
-    if (idx < 0 || idx >= order.length - 1) return null;
+    if (idx < 0) {
+      // Active segment not in block — find first pending in block
+      for (const id of order) {
+        const seg = state.route.segments.find((s) => s.id === id);
+        if (!seg) continue;
+        if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+        if (seg.status !== 'pendiente') continue;
+        if (seg.nonRecordable) continue;
+        if (seg.id === state.activeSegmentId) continue;
+        return seg;
+      }
+      return null;
+    }
     // Walk forward in order, skipping hidden layers and non-pending
     for (let i = idx + 1; i < order.length; i++) {
       const seg = state.route.segments.find((s) => s.id === order[i]);
@@ -197,7 +210,7 @@ export default function MapPage({
       return seg;
     }
     return null;
-  }, [state.route, state.activeSegmentId, hiddenLayers]);
+  }, [state.route, state.activeSegmentId, hiddenLayers, activeRouteBlock]);
   
   // Navigation tracker
   const navTracker = useNavigationTracker(
