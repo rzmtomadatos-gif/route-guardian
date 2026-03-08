@@ -243,7 +243,7 @@ export function GoogleMapDisplay({
       path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
 
       // Direction arrows
-      const arrows = sampleArrowPositionsGM(seg.coordinates, ARROW_INTERVAL_M);
+      const arrows = getSegmentArrows(seg.id, seg.coordinates);
       arrows.forEach(({ pos, angle }) => {
         const arrowMarker = new google.maps.Marker({
           position: { lat: pos.lat, lng: pos.lng },

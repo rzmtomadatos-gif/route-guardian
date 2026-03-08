@@ -114,7 +114,7 @@ export function MapDisplay({
       bounds.extend(latLngs);
 
       // Direction arrows
-      const arrows = sampleArrowPositions(seg.coordinates, ARROW_INTERVAL_M);
+      const arrows = getSegmentArrows(seg.id, seg.coordinates);
       arrows.forEach(({ pos, angle }) => {
         L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
           .addTo(layersRef.current!);
