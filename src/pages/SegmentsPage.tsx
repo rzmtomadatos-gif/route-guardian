@@ -476,6 +476,8 @@ export default function SegmentsPage({
            vehicleDistanceMap={vehicleDistanceMap}
            recommendedSegmentId={recommendedSegmentId}
            displayOrderMap={displayOrderMap}
+           onReorderInRoute={(id, dir) => onReorder(id, dir)}
+           optimizedOrderLength={route.optimizedOrder.length}
          />
       </div>
 
