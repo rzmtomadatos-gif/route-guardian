@@ -10,6 +10,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star } from 'lucide-react';
 import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
 import { segmentDistanceKm } from '@/utils/geo-distance';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { AppState, Incident, LatLng, Segment, SegmentStatus } from '@/types/route';
 import {
   AlertDialog,
