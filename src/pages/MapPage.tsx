@@ -151,15 +151,23 @@ export default function MapPage({
   const activeSegment = state.route?.segments.find((s) => s.id === state.activeSegmentId);
   const isRecording = activeSegment?.status === 'en_progreso';
 
-  // Find next segment in optimized order for contiguous detection
+  // Find next segment in optimized order for contiguous detection — only visible segments
   const nextSegment = useMemo(() => {
     if (!state.route || !state.activeSegmentId) return null;
     const order = state.route.optimizedOrder;
     const idx = order.indexOf(state.activeSegmentId);
     if (idx < 0 || idx >= order.length - 1) return null;
-    const nextId = order[idx + 1];
-    return state.route.segments.find((s) => s.id === nextId) ?? null;
-  }, [state.route, state.activeSegmentId]);
+    // Walk forward in order, skipping hidden layers and non-pending
+    for (let i = idx + 1; i < order.length; i++) {
+      const seg = state.route.segments.find((s) => s.id === order[i]);
+      if (!seg) continue;
+      if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+      if (seg.status !== 'pendiente') continue;
+      if (seg.nonRecordable) continue;
+      return seg;
+    }
+    return null;
+  }, [state.route, state.activeSegmentId, hiddenLayers]);
   
   // Navigation tracker
   const navTracker = useNavigationTracker(

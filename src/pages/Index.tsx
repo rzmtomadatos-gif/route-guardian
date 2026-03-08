@@ -121,7 +121,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
       const r = applyProjectCode(pendingRouteForCode, code, projectName);
       setPendingRouteForCode(null);
       onRouteLoaded(r);
-      navigate('/map');
+      navigate('/segments');
     },
     [pendingRouteForCode, onRouteLoaded, navigate]
   );
