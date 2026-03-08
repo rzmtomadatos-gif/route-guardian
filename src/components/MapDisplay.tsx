@@ -15,6 +15,8 @@ interface Props {
   onSegmentClick?: (segmentId: string) => void;
   fitToActiveSegment?: boolean;
   centerActiveRequest?: number;
+  /** IDs of segments that should show direction arrows (max ~9) */
+  arrowSegmentIds?: string[];
 }
 
 /** Create an arrow SVG icon for Leaflet */
