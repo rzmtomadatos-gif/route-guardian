@@ -86,6 +86,7 @@ export function LayerPanel({
   onAddLayer,
   vehicleDistanceMap,
   recommendedSegmentId,
+  displayOrderMap,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
