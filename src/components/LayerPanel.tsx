@@ -58,6 +58,15 @@ interface LayerPanelProps {
   onMoveToLayer: (segId: string, layer: string | undefined) => void;
   onMergeSegments: (ids: string[]) => void;
   onAddLayer: (name: string) => void;
+  /** Distance from vehicle to each segment start (meters) */
+  vehicleDistanceMap?: Map<string, number>;
+  /** ID of the recommended next segment */
+  recommendedSegmentId?: string | null;
+}
+
+function formatDistanceLabel(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
 }
 
 interface LayerGroup {
