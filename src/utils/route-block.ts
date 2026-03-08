@@ -68,9 +68,7 @@ function chainNearestNeighbor(
     let bestDist = Infinity;
 
     for (let i = 0; i < pending.length; i++) {
-      const dStart = haversine(pos, segStart(pending[i]));
-      const dEnd = haversine(pos, segEnd(pending[i]));
-      const d = Math.min(dStart, dEnd);
+      const d = haversine(pos, segStart(pending[i]));
       if (d < bestDist) {
         bestDist = d;
         bestIdx = i;
@@ -80,10 +78,8 @@ function chainNearestNeighbor(
     const chosen = pending.splice(bestIdx, 1)[0];
     result.push(chosen);
 
-    // Move pos to the far end of chosen segment
-    const dToStart = haversine(pos, segStart(chosen));
-    const dToEnd = haversine(pos, segEnd(chosen));
-    pos = dToStart <= dToEnd ? segEnd(chosen) : segStart(chosen);
+    // Vehicle finishes at the end of the segment
+    pos = segEnd(chosen);
   }
 
   return result;
