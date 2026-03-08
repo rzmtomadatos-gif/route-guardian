@@ -101,7 +101,7 @@ export function MapDisplay({
     segments.forEach((seg, idx) => {
       const latLngs = seg.coordinates.map((c) => [c.lat, c.lng] as L.LatLngTuple);
       const isActive = seg.id === activeSegmentId;
-      const color = STATUS_COLORS[seg.status];
+      const color = resolveSegmentColor(seg, activeSegmentId);
 
       const polyline = L.polyline(latLngs, {
         color,
