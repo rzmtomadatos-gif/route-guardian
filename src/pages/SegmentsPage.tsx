@@ -473,9 +473,10 @@ export default function SegmentsPage({
           onMoveToLayer={onMoveToLayer}
           onMergeSegments={onMergeSegments}
           onAddLayer={onAddLayer}
-          vehicleDistanceMap={vehicleDistanceMap}
-          recommendedSegmentId={recommendedSegmentId}
-        />
+           vehicleDistanceMap={vehicleDistanceMap}
+           recommendedSegmentId={recommendedSegmentId}
+           displayOrderMap={displayOrderMap}
+         />
       </div>
 
       {/* Edit dialog */}
