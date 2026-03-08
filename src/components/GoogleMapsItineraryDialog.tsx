@@ -107,9 +107,11 @@ export function GoogleMapsItineraryDialog({
     // Next segment
     const nextPending = pendingIds[0];
     if (nextPending) {
+      const seg = segments.find((s) => s.id === nextPending);
+      const orderNum = displayOrderMap.get(nextPending);
       opts.push({
         label: 'Siguiente tramo',
-        description: segments.find((s) => s.id === nextPending)?.name || '',
+        description: `${orderNum ? `#${orderNum} · ` : ''}${seg?.name || ''}`,
         segmentIds: [nextPending],
       });
     }
