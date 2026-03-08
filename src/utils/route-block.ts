@@ -23,9 +23,91 @@ function segEnd(seg: Segment): LatLng {
   return seg.coordinates[seg.coordinates.length - 1];
 }
 
+/** Threshold in meters — a segment is "on the way" if its start or body is within this distance of the travel path */
+const ON_THE_WAY_THRESHOLD = 150;
+
+/** Number of sample points along the path to check for nearby segments */
+const PATH_SAMPLE_COUNT = 10;
+
+/**
+ * Sample points along the straight line from A to B.
+ */
+function samplePath(a: LatLng, b: LatLng, count: number): LatLng[] {
+  const points: LatLng[] = [];
+  for (let i = 1; i < count; i++) {
+    const t = i / count;
+    points.push({
+      lat: a.lat + (b.lat - a.lat) * t,
+      lng: a.lng + (b.lng - a.lng) * t,
+    });
+  }
+  return points;
+}
+
+/**
+ * Minimum distance from a segment's start point (or any coordinate) to a sampled path.
+ */
+function minDistToPath(seg: Segment, pathPoints: LatLng[]): number {
+  let minDist = Infinity;
+
+  // Check segment start against path
+  const start = segStart(seg);
+  for (const p of pathPoints) {
+    const d = haversine(start, p);
+    if (d < minDist) minDist = d;
+    if (minDist < 30) return minDist; // early exit
+  }
+
+  // Also check segment body (sample every few coords) against path
+  const step = Math.max(1, Math.floor(seg.coordinates.length / 5));
+  for (let ci = 0; ci < seg.coordinates.length; ci += step) {
+    for (const p of pathPoints) {
+      const d = haversine(seg.coordinates[ci], p);
+      if (d < minDist) minDist = d;
+      if (minDist < 30) return minDist;
+    }
+  }
+
+  return minDist;
+}
+
+/**
+ * Find segments that are "on the way" from pos to target among the remaining candidates.
+ * Returns them sorted by distance along the path (closest to pos first).
+ */
+function findOnTheWaySegments(
+  pos: LatLng,
+  target: LatLng,
+  candidates: Segment[],
+  threshold: number = ON_THE_WAY_THRESHOLD,
+): Segment[] {
+  const pathDist = haversine(pos, target);
+  // Only check for on-the-way if the target is far enough
+  if (pathDist < 200) return [];
+
+  const pathPoints = samplePath(pos, target, PATH_SAMPLE_COUNT);
+
+  const onTheWay: { seg: Segment; distFromPos: number }[] = [];
+
+  for (const seg of candidates) {
+    const startDist = haversine(pos, segStart(seg));
+    // Skip if the segment is farther from pos than the target (not really "on the way")
+    if (startDist > pathDist * 1.2) continue;
+
+    const distToPath = minDistToPath(seg, pathPoints);
+    if (distToPath < threshold) {
+      onTheWay.push({ seg, distFromPos: startDist });
+    }
+  }
+
+  // Sort by distance from current position (closest first)
+  onTheWay.sort((a, b) => a.distFromPos - b.distFromPos);
+  return onTheWay.map((o) => o.seg);
+}
+
 /**
  * Compute a block of up to `blockSize` candidate segments using nearest-neighbor
- * heuristic from the current position.
+ * heuristic from the current position, enhanced with "on the way" detection.
  *
  * Candidates: pendiente or posible_repetir (needsRepeat), visible layers, recordable.
  */
@@ -45,28 +127,30 @@ export function computeRouteBlock(
 
   if (candidates.length === 0) return [];
   if (candidates.length <= blockSize) {
-    // Still sort by nearest-neighbor for optimal order
-    return chainNearestNeighbor(candidates, currentPos).map((s) => s.id);
+    return chainWithOnTheWay(candidates, currentPos, candidates.length).map((s) => s.id);
   }
 
-  return chainNearestNeighbor(candidates, currentPos, blockSize).map((s) => s.id);
+  return chainWithOnTheWay(candidates, currentPos, blockSize).map((s) => s.id);
 }
 
-/** Nearest-neighbor chain starting from pos, returning up to `limit` segments */
-function chainNearestNeighbor(
+/**
+ * Enhanced nearest-neighbor chain that inserts "on the way" segments.
+ * For each next candidate chosen by proximity, checks if other pending segments
+ * lie on the path from current position to that candidate's start.
+ */
+function chainWithOnTheWay(
   segments: Segment[],
   startPos: LatLng | null,
-  limit?: number,
+  limit: number,
 ): Segment[] {
   const pending = [...segments];
   const result: Segment[] = [];
   let pos = startPos || segStart(pending[0]);
-  const max = limit ?? pending.length;
 
-  while (pending.length > 0 && result.length < max) {
+  while (pending.length > 0 && result.length < limit) {
+    // Find nearest by start point
     let bestIdx = 0;
     let bestDist = Infinity;
-
     for (let i = 0; i < pending.length; i++) {
       const d = haversine(pos, segStart(pending[i]));
       if (d < bestDist) {
@@ -75,11 +159,28 @@ function chainNearestNeighbor(
       }
     }
 
-    const chosen = pending.splice(bestIdx, 1)[0];
-    result.push(chosen);
+    const nearest = pending[bestIdx];
 
-    // Vehicle finishes at the end of the segment
-    pos = segEnd(chosen);
+    // Check if there are "on the way" segments between pos and the nearest candidate
+    const othersExcludingNearest = pending.filter((_, i) => i !== bestIdx);
+    const onTheWay = findOnTheWaySegments(pos, segStart(nearest), othersExcludingNearest);
+
+    if (onTheWay.length > 0) {
+      // Insert the first on-the-way segment instead
+      const intercepted = onTheWay[0];
+      const interceptIdx = pending.findIndex((s) => s.id === intercepted.id);
+      if (interceptIdx !== -1) {
+        pending.splice(interceptIdx, 1);
+        result.push(intercepted);
+        pos = segEnd(intercepted);
+        continue;
+      }
+    }
+
+    // No intercept — take the nearest as planned
+    pending.splice(bestIdx, 1);
+    result.push(nearest);
+    pos = segEnd(nearest);
   }
 
   return result;
