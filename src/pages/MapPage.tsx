@@ -20,6 +20,7 @@ import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
 import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
+import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -897,11 +898,8 @@ export default function MapPage({
     return Array.from(set).sort();
   }, [route]);
 
-  // Layer colors - same palette as LayerPanel
-  const LAYER_COLORS = [
-    'hsl(210, 80%, 55%)', 'hsl(0, 75%, 55%)', 'hsl(142, 70%, 40%)', 'hsl(38, 95%, 50%)',
-    'hsl(280, 70%, 55%)', 'hsl(174, 72%, 40%)', 'hsl(25, 90%, 55%)', 'hsl(330, 70%, 55%)',
-  ];
+  // Layer colors - safe palette (no green/yellow/red)
+  const LAYER_COLORS = SAFE_LAYER_COLORS;
 
   // If there's a selection, show ONLY selected segments on the map; otherwise filter by hidden layers
   const visibleSegments = useMemo(() => {

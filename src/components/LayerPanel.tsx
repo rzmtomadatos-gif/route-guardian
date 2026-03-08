@@ -24,20 +24,10 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Segment, Incident } from '@/types/route';
 
-// Color palette for layers (Google My Maps style)
-const LAYER_COLORS = [
-  'hsl(210 80% 55%)',  // blue
-  'hsl(0 75% 55%)',    // red
-  'hsl(142 70% 40%)',  // green
-  'hsl(38 95% 50%)',   // amber
-  'hsl(280 70% 55%)',  // purple
-  'hsl(174 72% 40%)',  // teal
-  'hsl(25 90% 55%)',   // orange
-  'hsl(330 70% 55%)',  // pink
-];
+import { getSafeLayerColor } from '@/utils/segment-colors';
 
 function getLayerColor(index: number): string {
-  return LAYER_COLORS[index % LAYER_COLORS.length];
+  return getSafeLayerColor(index);
 }
 
 interface LayerPanelProps {
