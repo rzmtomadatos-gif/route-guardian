@@ -71,6 +71,7 @@ export function MapDisplay({
   useEffect(() => {
     if (!mapRef.current || !layersRef.current) return;
     layersRef.current.clearLayers();
+    clearArrowCache();
 
     const bounds = L.latLngBounds([]);
 
