@@ -4,6 +4,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Navigation, Repeat, CheckSquare, ChevronRight } from 'lucide-react';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { Segment, LatLng, BaseLocation } from '@/types/route';
 
 const MAX_WAYPOINTS = 9; // Google Maps limit: origin + up to ~23 waypoints + dest, but practically 9 segments = 18 points
