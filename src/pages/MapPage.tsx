@@ -15,6 +15,7 @@ import { useCopilotOperator, type QueueItem } from '@/hooks/useCopilotSession';
 import { buildGoogleMapsBatchUrl, segmentsToStops, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
+import { computeRouteBlock, ROUTE_BLOCK_SIZE } from '@/utils/route-block';
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
