@@ -980,6 +980,7 @@ export default function MapPage({
            onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
            fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
            centerActiveRequest={centerActiveRequest}
+           arrowSegmentIds={arrowSegmentIds}
         />
       </div>
 
