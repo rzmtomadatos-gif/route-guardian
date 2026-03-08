@@ -15,16 +15,18 @@ interface Props {
   onSegmentClick?: (segmentId: string) => void;
   fitToActiveSegment?: boolean;
   centerActiveRequest?: number;
+  /** IDs of segments that should show direction arrows (max ~9) */
+  arrowSegmentIds?: string[];
 }
 
-/** Create an arrow SVG icon for Leaflet */
+/** Create an arrow SVG icon for Leaflet — 60% of original size */
 function arrowIcon(angle: number, color: string): L.DivIcon {
   return L.divIcon({
     className: '',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-    html: `<svg width="14" height="14" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
-      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.65"/>
+    iconSize: [9, 9],
+    iconAnchor: [4, 4],
+    html: `<svg width="9" height="9" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
+      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.55"/>
     </svg>`,
   });
 }
@@ -38,6 +40,7 @@ export function MapDisplay({
   onSegmentClick,
   fitToActiveSegment = false,
   centerActiveRequest = 0,
+  arrowSegmentIds,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -114,12 +117,15 @@ export function MapDisplay({
 
       bounds.extend(latLngs);
 
-      // Direction arrows
-      const arrows = getSegmentArrows(seg.id, seg.coordinates);
-      arrows.forEach(({ pos, angle }) => {
-        L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
-          .addTo(layersRef.current!);
-      });
+      // Direction arrows — only for segments in arrowSegmentIds
+      const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
+      if (!arrowSet || arrowSet.has(seg.id)) {
+        const arrows = getSegmentArrows(seg.id, seg.coordinates);
+        arrows.forEach(({ pos, angle }) => {
+          L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
+            .addTo(layersRef.current!);
+        });
+      }
 
       // Number marker at start
       const orderIdx = optimizedOrder?.indexOf(seg.id);
@@ -144,7 +150,7 @@ export function MapDisplay({
     if (bounds.isValid()) {
       smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit, arrowSegmentIds]);
 
   // Fit to active segment
   useEffect(() => {

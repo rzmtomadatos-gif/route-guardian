@@ -33,6 +33,8 @@ interface Props {
   fitToActiveSegment?: boolean;
   /** Incremented externally to force a manual center on active segment */
   centerActiveRequest?: number;
+  /** IDs of segments that should show direction arrows (max ~9) */
+  arrowSegmentIds?: string[];
 }
 
 import { resolveSegmentColor } from '@/utils/segment-colors';
@@ -84,6 +86,7 @@ export function GoogleMapDisplay({
   onAreaClick,
   fitToActiveSegment = false,
   centerActiveRequest = 0,
+  arrowSegmentIds,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -243,26 +246,29 @@ export function GoogleMapDisplay({
       polylinesRef.current.push(polyline);
       path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
 
-      // Direction arrows
-      const arrows = getSegmentArrows(seg.id, seg.coordinates);
-      arrows.forEach(({ pos, angle }) => {
-        const arrowMarker = new google.maps.Marker({
-          position: { lat: pos.lat, lng: pos.lng },
-          map,
-          icon: {
-            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 3,
-            fillColor: color,
-            fillOpacity: 0.7,
-            strokeColor: color,
-            strokeWeight: 1,
-            rotation: angle,
-          },
-          clickable: false,
-          zIndex: 10,
+      // Direction arrows — only for segments in arrowSegmentIds
+      const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
+      if (!arrowSet || arrowSet.has(seg.id)) {
+        const arrows = getSegmentArrows(seg.id, seg.coordinates);
+        arrows.forEach(({ pos, angle }) => {
+          const arrowMarker = new google.maps.Marker({
+            position: { lat: pos.lat, lng: pos.lng },
+            map,
+            icon: {
+              path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+              scale: 2,
+              fillColor: color,
+              fillOpacity: 0.55,
+              strokeColor: color,
+              strokeWeight: 0.5,
+              rotation: angle,
+            },
+            clickable: false,
+            zIndex: 10,
+          });
+          markersRef.current.push(arrowMarker);
         });
-        markersRef.current.push(arrowMarker);
-      });
+      }
 
       const orderIdx = optimizedOrder?.indexOf(seg.id);
       if (orderIdx !== undefined && orderIdx >= 0) {
@@ -292,7 +298,7 @@ export function GoogleMapDisplay({
     if (!bounds.isEmpty()) {
       smartFit(map, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady, smartFit]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady, smartFit, arrowSegmentIds]);
 
   // Current position marker
   useEffect(() => {
@@ -559,6 +565,7 @@ export function GoogleMapDisplay({
         onSegmentClick={onSegmentClick}
         fitToActiveSegment={fitToActiveSegment}
         centerActiveRequest={centerActiveRequest}
+        arrowSegmentIds={arrowSegmentIds}
       />
     );
   }
