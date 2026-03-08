@@ -154,6 +154,7 @@ export function MapControlPanel({
   const pending = segments.filter((s) => s.status === 'pendiente').length;
   const completed = segments.filter((s) => s.status === 'completado').length;
   const noVisiblePending = pending === 0;
+  const noVisibleSegments = segments.length === 0;
 
   const orderedSegments = useMemo(() =>
     optimizedOrder
