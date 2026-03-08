@@ -141,6 +141,35 @@ export default function MapPage({
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
+  // === Active Route Block (rolling block of N nearest segments) ===
+  const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
+  const blockVersionRef = useRef(0);
+
+  const recalcBlock = useCallback(() => {
+    if (!state.route) { setActiveRouteBlock([]); return; }
+    const block = computeRouteBlock(state.route.segments, geo.position, hiddenLayers, ROUTE_BLOCK_SIZE);
+    setActiveRouteBlock(block);
+    blockVersionRef.current += 1;
+  }, [state.route, geo.position, hiddenLayers]);
+
+  // Recalc block when segments/layers change (completion, incident, layer toggle)
+  const blockDepsFingerprint = useMemo(() => {
+    if (!state.route) return '';
+    return state.route.segments
+      .filter((s) => s.status === 'pendiente' || (s.status === 'posible_repetir' && s.needsRepeat))
+      .filter((s) => !s.nonRecordable && (!s.layer || !hiddenLayers.has(s.layer)))
+      .map((s) => s.id)
+      .join(',');
+  }, [state.route, hiddenLayers]);
+
+  const prevBlockFingerprint = useRef('');
+  useEffect(() => {
+    if (blockDepsFingerprint !== prevBlockFingerprint.current) {
+      prevBlockFingerprint.current = blockDepsFingerprint;
+      recalcBlock();
+    }
+  }, [blockDepsFingerprint, recalcBlock]);
+
   // Save first GPS position as base
   useEffect(() => {
     if (geo.position && !basePosition) {
