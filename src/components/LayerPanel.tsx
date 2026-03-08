@@ -52,6 +52,8 @@ interface LayerPanelProps {
   vehicleDistanceMap?: Map<string, number>;
   /** ID of the recommended next segment */
   recommendedSegmentId?: string | null;
+  /** Display order map: segmentId → 1-based route position */
+  displayOrderMap?: Map<string, number>;
 }
 
 function formatDistanceLabel(meters: number): string {
