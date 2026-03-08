@@ -197,6 +197,12 @@ export default function SegmentsPage({
     return best?.id ?? null;
   }, [route, geo.position, vehicleDistanceMap, hiddenLayers]);
 
+  // Single source of truth: segment display order from optimized route
+  const displayOrderMap = useMemo(() => {
+    if (!route) return new Map<string, number>();
+    return buildDisplayOrderMap(route.optimizedOrder);
+  }, [route]);
+
   // Stats
   const pending = route?.segments.filter((s) => s.status === 'pendiente').length ?? 0;
   const inProgress = route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0;
