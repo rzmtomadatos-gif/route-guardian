@@ -16,6 +16,7 @@ import { buildGoogleMapsBatchUrl, segmentsToStops, SEGMENTS_PER_BATCH } from '@/
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { computeRouteBlock, ROUTE_BLOCK_SIZE } from '@/utils/route-block';
+import { MAX_ARROW_SEGMENTS } from '@/utils/segment-arrows';
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
