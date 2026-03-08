@@ -204,7 +204,7 @@ export function LayerPanel({
           <Layers className="w-4 h-4 text-primary" />
           <span className="text-sm font-semibold text-foreground">Capas</span>
           <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
-            {layerGroups.length}
+            {layerGroups.filter((g) => !hiddenLayers.has(g.name)).length}/{layerGroups.length} visibles
           </span>
         </div>
         <div className="flex items-center gap-1">
