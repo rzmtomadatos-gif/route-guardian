@@ -277,6 +277,27 @@ export function GoogleMapDisplay({
       polylinesRef.current.push(polyline);
       path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
 
+      // Direction arrows
+      const arrows = sampleArrowPositionsGM(seg.coordinates, ARROW_INTERVAL_M);
+      arrows.forEach(({ pos, angle }) => {
+        const arrowMarker = new google.maps.Marker({
+          position: { lat: pos.lat, lng: pos.lng },
+          map,
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 3,
+            fillColor: color,
+            fillOpacity: 0.7,
+            strokeColor: color,
+            strokeWeight: 1,
+            rotation: angle,
+          },
+          clickable: false,
+          zIndex: 10,
+        });
+        markersRef.current.push(arrowMarker);
+      });
+
       const orderIdx = optimizedOrder?.indexOf(seg.id);
       if (orderIdx !== undefined && orderIdx >= 0) {
         const startCoord = seg.coordinates[0];
