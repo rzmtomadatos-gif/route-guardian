@@ -150,7 +150,7 @@ export function MapDisplay({
     if (bounds.isValid()) {
       smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit, arrowSegmentIds]);
 
   // Fit to active segment
   useEffect(() => {

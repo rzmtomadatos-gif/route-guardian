@@ -298,7 +298,7 @@ export function GoogleMapDisplay({
     if (!bounds.isEmpty()) {
       smartFit(map, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady, smartFit]);
+  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, selectedSegmentIds, layerColorMap, clearOverlays, mapReady, smartFit, arrowSegmentIds]);
 
   // Current position marker
   useEffect(() => {
