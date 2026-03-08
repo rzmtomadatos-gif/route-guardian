@@ -15,6 +15,7 @@ import { useCopilotOperator, type QueueItem } from '@/hooks/useCopilotSession';
 import { buildGoogleMapsBatchUrl, segmentsToStops, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
+import { computeRouteBlock, ROUTE_BLOCK_SIZE } from '@/utils/route-block';
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
@@ -140,6 +141,35 @@ export default function MapPage({
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
+  // === Active Route Block (rolling block of N nearest segments) ===
+  const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
+  const blockVersionRef = useRef(0);
+
+  const recalcBlock = useCallback(() => {
+    if (!state.route) { setActiveRouteBlock([]); return; }
+    const block = computeRouteBlock(state.route.segments, geo.position, hiddenLayers, ROUTE_BLOCK_SIZE);
+    setActiveRouteBlock(block);
+    blockVersionRef.current += 1;
+  }, [state.route, geo.position, hiddenLayers]);
+
+  // Recalc block when segments/layers change (completion, incident, layer toggle)
+  const blockDepsFingerprint = useMemo(() => {
+    if (!state.route) return '';
+    return state.route.segments
+      .filter((s) => s.status === 'pendiente' || (s.status === 'posible_repetir' && s.needsRepeat))
+      .filter((s) => !s.nonRecordable && (!s.layer || !hiddenLayers.has(s.layer)))
+      .map((s) => s.id)
+      .join(',');
+  }, [state.route, hiddenLayers]);
+
+  const prevBlockFingerprint = useRef('');
+  useEffect(() => {
+    if (blockDepsFingerprint !== prevBlockFingerprint.current) {
+      prevBlockFingerprint.current = blockDepsFingerprint;
+      recalcBlock();
+    }
+  }, [blockDepsFingerprint, recalcBlock]);
+
   // Save first GPS position as base
   useEffect(() => {
     if (geo.position && !basePosition) {
@@ -154,9 +184,22 @@ export default function MapPage({
   // Find next segment in optimized order for contiguous detection — only visible segments
   const nextSegment = useMemo(() => {
     if (!state.route || !state.activeSegmentId) return null;
-    const order = state.route.optimizedOrder;
+    // Use activeRouteBlock first, fall back to optimizedOrder
+    const order = activeRouteBlock.length > 0 ? activeRouteBlock : state.route.optimizedOrder;
     const idx = order.indexOf(state.activeSegmentId);
-    if (idx < 0 || idx >= order.length - 1) return null;
+    if (idx < 0) {
+      // Active segment not in block — find first pending in block
+      for (const id of order) {
+        const seg = state.route.segments.find((s) => s.id === id);
+        if (!seg) continue;
+        if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+        if (seg.status !== 'pendiente') continue;
+        if (seg.nonRecordable) continue;
+        if (seg.id === state.activeSegmentId) continue;
+        return seg;
+      }
+      return null;
+    }
     // Walk forward in order, skipping hidden layers and non-pending
     for (let i = idx + 1; i < order.length; i++) {
       const seg = state.route.segments.find((s) => s.id === order[i]);
@@ -167,7 +210,7 @@ export default function MapPage({
       return seg;
     }
     return null;
-  }, [state.route, state.activeSegmentId, hiddenLayers]);
+  }, [state.route, state.activeSegmentId, hiddenLayers, activeRouteBlock]);
   
   // Navigation tracker
   const navTracker = useNavigationTracker(
@@ -649,13 +692,17 @@ export default function MapPage({
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     onReoptimize(geo.position);
-  }, [gpsEnabled, geo.position, onReoptimize]);
+    // After full reoptimize, recalculate block
+    setTimeout(() => recalcBlock(), 50);
+    toast.success('Itinerario completo reoptimizado');
+  }, [gpsEnabled, geo.position, onReoptimize, recalcBlock]);
 
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
     primeAudio();
+    recalcBlock();
     onStartNavigation(hiddenLayers);
-  }, [gpsEnabled, onStartNavigation, hiddenLayers]);
+  }, [gpsEnabled, onStartNavigation, hiddenLayers, recalcBlock]);
 
   // Play sound/vibration when blockEndPrompt opens
   const prevBlockOpenRef = useRef(false);
@@ -1194,6 +1241,7 @@ export default function MapPage({
           onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
           workDay={state.workDay}
           onSetWorkDay={onSetWorkDay}
+          activeRouteBlock={activeRouteBlock}
           videoEndBlocking={videoEndBlocking}
           onVideoEndContinue={handleVideoEndContinue}
           
