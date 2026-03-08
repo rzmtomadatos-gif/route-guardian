@@ -58,6 +58,7 @@ interface LayerPanelProps {
   onReorderInRoute?: (segmentId: string, direction: 'up' | 'down') => void;
   /** Total number of segments in optimizedOrder (for disabling last down) */
   optimizedOrderLength?: number;
+}
 
 function formatDistanceLabel(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;
