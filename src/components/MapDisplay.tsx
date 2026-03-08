@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
@@ -15,7 +15,6 @@ interface Props {
   onSegmentClick?: (segmentId: string) => void;
   fitToActiveSegment?: boolean;
   centerActiveRequest?: number;
-  /** IDs of segments that should show direction arrows (max ~9) */
   arrowSegmentIds?: string[];
 }
 
@@ -31,6 +30,24 @@ function arrowIcon(angle: number, color: string): L.DivIcon {
   });
 }
 
+/** Build a fingerprint to detect when segments actually change */
+function buildFingerprint(
+  segments: Segment[],
+  activeSegmentId: string | null | undefined,
+  optimizedOrder: string[] | undefined,
+  arrowSegmentIds: string[] | undefined,
+): string {
+  const parts: string[] = [
+    activeSegmentId || '',
+    optimizedOrder?.join(',') || '',
+    arrowSegmentIds?.join(',') || '',
+  ];
+  for (const seg of segments) {
+    parts.push(`${seg.id}:${seg.status}:${seg.color || ''}:${seg.coordinates.length}`);
+  }
+  return parts.join('|');
+}
+
 export function MapDisplay({
   segments,
   activeSegmentId,
@@ -44,9 +61,25 @@ export function MapDisplay({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const layersRef = useRef<L.LayerGroup | null>(null);
+  const segmentLayerRef = useRef<L.LayerGroup | null>(null);
+  const arrowLayerRef = useRef<L.LayerGroup | null>(null);
   const posMarkerRef = useRef<L.CircleMarker | null>(null);
+  const currentZoomRef = useRef(6);
   const { requestFitBounds: smartFit } = useSmartFitLeaflet();
+  const prevFingerprintRef = useRef('');
+
+  const segmentFingerprint = useMemo(
+    () => buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds),
+    [segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
+  );
+
+  // Determine which segments show order numbers
+  const orderNumberIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeSegmentId) ids.add(activeSegmentId);
+    if (arrowSegmentIds) arrowSegmentIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [activeSegmentId, arrowSegmentIds]);
 
   // Initialize map
   useEffect(() => {
@@ -61,7 +94,23 @@ export function MapDisplay({
       maxZoom: 19,
     }).addTo(map);
 
-    layersRef.current = L.layerGroup().addTo(map);
+    segmentLayerRef.current = L.layerGroup().addTo(map);
+    arrowLayerRef.current = L.layerGroup().addTo(map);
+    currentZoomRef.current = map.getZoom();
+
+    // Track zoom for arrow visibility
+    map.on('zoomend', () => {
+      const zoom = map.getZoom();
+      const prevZoom = currentZoomRef.current;
+      currentZoomRef.current = zoom;
+      // Toggle arrow layer at zoom threshold
+      if (zoom < 15 && prevZoom >= 15) {
+        arrowLayerRef.current?.remove();
+      } else if (zoom >= 15 && prevZoom < 15) {
+        arrowLayerRef.current?.addTo(map);
+      }
+    });
+
     mapRef.current = map;
 
     return () => {
@@ -70,15 +119,19 @@ export function MapDisplay({
     };
   }, []);
 
-  // Update segments
+  // Draw static segments (only when fingerprint changes)
   useEffect(() => {
-    if (!mapRef.current || !layersRef.current) return;
-    layersRef.current.clearLayers();
+    if (!mapRef.current || !segmentLayerRef.current || !arrowLayerRef.current) return;
+    if (segmentFingerprint === prevFingerprintRef.current) return;
+    prevFingerprintRef.current = segmentFingerprint;
+
+    segmentLayerRef.current.clearLayers();
+    arrowLayerRef.current.clearLayers();
     clearArrowCache();
 
     const bounds = L.latLngBounds([]);
 
-    // Draw order connections if optimized
+    // Connection lines for optimized order
     if (optimizedOrder && optimizedOrder.length > 1) {
       const segMap = new Map(segments.map((s) => [s.id, s]));
       for (let i = 0; i < optimizedOrder.length - 1; i++) {
@@ -90,10 +143,12 @@ export function MapDisplay({
           L.polyline(
             [[endCoord.lat, endCoord.lng], [startCoord.lat, startCoord.lng]],
             { color: '#ffffff20', weight: 1, dashArray: '4 8' }
-          ).addTo(layersRef.current!);
+          ).addTo(segmentLayerRef.current!);
         }
       }
     }
+
+    const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
 
     segments.forEach((seg) => {
       const latLngs = seg.coordinates.map((c) => [c.lat, c.lng] as L.LatLngTuple);
@@ -104,7 +159,7 @@ export function MapDisplay({
         color,
         weight: isActive ? 6 : 3,
         opacity: isActive ? 1 : 0.7,
-      }).addTo(layersRef.current!);
+      }).addTo(segmentLayerRef.current!);
 
       if (onSegmentClick) {
         polyline.on('click', () => onSegmentClick(seg.id));
@@ -117,40 +172,46 @@ export function MapDisplay({
 
       bounds.extend(latLngs);
 
-      // Direction arrows — only for segments in arrowSegmentIds
-      const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
+      // Arrows — only for arrowSegmentIds, rendered in separate layer
       if (!arrowSet || arrowSet.has(seg.id)) {
         const arrows = getSegmentArrows(seg.id, seg.coordinates);
         arrows.forEach(({ pos, angle }) => {
           L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
-            .addTo(layersRef.current!);
+            .addTo(arrowLayerRef.current!);
         });
       }
 
-      // Number marker at start
-      const orderIdx = optimizedOrder?.indexOf(seg.id);
-      if (orderIdx !== undefined && orderIdx >= 0) {
-        const startCoord = seg.coordinates[0];
-        L.circleMarker([startCoord.lat, startCoord.lng], {
-          radius: 10,
-          fillColor: color,
-          fillOpacity: 1,
-          color: '#000',
-          weight: 1,
-        })
-          .bindTooltip(`${orderIdx + 1}`, {
-            permanent: true,
-            direction: 'center',
-            className: 'bg-transparent border-0 shadow-none text-[10px] font-bold text-primary-foreground',
+      // Order number — only for nearby/active segments
+      if (optimizedOrder && orderNumberIds.has(seg.id)) {
+        const orderIdx = optimizedOrder.indexOf(seg.id);
+        if (orderIdx >= 0) {
+          const startCoord = seg.coordinates[0];
+          L.circleMarker([startCoord.lat, startCoord.lng], {
+            radius: 10,
+            fillColor: color,
+            fillOpacity: 1,
+            color: '#000',
+            weight: 1,
           })
-          .addTo(layersRef.current!);
+            .bindTooltip(`${orderIdx + 1}`, {
+              permanent: true,
+              direction: 'center',
+              className: 'bg-transparent border-0 shadow-none text-[10px] font-bold text-primary-foreground',
+            })
+            .addTo(segmentLayerRef.current!);
+        }
       }
     });
+
+    // Ensure arrow layer matches current zoom visibility
+    if (currentZoomRef.current < 15 && mapRef.current && arrowLayerRef.current) {
+      arrowLayerRef.current.remove();
+    }
 
     if (bounds.isValid()) {
       smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
-  }, [segments, activeSegmentId, optimizedOrder, onSegmentClick, smartFit, arrowSegmentIds]);
+  }, [segmentFingerprint, onSegmentClick, smartFit, orderNumberIds, optimizedOrder, segments, activeSegmentId, arrowSegmentIds]);
 
   // Fit to active segment
   useEffect(() => {
@@ -174,13 +235,19 @@ export function MapDisplay({
     }
   }, [centerActiveRequest, smartFit]);
 
-  // Update current position
+  // GPS position marker — separate from segment rendering
   useEffect(() => {
-    if (!mapRef.current || !layersRef.current) return;
+    if (!mapRef.current || !segmentLayerRef.current) return;
 
     if (posMarkerRef.current) {
-      posMarkerRef.current.remove();
-      posMarkerRef.current = null;
+      if (currentPosition) {
+        posMarkerRef.current.setLatLng([currentPosition.lat, currentPosition.lng]);
+        return;
+      } else {
+        posMarkerRef.current.remove();
+        posMarkerRef.current = null;
+        return;
+      }
     }
 
     if (currentPosition) {
@@ -193,7 +260,7 @@ export function MapDisplay({
           color: '#fff',
           weight: 3,
         }
-      ).addTo(layersRef.current);
+      ).addTo(segmentLayerRef.current);
     }
   }, [currentPosition]);
 
