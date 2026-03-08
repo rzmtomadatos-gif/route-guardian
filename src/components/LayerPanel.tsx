@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Layers, ChevronDown, ChevronRight, Plus, Pencil, Trash2,
   MoreVertical, Eye, EyeOff, Merge, MapPin, AlertTriangle,
-  Check, X, GripVertical,
+  Check, X, GripVertical, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,10 @@ interface LayerPanelProps {
   recommendedSegmentId?: string | null;
   /** Display order map: segmentId → 1-based route position */
   displayOrderMap?: Map<string, number>;
+  /** Callback to reorder a segment up/down in the route */
+  onReorderInRoute?: (segmentId: string, direction: 'up' | 'down') => void;
+  /** Total number of segments in optimizedOrder (for disabling last down) */
+  optimizedOrderLength?: number;
 }
 
 function formatDistanceLabel(meters: number): string {
@@ -87,6 +91,8 @@ export function LayerPanel({
   vehicleDistanceMap,
   recommendedSegmentId,
   displayOrderMap,
+  onReorderInRoute,
+  optimizedOrderLength,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
@@ -400,6 +406,11 @@ export function LayerPanel({
                                 {displayOrder}
                               </span>
                             )}
+                            {seg.companySegmentId && (
+                              <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">
+                                {seg.companySegmentId}
+                              </span>
+                            )}
                             <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
                             {isRecommended && (
                               <span className="text-[8px] bg-primary/20 text-primary px-1 py-0.5 rounded font-semibold">
@@ -433,6 +444,26 @@ export function LayerPanel({
                           </div>
                         </div>
                         <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {onReorderInRoute && displayOrder !== undefined && (
+                            <>
+                              <button
+                                onClick={() => onReorderInRoute(seg.id, 'up')}
+                                disabled={displayOrder <= 1}
+                                className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                                title="Subir en ruta"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => onReorderInRoute(seg.id, 'down')}
+                                disabled={displayOrder >= (optimizedOrderLength || Infinity)}
+                                className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                                title="Bajar en ruta"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => onViewOnMap(seg.id)}
                             className="p-1 rounded text-muted-foreground hover:text-accent"

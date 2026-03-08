@@ -833,13 +833,23 @@ export function useRouteState() {
   const reorderSegment = useCallback((segmentId: string, direction: 'up' | 'down') => {
     setState((s) => {
       if (!s.route) return s;
-      const segs = [...s.route.segments];
-      const idx = segs.findIndex((seg) => seg.id === segmentId);
+      // Swap in optimizedOrder (source of truth for route numbering)
+      const order = [...s.route.optimizedOrder];
+      const idx = order.indexOf(segmentId);
       if (idx < 0) return s;
       const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= segs.length) return s;
-      [segs[idx], segs[newIdx]] = [segs[newIdx], segs[idx]];
-      return { ...s, route: { ...s.route, segments: segs } };
+      if (newIdx < 0 || newIdx >= order.length) return s;
+      [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+      // Also swap in segments array to keep visual order consistent
+      const segs = [...s.route.segments];
+      const segIdx = segs.findIndex((seg) => seg.id === segmentId);
+      if (segIdx >= 0) {
+        const segNewIdx = direction === 'up' ? segIdx - 1 : segIdx + 1;
+        if (segNewIdx >= 0 && segNewIdx < segs.length) {
+          [segs[segIdx], segs[segNewIdx]] = [segs[segNewIdx], segs[segIdx]];
+        }
+      }
+      return { ...s, route: { ...s.route, segments: segs, optimizedOrder: order } };
     });
   }, [setState]);
 
