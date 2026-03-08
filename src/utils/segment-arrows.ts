@@ -62,11 +62,10 @@ export interface ArrowPosition {
 /**
  * Compute arrow positions for a segment based on its length.
  * Rules:
- * - < 150m  → 1 arrow at start
- * - 150-500m → 2 arrows (start, 50%)
- * - 500-1200m → 3 arrows (start, 33%, 66%)
- * - > 1200m → 4 arrows (start, 25%, 50%, 75%)
- * - Never more than 4 arrows per segment
+ * - < 200m  → 1 arrow at start
+ * - 200-600m → 2 arrows (start, 50%)
+ * - > 600m → 3 arrows (start, 33%, 66%)
+ * - Never more than 3 arrows per segment
  */
 export function computeSegmentArrows(coords: LatLng[]): ArrowPosition[] {
   if (coords.length < 2) return [];
@@ -74,14 +73,12 @@ export function computeSegmentArrows(coords: LatLng[]): ArrowPosition[] {
   const totalLen = polylineLength(coords);
   let fractions: number[];
 
-  if (totalLen < 150) {
+  if (totalLen < 200) {
     fractions = [0.05]; // near start
-  } else if (totalLen < 500) {
+  } else if (totalLen < 600) {
     fractions = [0.05, 0.5];
-  } else if (totalLen < 1200) {
-    fractions = [0.05, 0.33, 0.66];
   } else {
-    fractions = [0.05, 0.25, 0.5, 0.75];
+    fractions = [0.05, 0.33, 0.66];
   }
 
   const arrows: ArrowPosition[] = [];
@@ -91,6 +88,9 @@ export function computeSegmentArrows(coords: LatLng[]): ArrowPosition[] {
   }
   return arrows;
 }
+
+/** Max number of segments that should display arrows */
+export const MAX_ARROW_SEGMENTS = 9;
 
 /** Cache key for memoization */
 const arrowCache = new Map<string, ArrowPosition[]>();
