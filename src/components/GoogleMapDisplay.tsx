@@ -36,42 +36,7 @@ interface Props {
 }
 
 import { resolveSegmentColor } from '@/utils/segment-colors';
-
-const ARROW_INTERVAL_M = 50;
-
-function haversineGM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function bearingGM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const y = Math.sin(dLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function sampleArrowPositionsGM(coords: LatLng[], interval: number): Array<{ pos: LatLng; angle: number }> {
-  const arrows: Array<{ pos: LatLng; angle: number }> = [];
-  if (coords.length < 2) return arrows;
-  let accumulated = 0;
-  for (let i = 1; i < coords.length; i++) {
-    const d = haversineGM(coords[i - 1], coords[i]);
-    accumulated += d;
-    if (accumulated >= interval) {
-      accumulated = 0;
-      arrows.push({ pos: coords[i], angle: bearingGM(coords[i - 1], coords[i]) });
-    }
-  }
-  return arrows;
-}
+import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 
 let googleMapsPromise: Promise<void> | null = null;
 

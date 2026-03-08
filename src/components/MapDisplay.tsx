@@ -17,50 +17,14 @@ interface Props {
   centerActiveRequest?: number;
 }
 
-const ARROW_INTERVAL_M = 50;
-
-function haversine(a: LatLng, b: LatLng): number {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function bearing(a: LatLng, b: LatLng): number {
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const y = Math.sin(dLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function sampleArrowPositions(coords: LatLng[], interval: number): Array<{ pos: LatLng; angle: number }> {
-  const arrows: Array<{ pos: LatLng; angle: number }> = [];
-  if (coords.length < 2) return arrows;
-  let accumulated = 0;
-  for (let i = 1; i < coords.length; i++) {
-    const d = haversine(coords[i - 1], coords[i]);
-    accumulated += d;
-    if (accumulated >= interval) {
-      accumulated = 0;
-      arrows.push({ pos: coords[i], angle: bearing(coords[i - 1], coords[i]) });
-    }
-  }
-  return arrows;
-}
-
 /** Create an arrow SVG icon for Leaflet */
 function arrowIcon(angle: number, color: string): L.DivIcon {
   return L.divIcon({
     className: '',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-    html: `<svg width="12" height="12" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
-      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.7"/>
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    html: `<svg width="14" height="14" viewBox="0 0 12 12" style="transform:rotate(${angle}deg)">
+      <path d="M6 1 L10 9 L6 7 L2 9 Z" fill="${color}" opacity="0.65"/>
     </svg>`,
   });
 }
