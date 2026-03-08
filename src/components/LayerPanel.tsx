@@ -406,6 +406,11 @@ export function LayerPanel({
                                 {displayOrder}
                               </span>
                             )}
+                            {seg.companySegmentId && (
+                              <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">
+                                {seg.companySegmentId}
+                              </span>
+                            )}
                             <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
                             {isRecommended && (
                               <span className="text-[8px] bg-primary/20 text-primary px-1 py-0.5 rounded font-semibold">
