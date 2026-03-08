@@ -4,6 +4,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Navigation, Repeat, CheckSquare, ChevronRight } from 'lucide-react';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { Segment, LatLng, BaseLocation } from '@/types/route';
 
 const MAX_WAYPOINTS = 9; // Google Maps limit: origin + up to ~23 waypoints + dest, but practically 9 segments = 18 points
@@ -88,6 +89,8 @@ export function GoogleMapsItineraryDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
 
+  const displayOrderMap = useMemo(() => buildDisplayOrderMap(optimizedOrder), [optimizedOrder]);
+
   const pendingIds = useMemo(() => {
     return optimizedOrder.filter((id) => {
       const seg = segments.find((s) => s.id === id);
@@ -104,9 +107,11 @@ export function GoogleMapsItineraryDialog({
     // Next segment
     const nextPending = pendingIds[0];
     if (nextPending) {
+      const seg = segments.find((s) => s.id === nextPending);
+      const orderNum = displayOrderMap.get(nextPending);
       opts.push({
         label: 'Siguiente tramo',
-        description: segments.find((s) => s.id === nextPending)?.name || '',
+        description: `${orderNum ? `#${orderNum} · ` : ''}${seg?.name || ''}`,
         segmentIds: [nextPending],
       });
     }

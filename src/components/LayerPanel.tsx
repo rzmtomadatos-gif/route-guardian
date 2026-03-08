@@ -52,6 +52,8 @@ interface LayerPanelProps {
   vehicleDistanceMap?: Map<string, number>;
   /** ID of the recommended next segment */
   recommendedSegmentId?: string | null;
+  /** Display order map: segmentId → 1-based route position */
+  displayOrderMap?: Map<string, number>;
 }
 
 function formatDistanceLabel(meters: number): string {
@@ -84,6 +86,7 @@ export function LayerPanel({
   onAddLayer,
   vehicleDistanceMap,
   recommendedSegmentId,
+  displayOrderMap,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
@@ -376,6 +379,7 @@ export function LayerPanel({
                     const incCount = getIncidentCount(seg.id);
                     const isRecommended = recommendedSegmentId === seg.id;
                     const vehDist = vehicleDistanceMap?.get(seg.id);
+                    const displayOrder = displayOrderMap?.get(seg.id);
                     return (
                       <div
                         key={seg.id}
@@ -391,6 +395,11 @@ export function LayerPanel({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
+                            {displayOrder !== undefined && (
+                              <span className="text-[9px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono font-bold flex-shrink-0">
+                                {displayOrder}
+                              </span>
+                            )}
                             <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
                             {isRecommended && (
                               <span className="text-[8px] bg-primary/20 text-primary px-1 py-0.5 rounded font-semibold">

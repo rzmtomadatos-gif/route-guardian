@@ -10,6 +10,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star } from 'lucide-react';
 import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
 import { segmentDistanceKm } from '@/utils/geo-distance';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { AppState, Incident, LatLng, Segment, SegmentStatus } from '@/types/route';
 import {
   AlertDialog,
@@ -195,6 +196,12 @@ export default function SegmentsPage({
     });
     return best?.id ?? null;
   }, [route, geo.position, vehicleDistanceMap, hiddenLayers]);
+
+  // Single source of truth: segment display order from optimized route
+  const displayOrderMap = useMemo(() => {
+    if (!route) return new Map<string, number>();
+    return buildDisplayOrderMap(route.optimizedOrder);
+  }, [route]);
 
   // Stats
   const pending = route?.segments.filter((s) => s.status === 'pendiente').length ?? 0;
@@ -466,9 +473,10 @@ export default function SegmentsPage({
           onMoveToLayer={onMoveToLayer}
           onMergeSegments={onMergeSegments}
           onAddLayer={onAddLayer}
-          vehicleDistanceMap={vehicleDistanceMap}
-          recommendedSegmentId={recommendedSegmentId}
-        />
+           vehicleDistanceMap={vehicleDistanceMap}
+           recommendedSegmentId={recommendedSegmentId}
+           displayOrderMap={displayOrderMap}
+         />
       </div>
 
       {/* Edit dialog */}
