@@ -117,6 +117,7 @@ export function MapControlPanel({
   onSkipSegment,
   onSetWorkDay,
   workDay,
+  activeRouteBlock,
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
