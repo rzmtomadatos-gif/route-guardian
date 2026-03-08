@@ -19,7 +19,22 @@ const STATUS_COLORS: Record<string, string> = {
   pendiente: '#6b7280',
   en_progreso: '#f59e0b',
   completado: '#22c55e',
+  posible_repetir: '#f97316',
 };
+
+/** Resolve display color with operational priority: status > layer */
+function resolveSegmentColor(seg: Segment, activeSegmentId?: string | null): string {
+  // 1. Active / in-progress → yellow
+  if (seg.id === activeSegmentId || seg.status === 'en_progreso') return '#f59e0b';
+  // 2. Completed → green (reserved)
+  if (seg.status === 'completado') return '#22c55e';
+  // 3. Non-recordable → dark gray
+  if (seg.nonRecordable) return '#3f3f46';
+  // 4. Needs repeat → orange
+  if (seg.needsRepeat || seg.status === 'posible_repetir') return '#f97316';
+  // 5. Pending → layer color or default gray
+  return seg.color || '#6b7280';
+}
 
 export function MapDisplay({
   segments,
