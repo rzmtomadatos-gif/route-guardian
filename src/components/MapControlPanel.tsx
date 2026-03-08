@@ -154,6 +154,7 @@ export function MapControlPanel({
   const pending = segments.filter((s) => s.status === 'pendiente').length;
   const completed = segments.filter((s) => s.status === 'completado').length;
   const noVisiblePending = pending === 0;
+  const noVisibleSegments = segments.length === 0;
 
   const orderedSegments = useMemo(() =>
     optimizedOrder
@@ -312,9 +313,9 @@ export function MapControlPanel({
                   Detener
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={noVisiblePending} className="flex-1 h-12 text-sm font-bold bg-primary text-primary-foreground">
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} className="flex-1 h-12 text-sm font-bold bg-primary text-primary-foreground">
                   <Navigation className="w-4 h-4 mr-1.5" />
-                  Navegar
+                  {noVisibleSegments ? 'No hay tramos visibles' : 'Navegar'}
                 </Button>
               )}
               <CopilotPanel
