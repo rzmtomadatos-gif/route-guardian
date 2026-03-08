@@ -384,10 +384,13 @@ export function LayerPanel({
                   {group.segments.map((seg) => {
                     const isSelected = selectedIds.has(seg.id);
                     const incCount = getIncidentCount(seg.id);
+                    const isRecommended = recommendedSegmentId === seg.id;
+                    const vehDist = vehicleDistanceMap?.get(seg.id);
                     return (
                       <div
                         key={seg.id}
                         className={`flex items-center gap-2 px-3 py-1.5 mx-1 rounded-md transition-colors cursor-pointer hover:bg-secondary/60 ${
+                          isRecommended ? 'bg-primary/10 ring-1 ring-primary/30' :
                           isSelected ? 'bg-accent/10 ring-1 ring-accent/30' : ''
                         }`}
                         onClick={() => handleToggleWithSameNameCheck(seg)}
@@ -399,6 +402,11 @@ export function LayerPanel({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
+                            {isRecommended && (
+                              <span className="text-[8px] bg-primary/20 text-primary px-1 py-0.5 rounded font-semibold">
+                                REC
+                              </span>
+                            )}
                             {seg.trackNumber !== null && (
                               <span className="text-[9px] bg-primary/15 text-primary px-1 py-0.5 rounded font-mono">
                                 T{seg.trackNumber}
@@ -407,6 +415,11 @@ export function LayerPanel({
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
+                            {vehDist !== undefined && (
+                              <span className="text-[9px] text-accent-foreground/70 font-mono">
+                                {formatDistanceLabel(vehDist)}
+                              </span>
+                            )}
                             {seg.kmlMeta?.pkInicial && (
                               <span className="text-[9px] text-muted-foreground">
                                 PK {seg.kmlMeta.pkInicial}→{seg.kmlMeta.pkFinal}
