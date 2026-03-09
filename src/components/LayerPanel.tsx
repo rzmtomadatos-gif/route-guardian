@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Layers, ChevronDown, ChevronRight, Plus, Pencil, Trash2,
   MoreVertical, Eye, EyeOff, Merge, MapPin, AlertTriangle,
-  Check, X, GripVertical, ArrowUp, ArrowDown,
+  Check, X, GripVertical, ArrowUp, ArrowDown, ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
