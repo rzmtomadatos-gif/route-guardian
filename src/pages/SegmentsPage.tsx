@@ -65,6 +65,7 @@ interface Props {
   onBulkColor: (ids: string[], color: string) => void;
   onDuplicate: (ids: string[]) => void;
   onReorder: (id: string, dir: 'up' | 'down') => void;
+  onReverseSegment: (segmentId: string) => void;
   onSimplify: () => void;
   hiddenLayers: Set<string>;
   onHiddenLayersChange: (layers: Set<string>) => void;
@@ -91,6 +92,7 @@ export default function SegmentsPage({
   onBulkColor,
   onDuplicate,
   onReorder,
+  onReverseSegment,
   onSimplify,
   hiddenLayers,
   onHiddenLayersChange,
@@ -477,6 +479,7 @@ export default function SegmentsPage({
            recommendedSegmentId={recommendedSegmentId}
            displayOrderMap={displayOrderMap}
            onReorderInRoute={(id, dir) => onReorder(id, dir)}
+           onReverseSegment={onReverseSegment}
            optimizedOrderLength={route.optimizedOrder.length}
          />
       </div>
