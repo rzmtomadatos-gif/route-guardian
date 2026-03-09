@@ -65,6 +65,7 @@ interface Props {
   onBulkColor: (ids: string[], color: string) => void;
   onDuplicate: (ids: string[]) => void;
   onReorder: (id: string, dir: 'up' | 'down') => void;
+  onReverseSegment: (segmentId: string) => void;
   onSimplify: () => void;
   hiddenLayers: Set<string>;
   onHiddenLayersChange: (layers: Set<string>) => void;
