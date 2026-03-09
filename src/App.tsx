@@ -48,6 +48,7 @@ function AppRoutes() {
     bulkSetColor,
     duplicateSegments,
     reorderSegment,
+    reverseSegment,
     simplifySegments,
     setRstMode,
     setRstGroupSize,
