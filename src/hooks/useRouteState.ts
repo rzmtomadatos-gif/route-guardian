@@ -853,6 +853,22 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  /** Reverse a segment's coordinates (flip start/end). Only allowed for direction === 'ambos'. */
+  const reverseSegment = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        if (seg.direction !== 'ambos') return seg; // only 'ambos' can be reversed
+        return {
+          ...seg,
+          coordinates: [...seg.coordinates].reverse(),
+        };
+      });
+      return { ...s, route: { ...s.route, segments } };
+    });
+  }, [setState]);
+
   const simplifySegments = useCallback(() => {
     setState((s) => {
       if (!s.route) return s;
