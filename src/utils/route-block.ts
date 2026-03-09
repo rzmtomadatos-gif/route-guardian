@@ -1,4 +1,5 @@
 import type { LatLng, Segment } from '@/types/route';
+import { detectCorridors } from '@/utils/corridor-detection';
 
 export const ROUTE_BLOCK_SIZE = 4;
 
