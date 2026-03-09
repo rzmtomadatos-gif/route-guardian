@@ -92,6 +92,7 @@ export default function SegmentsPage({
   onBulkColor,
   onDuplicate,
   onReorder,
+  onReverseSegment,
   onSimplify,
   hiddenLayers,
   onHiddenLayersChange,
