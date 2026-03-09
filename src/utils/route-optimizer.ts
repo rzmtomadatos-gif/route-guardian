@@ -1,4 +1,5 @@
 import type { LatLng, Segment } from '@/types/route';
+import { detectCorridors, orderWithCorridors } from '@/utils/corridor-detection';
 
 function haversineDistance(a: LatLng, b: LatLng): number {
   const R = 6371e3;
