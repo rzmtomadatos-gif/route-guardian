@@ -479,6 +479,7 @@ export default function SegmentsPage({
            recommendedSegmentId={recommendedSegmentId}
            displayOrderMap={displayOrderMap}
            onReorderInRoute={(id, dir) => onReorder(id, dir)}
+           onReverseSegment={onReverseSegment}
            optimizedOrderLength={route.optimizedOrder.length}
          />
       </div>
