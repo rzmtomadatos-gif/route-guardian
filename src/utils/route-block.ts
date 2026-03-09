@@ -1,4 +1,5 @@
 import type { LatLng, Segment } from '@/types/route';
+import { detectCorridors } from '@/utils/corridor-detection';
 
 export const ROUTE_BLOCK_SIZE = 4;
 
@@ -126,11 +127,94 @@ export function computeRouteBlock(
   });
 
   if (candidates.length === 0) return [];
+
+  // Detect corridors among candidates to avoid direction alternation
+  const corridors = detectCorridors(candidates);
+
+  if (corridors.length > 0 && currentPos) {
+    // If the nearest candidate belongs to a corridor, pull the full corridor direction first
+    const result = chainWithCorridorAwareness(candidates, corridors, currentPos, blockSize);
+    if (result.length > 0) return result.map((s) => s.id);
+  }
+
   if (candidates.length <= blockSize) {
     return chainWithOnTheWay(candidates, currentPos, candidates.length).map((s) => s.id);
   }
 
   return chainWithOnTheWay(candidates, currentPos, blockSize).map((s) => s.id);
+}
+
+/**
+ * Corridor-aware block building: when selecting the next segment,
+ * if it belongs to a corridor, pull remaining corridor segments in the same direction first.
+ */
+function chainWithCorridorAwareness(
+  candidates: Segment[],
+  corridors: ReturnType<typeof detectCorridors>,
+  startPos: LatLng,
+  limit: number,
+): Segment[] {
+  // Build lookup: segId → corridor + which direction
+  const segCorridor = new Map<string, { corridor: typeof corridors[0]; dirGroup: 'A' | 'B' }>();
+  for (const c of corridors) {
+    for (const id of c.directionA) segCorridor.set(id, { corridor: c, dirGroup: 'A' });
+    for (const id of c.directionB) segCorridor.set(id, { corridor: c, dirGroup: 'B' });
+  }
+
+  const pending = new Set(candidates.map((s) => s.id));
+  const segMap = new Map(candidates.map((s) => [s.id, s]));
+  const result: Segment[] = [];
+  let pos = startPos;
+
+  while (pending.size > 0 && result.length < limit) {
+    // Find nearest pending segment
+    let bestId = '';
+    let bestDist = Infinity;
+    for (const id of pending) {
+      const seg = segMap.get(id)!;
+      const d = haversine(pos, segStart(seg));
+      if (d < bestDist) {
+        bestDist = d;
+        bestId = id;
+      }
+    }
+
+    if (!bestId) break;
+
+    const info = segCorridor.get(bestId);
+    if (info) {
+      // Pull all pending segments from the same corridor direction
+      const sameDir = info.dirGroup === 'A' ? info.corridor.directionA : info.corridor.directionB;
+      const oppositeDir = info.dirGroup === 'A' ? info.corridor.directionB : info.corridor.directionA;
+
+      // Add same-direction segments in corridor order
+      for (const id of sameDir) {
+        if (!pending.has(id) || result.length >= limit) continue;
+        const seg = segMap.get(id)!;
+        result.push(seg);
+        pending.delete(id);
+        pos = segEnd(seg);
+      }
+
+      // Then add opposite-direction segments (reversed order for return trip)
+      const oppReversed = [...oppositeDir].reverse();
+      for (const id of oppReversed) {
+        if (!pending.has(id) || result.length >= limit) continue;
+        const seg = segMap.get(id)!;
+        result.push(seg);
+        pending.delete(id);
+        pos = segEnd(seg);
+      }
+    } else {
+      // Standalone segment
+      const seg = segMap.get(bestId)!;
+      result.push(seg);
+      pending.delete(bestId);
+      pos = segEnd(seg);
+    }
+  }
+
+  return result;
 }
 
 /**
