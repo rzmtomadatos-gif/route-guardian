@@ -58,6 +58,8 @@ interface LayerPanelProps {
   onReorderInRoute?: (segmentId: string, direction: 'up' | 'down') => void;
   /** Total number of segments in optimizedOrder (for disabling last down) */
   optimizedOrderLength?: number;
+  /** Callback to reverse a segment's coordinates */
+  onReverseSegment?: (segmentId: string) => void;
 }
 
 function formatDistanceLabel(meters: number): string {
