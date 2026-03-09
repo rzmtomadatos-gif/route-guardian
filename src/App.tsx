@@ -153,6 +153,7 @@ function AppRoutes() {
               onBulkColor={bulkSetColor}
               onDuplicate={duplicateSegments}
               onReorder={reorderSegment}
+              onReverseSegment={reverseSegment}
               onSimplify={simplifySegments}
               hiddenLayers={hiddenLayers}
               onHiddenLayersChange={setHiddenLayers}

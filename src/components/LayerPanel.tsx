@@ -487,6 +487,11 @@ export function LayerPanel({
                               <DropdownMenuItem onClick={() => setMoveDialogSeg(seg)}>
                                 <Layers className="w-3 h-3 mr-2" /> Mover a capa...
                               </DropdownMenuItem>
+                              {onReverseSegment && seg.direction === 'ambos' && (
+                                <DropdownMenuItem onClick={() => onReverseSegment(seg.id)}>
+                                  <ArrowLeftRight className="w-3 h-3 mr-2" /> Invertir sentido
+                                </DropdownMenuItem>
+                              )}
                               {seg.status === 'completado' && (
                                 <DropdownMenuItem onClick={() => onResetSegment(seg.id)}>
                                   Repetir tramo

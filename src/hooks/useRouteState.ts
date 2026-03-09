@@ -1037,6 +1037,7 @@ export function useRouteState() {
     bulkSetColor,
     duplicateSegments,
     reorderSegment,
+    reverseSegment,
     simplifySegments,
     setRstMode,
     setRstGroupSize,
