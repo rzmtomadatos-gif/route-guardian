@@ -42,6 +42,17 @@ export function optimizeRoute(
 
   const base: LatLng = currentPos || segmentEndpoint(segments[0], 'start');
 
+  // 1) Detect road corridors to avoid direction alternation
+  const corridors = detectCorridors(segments);
+
+  // 2) If corridors are found, use corridor-aware ordering
+  if (corridors.length > 0) {
+    const ordered = orderWithCorridors(segments, corridors, base);
+    return ordered.map((s) => s.id);
+  }
+
+  // 3) Fallback: original round-trip optimization for non-corridor cases
+
   // Sort by distance from base (closest first)
   const sorted = [...segments].sort((a, b) => {
     const distA = Math.min(
@@ -57,8 +68,8 @@ export function optimizeRoute(
 
   // Split: first half outbound (close→far), second half return (far→close)
   const midIdx = Math.ceil(sorted.length / 2);
-  const outbound = sorted.slice(0, midIdx); // already close→far
-  const returnLeg = sorted.slice(midIdx).reverse(); // far→close (reversed to come back)
+  const outbound = sorted.slice(0, midIdx);
+  const returnLeg = sorted.slice(midIdx).reverse();
 
   // Chain each leg with nearest-neighbor for smooth transitions
   const chainNearestNeighbor = (segs: Segment[], startPos: LatLng): Segment[] => {
@@ -94,7 +105,6 @@ export function optimizeRoute(
     return result;
   };
 
-  // Chain outbound from base, then chain return from where outbound ended
   const chainedOutbound = chainNearestNeighbor(outbound, base);
   const lastOutbound = chainedOutbound[chainedOutbound.length - 1];
   const returnStart = lastOutbound
