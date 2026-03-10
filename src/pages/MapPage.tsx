@@ -146,17 +146,6 @@ export default function MapPage({
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
-  // === Debug info for optimizer ===
-  const optimizerDebugInfo = useMemo<OptimizerDebugInfo | null>(() => {
-    if (!debugMode || !state.route) return null;
-    return generateDebugInfo(
-      state.route.segments,
-      activeRouteBlock,
-      state.activeSegmentId || null,
-      geo.position,
-      hiddenLayers,
-    );
-  }, [debugMode, state.route, activeRouteBlock, state.activeSegmentId, geo.position, hiddenLayers]);
 
 
   const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
