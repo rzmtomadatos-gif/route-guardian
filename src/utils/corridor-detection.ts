@@ -348,13 +348,13 @@ export function orderWithCorridors(
       const distB = haversine(pos, entryBEnd);
       if (distA <= distB) {
         // Enter from direction A start → do A then B reversed
-        ordered = [...cSegs, ...cSegsB.reverse()];
+        ordered = [...cSegs, ...[...cSegsB].reverse()];
       } else {
         // Enter from direction B end → do B reversed then A
-        ordered = [...cSegsB.reverse(), ...cSegs];
+        ordered = [...[...cSegsB].reverse(), ...cSegs];
       }
     } else {
-      ordered = [...cSegs, ...cSegsB.reverse()];
+      ordered = [...cSegs, ...[...cSegsB].reverse()];
     }
 
     units.push({
