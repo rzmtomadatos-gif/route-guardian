@@ -176,7 +176,19 @@ export default function MapPage({
     }
   }, [blockDepsFingerprint, recalcBlock]);
 
-  // Save first GPS position as base
+  // === Debug info for optimizer ===
+  const optimizerDebugInfo = useMemo<OptimizerDebugInfo | null>(() => {
+    if (!debugMode || !state.route) return null;
+    return generateDebugInfo(
+      state.route.segments,
+      activeRouteBlock,
+      state.activeSegmentId || null,
+      geo.position,
+      hiddenLayers,
+    );
+  }, [debugMode, state.route, activeRouteBlock, state.activeSegmentId, geo.position, hiddenLayers]);
+
+
   useEffect(() => {
     if (geo.position && !basePosition) {
       setBasePosition(geo.position);
