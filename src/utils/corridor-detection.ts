@@ -19,7 +19,7 @@ function haversine(a: LatLng, b: LatLng): number {
 }
 
 /** Max distance (m) between end of one segment and start of another to be "consecutive" */
-const CONTINUITY_THRESHOLD = 200;
+const CONTINUITY_THRESHOLD = 400;
 
 /** Bearing of a segment in degrees [0, 360) */
 function segmentBearing(seg: Segment): number {
@@ -72,7 +72,7 @@ function areOnSameAxis(a: Segment, b: Segment): boolean {
   const midB = b.coordinates[Math.floor(b.coordinates.length / 2)];
   const midDist = haversine(midA, midB);
 
-  return midDist < 300; // within 300m midpoint distance and parallel
+  return midDist < 500; // within 500m midpoint distance and parallel
 }
 
 /**
@@ -348,13 +348,13 @@ export function orderWithCorridors(
       const distB = haversine(pos, entryBEnd);
       if (distA <= distB) {
         // Enter from direction A start → do A then B reversed
-        ordered = [...cSegs, ...cSegsB.reverse()];
+        ordered = [...cSegs, ...[...cSegsB].reverse()];
       } else {
         // Enter from direction B end → do B reversed then A
-        ordered = [...cSegsB.reverse(), ...cSegs];
+        ordered = [...[...cSegsB].reverse(), ...cSegs];
       }
     } else {
-      ordered = [...cSegs, ...cSegsB.reverse()];
+      ordered = [...cSegs, ...[...cSegsB].reverse()];
     }
 
     units.push({
