@@ -1247,6 +1247,14 @@ export default function MapPage({
         </div>
       )}
 
+      {/* Optimizer debug panel */}
+      {debugMode && (
+        <OptimizerDebugPanel
+          debugInfo={optimizerDebugInfo}
+          segments={state.route?.segments || []}
+        />
+      )}
+
       {/* Control panel overlay */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapControlPanel
