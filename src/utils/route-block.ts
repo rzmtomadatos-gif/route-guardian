@@ -131,9 +131,10 @@ export function computeRouteBlock(
   // Detect corridors among candidates to avoid direction alternation
   const corridors = detectCorridors(candidates);
 
-  if (corridors.length > 0 && currentPos) {
-    // If the nearest candidate belongs to a corridor, pull the full corridor direction first
-    const result = chainWithCorridorAwareness(candidates, corridors, currentPos, blockSize);
+  if (corridors.length > 0) {
+    // Use corridor-aware ordering even without currentPos (use first candidate as fallback)
+    const startPos = currentPos || segStart(candidates[0]);
+    const result = chainWithCorridorAwareness(candidates, corridors, startPos, blockSize);
     if (result.length > 0) return result.map((s) => s.id);
   }
 
