@@ -84,6 +84,7 @@ export default function MapPage({
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
+  const [debugMode, setDebugMode] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Detect Google Maps availability and auth failures
