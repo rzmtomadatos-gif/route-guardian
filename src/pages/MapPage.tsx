@@ -14,9 +14,11 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { useCopilotOperator, type QueueItem } from '@/hooks/useCopilotSession';
 import { buildGoogleMapsBatchUrl, segmentsToStops, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { CopilotPanel } from '@/components/CopilotPanel';
+import { OptimizerDebugPanel } from '@/components/OptimizerDebugPanel';
 import { distanceToSegment } from '@/utils/route-optimizer';
 import { computeRouteBlock, ROUTE_BLOCK_SIZE } from '@/utils/route-block';
 import { MAX_ARROW_SEGMENTS } from '@/utils/segment-arrows';
+import { generateDebugInfo, type OptimizerDebugInfo } from '@/utils/optimizer-debug';
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
@@ -82,6 +84,7 @@ export default function MapPage({
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
+  const [debugMode, setDebugMode] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Detect Google Maps availability and auth failures
@@ -143,7 +146,8 @@ export default function MapPage({
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
-  // === Active Route Block (rolling block of N nearest segments) ===
+
+
   const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
   const blockVersionRef = useRef(0);
 
@@ -172,7 +176,19 @@ export default function MapPage({
     }
   }, [blockDepsFingerprint, recalcBlock]);
 
-  // Save first GPS position as base
+  // === Debug info for optimizer ===
+  const optimizerDebugInfo = useMemo<OptimizerDebugInfo | null>(() => {
+    if (!debugMode || !state.route) return null;
+    return generateDebugInfo(
+      state.route.segments,
+      activeRouteBlock,
+      state.activeSegmentId || null,
+      geo.position,
+      hiddenLayers,
+    );
+  }, [debugMode, state.route, activeRouteBlock, state.activeSegmentId, geo.position, hiddenLayers]);
+
+
   useEffect(() => {
     if (geo.position && !basePosition) {
       setBasePosition(geo.position);
@@ -992,7 +1008,18 @@ export default function MapPage({
       }`}>
         {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
       </div>
-      {/* Center on active segment button */}
+      {/* Debug mode toggle */}
+      <button
+        onClick={() => setDebugMode(!debugMode)}
+        className={`absolute top-12 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm transition-colors ${
+          debugMode
+            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+            : 'bg-muted/60 text-muted-foreground/50 border border-transparent hover:border-border'
+        }`}
+        title="Debug optimizador"
+      >
+        🐛 Debug
+      </button>
       {state.activeSegmentId && state.navigationActive && (
         <button
           onClick={() => setCenterActiveRequest((c) => c + 1)}
@@ -1218,6 +1245,14 @@ export default function MapPage({
             <Circle className="w-4 h-4" />
           </button>
         </div>
+      )}
+
+      {/* Optimizer debug panel */}
+      {debugMode && (
+        <OptimizerDebugPanel
+          debugInfo={optimizerDebugInfo}
+          segments={state.route?.segments || []}
+        />
       )}
 
       {/* Control panel overlay */}
