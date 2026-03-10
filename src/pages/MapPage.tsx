@@ -1008,7 +1008,18 @@ export default function MapPage({
       }`}>
         {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
       </div>
-      {/* Center on active segment button */}
+      {/* Debug mode toggle */}
+      <button
+        onClick={() => setDebugMode(!debugMode)}
+        className={`absolute top-12 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm transition-colors ${
+          debugMode
+            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+            : 'bg-muted/60 text-muted-foreground/50 border border-transparent hover:border-border'
+        }`}
+        title="Debug optimizador"
+      >
+        🐛 Debug
+      </button>
       {state.activeSegmentId && state.navigationActive && (
         <button
           onClick={() => setCenterActiveRequest((c) => c + 1)}
