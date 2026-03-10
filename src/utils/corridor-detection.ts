@@ -72,7 +72,7 @@ function areOnSameAxis(a: Segment, b: Segment): boolean {
   const midB = b.coordinates[Math.floor(b.coordinates.length / 2)];
   const midDist = haversine(midA, midB);
 
-  return midDist < 300; // within 300m midpoint distance and parallel
+  return midDist < 500; // within 500m midpoint distance and parallel
 }
 
 /**
