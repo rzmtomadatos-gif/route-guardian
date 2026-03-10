@@ -19,7 +19,7 @@ function haversine(a: LatLng, b: LatLng): number {
 }
 
 /** Max distance (m) between end of one segment and start of another to be "consecutive" */
-const CONTINUITY_THRESHOLD = 200;
+const CONTINUITY_THRESHOLD = 400;
 
 /** Bearing of a segment in degrees [0, 360) */
 function segmentBearing(seg: Segment): number {
