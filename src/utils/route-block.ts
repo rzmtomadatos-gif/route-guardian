@@ -167,12 +167,14 @@ function chainWithCorridorAwareness(
   let pos = startPos;
 
   while (pending.size > 0 && result.length < limit) {
-    // Find nearest pending segment
+    // Find nearest pending segment using both start AND end points
     let bestId = '';
     let bestDist = Infinity;
     for (const id of pending) {
       const seg = segMap.get(id)!;
-      const d = haversine(pos, segStart(seg));
+      const dStart = haversine(pos, segStart(seg));
+      const dEnd = haversine(pos, segEnd(seg));
+      const d = Math.min(dStart, dEnd);
       if (d < bestDist) {
         bestDist = d;
         bestId = id;
@@ -183,13 +185,27 @@ function chainWithCorridorAwareness(
 
     const info = segCorridor.get(bestId);
     if (info) {
-      // Pull all pending segments from the same corridor direction
+      // Pull all pending segments from the same corridor direction first
       const sameDir = info.dirGroup === 'A' ? info.corridor.directionA : info.corridor.directionB;
       const oppositeDir = info.dirGroup === 'A' ? info.corridor.directionB : info.corridor.directionA;
 
-      // Add same-direction segments in corridor order
-      for (const id of sameDir) {
-        if (!pending.has(id) || result.length >= limit) continue;
+      // Determine entry direction: are we closer to the start or end of the corridor direction?
+      const firstInDir = sameDir.find(id => pending.has(id));
+      const lastInDir = [...sameDir].reverse().find(id => pending.has(id));
+      let sameDirOrdered = [...sameDir];
+      if (firstInDir && lastInDir && firstInDir !== lastInDir) {
+        const segFirst = segMap.get(firstInDir)!;
+        const segLast = segMap.get(lastInDir)!;
+        const distToFirst = haversine(pos, segStart(segFirst));
+        const distToLast = haversine(pos, segEnd(segLast));
+        if (distToLast < distToFirst) {
+          sameDirOrdered = [...sameDir].reverse();
+        }
+      }
+
+      // Add same-direction segments in corridor order — DON'T respect limit for corridor integrity
+      for (const id of sameDirOrdered) {
+        if (!pending.has(id)) continue;
         const seg = segMap.get(id)!;
         result.push(seg);
         pending.delete(id);
@@ -199,7 +215,7 @@ function chainWithCorridorAwareness(
       // Then add opposite-direction segments (reversed order for return trip)
       const oppReversed = [...oppositeDir].reverse();
       for (const id of oppReversed) {
-        if (!pending.has(id) || result.length >= limit) continue;
+        if (!pending.has(id) || result.length >= limit * 2) continue; // soft limit: allow 2x for corridor completion
         const seg = segMap.get(id)!;
         result.push(seg);
         pending.delete(id);
