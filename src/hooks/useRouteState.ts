@@ -548,17 +548,29 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
-  const reoptimize = useCallback((currentPos?: LatLng | null) => {
+  const reoptimize = useCallback((currentPos?: LatLng | null, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
       const basePos = currentPos || s.base?.position || null;
-      const pending = s.route.segments.filter((seg) => seg.status === 'pendiente' && !seg.nonRecordable);
-      const nonRecordablePending = s.route.segments.filter((seg) => seg.status === 'pendiente' && seg.nonRecordable);
-      const completed = s.route.segments.filter((seg) => seg.status !== 'pendiente');
+      const hidden = hiddenLayers || new Set<string>();
+
+      // Only optimize visible, valid segments
+      const isVisible = (seg: Segment) => !seg.layer || !hidden.has(seg.layer);
+      const isPending = (seg: Segment) =>
+        (seg.status === 'pendiente' || (seg.status === 'posible_repetir' && seg.needsRepeat));
+
+      const visiblePending = s.route.segments.filter((seg) => isVisible(seg) && isPending(seg) && !seg.nonRecordable);
+      const visibleNonRecordable = s.route.segments.filter((seg) => isVisible(seg) && isPending(seg) && seg.nonRecordable);
+      const rest = s.route.segments.filter((seg) => !isVisible(seg) || !isPending(seg));
+
+      if (visiblePending.length === 0 && visibleNonRecordable.length === 0) {
+        return s; // Nothing visible to optimize
+      }
+
       const newOrder = [
-        ...completed.map((s) => s.id),
-        ...optimizeRoute(pending, basePos),
-        ...nonRecordablePending.map((s) => s.id), // Non-recordable at the end
+        ...rest.map((seg) => seg.id),
+        ...optimizeRoute(visiblePending, basePos),
+        ...visibleNonRecordable.map((seg) => seg.id),
       ];
       return { ...s, route: { ...s.route, optimizedOrder: newOrder } };
     });
