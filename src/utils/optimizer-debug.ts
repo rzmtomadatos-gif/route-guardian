@@ -1,5 +1,9 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, type Corridor } from '@/utils/corridor-detection';
+import { getLastCandidateComparison, type CandidateComparison } from '@/utils/route-optimizer';
+import type { CandidateRoute } from '@/utils/route-candidates';
+
+export type { CandidateRoute, CandidateComparison };
 
 export interface CorridorDebugInfo {
   corridorId: string;
@@ -21,6 +25,8 @@ export interface OptimizerDebugInfo {
   segmentCorridorMap: Map<string, string>;
   /** Map segmentId → 'A' | 'B' direction within corridor */
   segmentDirectionMap: Map<string, 'A' | 'B'>;
+  /** Candidate routes comparison */
+  candidateComparison: CandidateComparison | null;
   timestamp: number;
 }
 
