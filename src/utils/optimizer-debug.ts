@@ -97,6 +97,7 @@ export function generateDebugInfo(
     activeCorridorId,
     segmentCorridorMap,
     segmentDirectionMap,
+    candidateComparison: getLastCandidateComparison(),
     timestamp: Date.now(),
   };
 }
