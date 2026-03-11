@@ -38,7 +38,7 @@ interface Props {
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   onRepeatSegment: (segmentId: string) => void;
-  onReoptimize: (pos?: LatLng | null) => void;
+  onReoptimize: (pos?: LatLng | null, hiddenLayers?: Set<string>) => void;
   onSetActiveSegment: (segmentId: string) => void;
   onSetBase: (base: BaseLocation) => void;
   onAddSegment: (segment: Segment) => void;
@@ -725,11 +725,24 @@ export default function MapPage({
 
   const handleReoptimize = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
-    onReoptimize(geo.position);
+
+    // Count visible pending segments to give feedback
+    const visiblePending = state.route?.segments.filter((s) => {
+      if (s.nonRecordable) return false;
+      if (s.layer && hiddenLayers.has(s.layer)) return false;
+      return s.status === 'pendiente' || (s.status === 'posible_repetir' && s.needsRepeat);
+    }) || [];
+
+    if (visiblePending.length === 0) {
+      toast.warning('No hay tramos visibles para optimizar');
+      return;
+    }
+
+    onReoptimize(geo.position, hiddenLayers);
     // After full reoptimize, recalculate block
     setTimeout(() => recalcBlock(), 50);
-    toast.success('Itinerario completo reoptimizado');
-  }, [gpsEnabled, geo.position, onReoptimize, recalcBlock]);
+    toast.success(`Itinerario optimizado (${visiblePending.length} tramos visibles)`);
+  }, [gpsEnabled, geo.position, onReoptimize, recalcBlock, hiddenLayers, state.route]);
 
   const handleStartNavigation = useCallback(() => {
     if (!gpsEnabled) setGpsEnabled(true);
