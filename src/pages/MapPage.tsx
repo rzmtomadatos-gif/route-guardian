@@ -38,7 +38,7 @@ interface Props {
   onResetSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   onRepeatSegment: (segmentId: string) => void;
-  onReoptimize: (pos?: LatLng | null) => void;
+  onReoptimize: (pos?: LatLng | null, hiddenLayers?: Set<string>) => void;
   onSetActiveSegment: (segmentId: string) => void;
   onSetBase: (base: BaseLocation) => void;
   onAddSegment: (segment: Segment) => void;
