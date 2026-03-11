@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Bug, ChevronDown, ChevronUp, Route, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Bug, ChevronDown, ChevronUp, Route, ArrowRight, ArrowLeft, Trophy, BarChart3 } from 'lucide-react';
 import type { OptimizerDebugInfo } from '@/utils/optimizer-debug';
 import type { Segment } from '@/types/route';
 
@@ -15,9 +15,11 @@ export function OptimizerDebugPanel({ debugInfo, segments }: Props) {
 
   if (!debugInfo) return null;
 
-  const { corridors, activeBlock, activeSegmentId, activeCorridorId } = debugInfo;
+  const { corridors, activeBlock, activeSegmentId, activeCorridorId, candidateComparison } = debugInfo;
 
   const activeCorridor = corridors.find((c) => c.corridorId === activeCorridorId);
+
+  const candidateCount = candidateComparison?.candidates.length ?? 0;
 
   return (
     <div className="absolute bottom-20 left-2 right-2 z-30 pointer-events-none">
@@ -35,12 +37,64 @@ export function OptimizerDebugPanel({ debugInfo, segments }: Props) {
                 {corridors.length} corredor{corridors.length !== 1 ? 'es' : ''}
               </span>
             )}
+            {candidateCount > 0 && (
+              <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[10px]">
+                {candidateCount} rutas
+              </span>
+            )}
           </span>
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
         </button>
 
         {open && (
           <div className="px-3 pb-3 overflow-y-auto max-h-[50vh] space-y-3 text-[11px]">
+
+            {/* Candidate routes comparison */}
+            {candidateComparison && candidateComparison.candidates.length > 0 && (
+              <div className="border border-emerald-500/30 rounded p-2 bg-emerald-500/5">
+                <h4 className="font-bold text-emerald-400 mb-1.5 flex items-center gap-1 text-xs">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  Comparación de rutas ({candidateComparison.candidates.length})
+                </h4>
+                <div className="space-y-1">
+                  {candidateComparison.candidates.map((c) => {
+                    const isChosen = c.id === candidateComparison.chosenId;
+                    return (
+                      <div
+                        key={c.id}
+                        className={`flex items-center gap-2 px-2 py-1 rounded ${
+                          isChosen
+                            ? 'bg-emerald-500/15 border border-emerald-500/40'
+                            : 'bg-muted/30 border border-transparent'
+                        }`}
+                      >
+                        {isChosen && <Trophy className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-semibold truncate ${isChosen ? 'text-emerald-400' : 'text-foreground'}`}>
+                            {c.label}
+                          </div>
+                          <div className="text-muted-foreground text-[9px] truncate">
+                            {c.description}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className={`font-mono font-bold ${isChosen ? 'text-emerald-400' : 'text-foreground'}`}>
+                            {(c.totalDistanceM / 1000).toFixed(1)} km
+                          </div>
+                          <div className="text-[9px] text-muted-foreground">
+                            {(c.transitionDistanceM / 1000).toFixed(1)} km muertos
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-emerald-400/80 text-[10px] mt-1.5 italic">
+                  ✓ {candidateComparison.reason}
+                </p>
+              </div>
+            )}
+
             {/* Active block */}
             <div>
               <h4 className="font-bold text-foreground mb-1 flex items-center gap-1">

@@ -1,5 +1,14 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, orderWithCorridors } from '@/utils/corridor-detection';
+import { generateCandidateRoutes, type CandidateComparison } from '@/utils/route-candidates';
+export type { CandidateComparison, CandidateRoute } from '@/utils/route-candidates';
+
+/** Last candidate comparison result (for debug access) */
+let lastCandidateComparison: CandidateComparison | null = null;
+
+export function getLastCandidateComparison(): CandidateComparison | null {
+  return lastCandidateComparison;
+}
 
 function haversineDistance(a: LatLng, b: LatLng): number {
   const R = 6371e3;
@@ -38,14 +47,26 @@ export function optimizeRoute(
   segments: Segment[],
   currentPos?: LatLng | null
 ): string[] {
-  if (segments.length <= 1) return segments.map((s) => s.id);
+  if (segments.length <= 1) {
+    lastCandidateComparison = null;
+    return segments.map((s) => s.id);
+  }
 
+  // Use multi-candidate comparison (up to 50 segments)
+  const { order, comparison } = generateCandidateRoutes(
+    segments,
+    currentPos ?? null,
+    50,
+  );
+  lastCandidateComparison = comparison;
+
+  // If candidate system produced a result, use it
+  if (order.length > 0) return order;
+
+  // Fallback below (should rarely trigger)
   const base: LatLng = currentPos || segmentEndpoint(segments[0], 'start');
 
-  // 1) Detect road corridors to avoid direction alternation
   const corridors = detectCorridors(segments);
-
-  // 2) If corridors are found, use corridor-aware ordering
   if (corridors.length > 0) {
     const ordered = orderWithCorridors(segments, corridors, base);
     return ordered.map((s) => s.id);
