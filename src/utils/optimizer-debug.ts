@@ -1,6 +1,7 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, type Corridor } from '@/utils/corridor-detection';
-import { getLastCandidateComparison, type CandidateComparison } from '@/utils/route-optimizer';
+import { getLastCandidateComparison } from '@/utils/route-optimizer';
+import type { CandidateComparison } from '@/utils/route-candidates';
 import type { CandidateRoute } from '@/utils/route-candidates';
 
 export type { CandidateRoute, CandidateComparison };

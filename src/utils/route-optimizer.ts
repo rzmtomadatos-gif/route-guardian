@@ -1,6 +1,7 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, orderWithCorridors } from '@/utils/corridor-detection';
-import { generateCandidateRoutes, type CandidateComparison } from '@/utils/route-candidates';
+import { generateCandidateRoutes } from '@/utils/route-candidates';
+export type { CandidateComparison } from '@/utils/route-candidates';
 
 /** Last candidate comparison result (for debug access) */
 let lastCandidateComparison: CandidateComparison | null = null;
