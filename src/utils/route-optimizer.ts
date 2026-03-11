@@ -1,5 +1,13 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, orderWithCorridors } from '@/utils/corridor-detection';
+import { generateCandidateRoutes, type CandidateComparison } from '@/utils/route-candidates';
+
+/** Last candidate comparison result (for debug access) */
+let lastCandidateComparison: CandidateComparison | null = null;
+
+export function getLastCandidateComparison(): CandidateComparison | null {
+  return lastCandidateComparison;
+}
 
 function haversineDistance(a: LatLng, b: LatLng): number {
   const R = 6371e3;
