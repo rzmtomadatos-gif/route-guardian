@@ -78,6 +78,7 @@ export default function MapPage({
   onSkipSegment,
   onCloseBlockEndPrompt,
   onSetWorkDay,
+  onReverseSegment,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
