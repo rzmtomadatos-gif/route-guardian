@@ -32,6 +32,7 @@ interface Props {
   onSkipSegment: () => void;
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
+  onInvertSegment?: () => void;
   onRestartSegment: () => void;
   onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte', distanceMarker?: number) => void;
   currentPosition: LatLng | null;
