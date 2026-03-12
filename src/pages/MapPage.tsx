@@ -52,6 +52,7 @@ interface Props {
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
+  onReverseSegment: (segmentId: string) => void;
 }
 
 export default function MapPage({
