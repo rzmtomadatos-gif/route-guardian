@@ -4,7 +4,7 @@ import {
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
   ChevronRight, Target, Milestone, Wifi, WifiOff,
-  CheckCircle2, CircleDot,
+  CheckCircle2, CircleDot, ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -32,6 +32,7 @@ interface Props {
   onSkipSegment: () => void;
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
+  onInvertSegment?: () => void;
   onRestartSegment: () => void;
   onConfirmF5: (eventType: 'inicio' | 'pk' | 'fin' | 'f7_fin_adquisicion' | 'f9_modo_transporte', distanceMarker?: number) => void;
   currentPosition: LatLng | null;
@@ -118,6 +119,7 @@ export function NavigationOverlay({
   onSkipSegment,
   onPostpone,
   onAddIncident,
+  onInvertSegment,
   onRestartSegment,
   onConfirmF5,
   currentPosition,
@@ -235,9 +237,20 @@ export function NavigationOverlay({
                   )}
                 </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-[10px] text-muted-foreground">Sentido</p>
-                <p className="text-xs font-medium text-foreground">{direction}</p>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="text-right">
+                  <p className="text-[10px] text-muted-foreground">Sentido</p>
+                  <p className="text-xs font-medium text-foreground">{direction}</p>
+                </div>
+                {onInvertSegment && !isRecording && (
+                  <button
+                    onClick={onInvertSegment}
+                    className="p-1.5 rounded-lg bg-accent/20 border border-accent/40 text-accent hover:bg-accent/30 transition-colors"
+                    title="Invertir tramo (intercambiar inicio/fin)"
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 

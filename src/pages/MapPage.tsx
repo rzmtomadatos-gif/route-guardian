@@ -52,6 +52,7 @@ interface Props {
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
+  onReverseSegment: (segmentId: string) => void;
 }
 
 export default function MapPage({
@@ -77,6 +78,7 @@ export default function MapPage({
   onSkipSegment,
   onCloseBlockEndPrompt,
   onSetWorkDay,
+  onReverseSegment,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1085,6 +1087,11 @@ export default function MapPage({
           showF7Prompt={navTracker.showF7Prompt}
           showF9PostPrompt={navTracker.showF9PostPrompt}
           distanceToNextSegment={navTracker.distanceToNextSegment}
+          onInvertSegment={() => {
+            if (activeSegment) {
+              onReverseSegment(activeSegment.id);
+            }
+          }}
         />
       )}
 

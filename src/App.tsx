@@ -126,6 +126,7 @@ function AppRoutes() {
               onSkipSegment={skipSegment}
               onCloseBlockEndPrompt={closeBlockEndPrompt}
               onSetWorkDay={setWorkDay}
+              onReverseSegment={reverseSegment}
             />
           }
         />

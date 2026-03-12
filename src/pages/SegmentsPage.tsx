@@ -142,6 +142,8 @@ export default function SegmentsPage({
   const filtered = useMemo(() => {
     if (!route) return [];
     let segs = [...route.segments];
+    // Filter by hidden layers — hidden layer = no segments shown regardless of status
+    segs = segs.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
     if (statusFilter !== 'todos') {
       segs = segs.filter((s) => s.status === statusFilter);
     }
@@ -161,7 +163,7 @@ export default function SegmentsPage({
       segs.sort((a, b) => (distanceMap.get(b.id) || 0) - (distanceMap.get(a.id) || 0));
     }
     return segs;
-  }, [route, statusFilter, search, sortByDistance, sortByProximity, distanceMap, vehicleDistanceMap, geo.position]);
+  }, [route, statusFilter, search, sortByDistance, sortByProximity, distanceMap, vehicleDistanceMap, geo.position, hiddenLayers]);
 
   // Total distance of filtered segments
   const totalDistanceKm = useMemo(() => {
