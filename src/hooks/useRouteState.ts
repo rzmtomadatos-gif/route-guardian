@@ -175,11 +175,28 @@ export function useRouteState() {
         };
       }
 
-      // Compute segmentOrder: count how many segments already have this track number + 1
+      // Compute segmentOrder: count only segments in the SAME workDay + trackNumber
       const existingInTrack = s.route.segments.filter(
-        (seg) => seg.trackNumber === nextTrack && seg.id !== segmentId
+        (seg) =>
+          seg.id !== segmentId &&
+          seg.workDay === s.workDay &&
+          seg.trackNumber === nextTrack &&
+          (seg.status === 'en_progreso' || seg.status === 'completado') &&
+          !seg.nonRecordable
       ).length;
       const segmentOrder = existingInTrack + 1;
+
+      // Hard guard: in RST mode, segmentOrder must not exceed block capacity
+      if (s.rstMode && segmentOrder > groupLimit) {
+        console.warn('Invalid segmentOrder detected', {
+          workDay: s.workDay,
+          trackNumber: nextTrack,
+          segmentOrder,
+          groupLimit,
+          segmentId,
+        });
+        return s;
+      }
 
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 

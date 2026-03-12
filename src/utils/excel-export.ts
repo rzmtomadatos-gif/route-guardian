@@ -139,13 +139,14 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   // Auto-fix completed segments missing track/timestamps
   const validatedSegments = autoFixSegments(exportSegments);
 
-  // Build order-in-track map
+  // Build order-in-track map keyed by workDay + trackNumber
   const trackOrderMap = new Map<string, number>();
-  const trackSegGroups = new Map<number, string[]>();
+  const trackSegGroups = new Map<string, string[]>();
   validatedSegments.forEach((seg) => {
     if (seg.trackNumber !== null) {
-      if (!trackSegGroups.has(seg.trackNumber)) trackSegGroups.set(seg.trackNumber, []);
-      trackSegGroups.get(seg.trackNumber)!.push(seg.id);
+      const key = `${seg.workDay ?? 0}_${seg.trackNumber}`;
+      if (!trackSegGroups.has(key)) trackSegGroups.set(key, []);
+      trackSegGroups.get(key)!.push(seg.id);
     }
   });
   trackSegGroups.forEach((ids) => {
