@@ -4,7 +4,7 @@ import {
   Gauge, SkipForward, Activity, ArrowDownLeft,
   ShieldAlert, Flag, Ban, RotateCcw, Zap,
   ChevronRight, Target, Milestone, Wifi, WifiOff,
-  CheckCircle2, CircleDot,
+  CheckCircle2, CircleDot, ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
