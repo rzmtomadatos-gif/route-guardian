@@ -1089,7 +1089,7 @@ export default function MapPage({
           distanceToNextSegment={navTracker.distanceToNextSegment}
           onInvertSegment={() => {
             if (activeSegment) {
-              reverseSegment(activeSegment.id);
+              onReverseSegment(activeSegment.id);
             }
           }}
         />
