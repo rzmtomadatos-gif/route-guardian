@@ -119,6 +119,7 @@ export function NavigationOverlay({
   onSkipSegment,
   onPostpone,
   onAddIncident,
+  onInvertSegment,
   onRestartSegment,
   onConfirmF5,
   currentPosition,
