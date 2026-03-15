@@ -229,10 +229,10 @@ export function LayerPanel({
               onHiddenLayersChange(new Set());
             }}
             className="h-7 px-1.5 text-[10px] text-muted-foreground hover:text-primary"
-            title="Mostrar todas las capas"
+            title="Mostrar tramos de todas las capas"
           >
             <Eye className="w-3 h-3 mr-0.5" />
-            Todo
+            Todos
           </Button>
           <Button
             size="sm"
@@ -243,10 +243,10 @@ export function LayerPanel({
               onHiddenLayersChange(allNames);
             }}
             className="h-7 px-1.5 text-[10px] text-muted-foreground hover:text-primary"
-            title="Ocultar todas las capas"
+            title="Ocultar tramos de todas las capas"
           >
             <EyeOff className="w-3 h-3 mr-0.5" />
-            Todo
+            Todos
           </Button>
           <Button
             size="sm"
