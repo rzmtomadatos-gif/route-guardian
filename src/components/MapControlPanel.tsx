@@ -244,7 +244,12 @@ export function MapControlPanel({
               </div>
             )}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{pending} pend. · {completed} compl.</span>
+              <span>
+                {pending} pend. · {completed} compl.
+                {rstMode && trackSession && (
+                  <> · T{trackSession.trackNumber} ({rstValidCount}/{rstGroupSize})</>
+                )}
+              </span>
               <div className="flex items-center gap-1.5">
                 {gpsEnabled ? <LocateFixed className="w-3 h-3 text-accent" /> : <LocateOff className="w-3 h-3" />}
                 <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
