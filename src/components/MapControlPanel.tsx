@@ -271,7 +271,7 @@ export function MapControlPanel({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={onFinalizeTrack}
+                    onClick={() => { if (window.confirm(`¿Finalizar track T${trackSession.trackNumber}? Esta acción cerrará el bloque actual.`)) onFinalizeTrack(); }}
                     className="h-6 px-2 text-[10px] border-destructive/40 text-destructive hover:bg-destructive/10"
                     title="Finalizar track manualmente"
                   >
