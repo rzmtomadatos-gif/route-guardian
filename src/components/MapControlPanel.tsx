@@ -243,17 +243,43 @@ export function MapControlPanel({
                 </Button>
               </div>
             )}
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>
-                {pending} pend. · {completed} compl.
-                {rstMode && trackSession && (
-                  <> · T{trackSession.trackNumber} ({rstValidCount}/{rstGroupSize})</>
-                )}
-              </span>
-              <div className="flex items-center gap-1.5">
-                {gpsEnabled ? <LocateFixed className="w-3 h-3 text-accent" /> : <LocateOff className="w-3 h-3" />}
-                <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>
+                  {pending} pend. · {completed} compl.
+                  {rstMode && trackSession && (
+                    <> · T{trackSession.trackNumber} ({rstValidCount}/{rstGroupSize})</>
+                  )}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {gpsEnabled ? <LocateFixed className="w-3 h-3 text-accent" /> : <LocateOff className="w-3 h-3" />}
+                  <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
+                </div>
               </div>
+              {rstMode && trackSession && (
+                <div className="flex items-center gap-2">
+                  <Progress
+                    value={(rstValidCount / rstGroupSize) * 100}
+                    className={`h-2 flex-1 ${
+                      rstValidCount >= rstGroupSize
+                        ? '[&>div]:bg-destructive'
+                        : rstValidCount >= rstGroupSize - 1
+                          ? '[&>div]:bg-amber-500'
+                          : '[&>div]:bg-primary'
+                    }`}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onFinalizeTrack}
+                    className="h-6 px-2 text-[10px] border-destructive/40 text-destructive hover:bg-destructive/10"
+                    title="Finalizar track manualmente"
+                  >
+                    <StopCircle className="w-3 h-3 mr-1" />
+                    Fin T{trackSession.trackNumber}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
