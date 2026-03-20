@@ -78,7 +78,7 @@ export default function MapPage({
   onSkipSegment,
   onCloseBlockEndPrompt,
   onSetWorkDay,
-  onReverseSegment,
+  onReverseSegment
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -154,7 +154,7 @@ export default function MapPage({
   const blockVersionRef = useRef(0);
 
   const recalcBlock = useCallback(() => {
-    if (!state.route) { setActiveRouteBlock([]); return; }
+    if (!state.route) {setActiveRouteBlock([]);return;}
     const block = computeRouteBlock(state.route.segments, geo.position, hiddenLayers, ROUTE_BLOCK_SIZE);
     setActiveRouteBlock(block);
     blockVersionRef.current += 1;
@@ -163,11 +163,11 @@ export default function MapPage({
   // Recalc block when segments/layers change (completion, incident, layer toggle)
   const blockDepsFingerprint = useMemo(() => {
     if (!state.route) return '';
-    return state.route.segments
-      .filter((s) => s.status === 'pendiente' || (s.status === 'posible_repetir' && s.needsRepeat))
-      .filter((s) => !s.nonRecordable && (!s.layer || !hiddenLayers.has(s.layer)))
-      .map((s) => s.id)
-      .join(',');
+    return state.route.segments.
+    filter((s) => s.status === 'pendiente' || s.status === 'posible_repetir' && s.needsRepeat).
+    filter((s) => !s.nonRecordable && (!s.layer || !hiddenLayers.has(s.layer))).
+    map((s) => s.id).
+    join(',');
   }, [state.route, hiddenLayers]);
 
   const prevBlockFingerprint = useRef('');
@@ -186,7 +186,7 @@ export default function MapPage({
       activeRouteBlock,
       state.activeSegmentId || null,
       geo.position,
-      hiddenLayers,
+      hiddenLayers
     );
   }, [debugMode, state.route, activeRouteBlock, state.activeSegmentId, geo.position, hiddenLayers]);
 
@@ -258,7 +258,7 @@ export default function MapPage({
     !!isRecording,
     state.navigationActive,
     undefined,
-    nextSegment,
+    nextSegment
   );
 
   // F5 event log
@@ -273,7 +273,7 @@ export default function MapPage({
       confirmedByUser: true,
       trackNumber: activeSegment?.trackNumber ?? null,
       workDay: state.workDay,
-      attemptNumber: activeSegment?.repeatNumber ?? 0,
+      attemptNumber: activeSegment?.repeatNumber ?? 0
     };
     f5EventsRef.current = [...f5EventsRef.current, evt];
   }, [activeSegment, state.workDay]);
@@ -295,29 +295,29 @@ export default function MapPage({
     if (prev === curr) return;
 
     // Approach reference sounds
-    if (curr === 'ref_300m' && prev === 'approaching') playRef300Sound();
-    else if (curr === 'ref_150m' && prev === 'ref_300m') playRef150Sound();
-    else if (curr === 'ref_30m' && prev === 'ref_150m') playRef30Sound();
-    else if (curr === 'ready_f5_start') playF5ReadySound();
+    if (curr === 'ref_300m' && prev === 'approaching') playRef300Sound();else
+    if (curr === 'ref_150m' && prev === 'ref_300m') playRef150Sound();else
+    if (curr === 'ref_30m' && prev === 'ref_150m') playRef30Sound();else
+    if (curr === 'ready_f5_start') playF5ReadySound();
     // End reference sounds (now fire AFTER passing end)
-    else if (curr === 'end_ref_30m' && (prev === 'past_end' || prev === 'recording')) playRef30Sound();
-    else if (curr === 'end_ref_150m') playRef150Sound();
-    else if (curr === 'end_ref_300m') playRef300Sound();
-    else if (curr === 'ready_f5_end') {
+    else if (curr === 'end_ref_30m' && (prev === 'past_end' || prev === 'recording')) playRef30Sound();else
+    if (curr === 'end_ref_150m') playRef150Sound();else
+    if (curr === 'end_ref_300m') playRef300Sound();else
+    if (curr === 'ready_f5_end') {
       playF5ReadySound();
       if (navTracker.contiguousInfo.isContiguous) playContiguousTransitionSound();
     }
     // F7/F9 sounds
-    else if (curr === 'ready_f7') playF7Sound();
-    else if (curr === 'ready_f9_post' || curr === 'ready_f9_pre') playF9Sound();
+    else if (curr === 'ready_f7') playF7Sound();else
+    if (curr === 'ready_f9_post' || curr === 'ready_f9_pre') playF9Sound();
     // Deviation / invalidation
-    else if (curr === 'deviated' || curr === 'invalidated') playInvalidationSound();
-    else if (curr === 'wrong_direction') playWrongDirectionSound();
-    else if (curr === 'pre_alert') playPreAlertSound();
-    else if (curr === 'recording' && prev === 'pre_alert') playRecoverySound();
-    else if (curr === 'gps_unstable') playGpsUnstableSound();
+    else if (curr === 'deviated' || curr === 'invalidated') playInvalidationSound();else
+    if (curr === 'wrong_direction') playWrongDirectionSound();else
+    if (curr === 'pre_alert') playPreAlertSound();else
+    if (curr === 'recording' && prev === 'pre_alert') playRecoverySound();else
+    if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
-  
+
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
     if (!activeSegment || !state.navigationActive) return;
@@ -328,7 +328,7 @@ export default function MapPage({
   }, [activeSegment, hiddenLayers, state.navigationActive, onStopNavigation]);
 
   // Auto-calculate route when both points are set
-  const [creationRoadInfo, setCreationRoadInfo] = useState<{ name: string; highway: string; oneway: boolean } | null>(null);
+  const [creationRoadInfo, setCreationRoadInfo] = useState<{name: string;highway: string;oneway: boolean;} | null>(null);
   const [isLoadingRoadInfo, setIsLoadingRoadInfo] = useState(false);
 
   useEffect(() => {
@@ -340,33 +340,33 @@ export default function MapPage({
     }
 
     setIsLoadingRoute(true);
-    computeDirectionsRoute([creationStart, creationEnd], apiKey)
-      .then((result) => {
-        if (result) {
-          fetchDirectionsRoute(creationStart, creationEnd, apiKey);
-        } else {
-          setCreationRoute([creationStart, creationEnd]);
-          setIsLoadingRoute(false);
-        }
-      })
-      .catch(() => {
+    computeDirectionsRoute([creationStart, creationEnd], apiKey).
+    then((result) => {
+      if (result) {
+        fetchDirectionsRoute(creationStart, creationEnd, apiKey);
+      } else {
         setCreationRoute([creationStart, creationEnd]);
         setIsLoadingRoute(false);
-      });
+      }
+    }).
+    catch(() => {
+      setCreationRoute([creationStart, creationEnd]);
+      setIsLoadingRoute(false);
+    });
 
     // Query Overpass for road info at midpoint
     setIsLoadingRoadInfo(true);
     setCreationRoadInfo(null);
     const mid: LatLng = {
       lat: (creationStart.lat + creationEnd.lat) / 2,
-      lng: (creationStart.lng + creationEnd.lng) / 2,
+      lng: (creationStart.lng + creationEnd.lng) / 2
     };
-    fetchNearestRoad(mid)
-      .then((info) => {
-        if (info) setCreationRoadInfo(info);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoadingRoadInfo(false));
+    fetchNearestRoad(mid).
+    then((info) => {
+      if (info) setCreationRoadInfo(info);
+    }).
+    catch(() => {}).
+    finally(() => setIsLoadingRoadInfo(false));
   }, [creationStart, creationEnd]);
 
   const fetchDirectionsRoute = useCallback(async (start: LatLng, end: LatLng, apiKey: string) => {
@@ -384,14 +384,14 @@ export default function MapPage({
         {
           origin: new gmaps.LatLng(start.lat, start.lng),
           destination: new gmaps.LatLng(end.lat, end.lng),
-          travelMode: gmaps.TravelMode.DRIVING,
+          travelMode: gmaps.TravelMode.DRIVING
         },
         (result: any, status: string) => {
           if (status === 'OK' && result?.routes?.[0]) {
             const path = result.routes[0].overview_path;
             const coords: LatLng[] = path.map((p: any) => ({
               lat: p.lat(),
-              lng: p.lng(),
+              lng: p.lng()
             }));
             setCreationRoute(coords);
           } else {
@@ -419,8 +419,8 @@ export default function MapPage({
   const handleSegmentClick = useCallback((segId: string) => {
     if (selectionMode) {
       const next = new Set(selectedSegmentIds);
-      if (next.has(segId)) next.delete(segId);
-      else next.add(segId);
+      if (next.has(segId)) next.delete(segId);else
+      next.add(segId);
       setSelectedSegmentIds(next);
     } else {
       onSetActiveSegment(segId);
@@ -491,10 +491,10 @@ export default function MapPage({
       if (zoneSelectMode === 'polygon' && points.length >= 3) {
         let inside = false;
         for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-          const xi = points[i].lat, yi = points[i].lng;
-          const xj = points[j].lat, yj = points[j].lng;
-          const intersect = ((yi > coord.lng) !== (yj > coord.lng)) &&
-            (coord.lat < (xj - xi) * (coord.lng - yi) / (yj - yi) + xi);
+          const xi = points[i].lat,yi = points[i].lng;
+          const xj = points[j].lat,yj = points[j].lng;
+          const intersect = yi > coord.lng !== yj > coord.lng &&
+          coord.lat < (xj - xi) * (coord.lng - yi) / (yj - yi) + xi;
           if (intersect) inside = !inside;
         }
         return inside;
@@ -573,7 +573,7 @@ export default function MapPage({
     setShowAreaDialog(false);
   }, []);
 
-  const getCircleParams = useCallback((): { center: LatLng; radiusMeters: number } | null => {
+  const getCircleParams = useCallback((): {center: LatLng;radiusMeters: number;} | null => {
     if (areaMode !== 'circle' || areaPoints.length < 2) return null;
     const center = areaPoints[0];
     const edge = areaPoints[1];
@@ -589,11 +589,11 @@ export default function MapPage({
     if (areaMode === 'rectangle' && areaPoints.length >= 2) {
       const [a, b] = areaPoints;
       return [
-        { lat: Math.min(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
-        { lat: Math.min(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
-        { lat: Math.max(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
-        { lat: Math.max(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
-      ];
+      { lat: Math.min(a.lat, b.lat), lng: Math.min(a.lng, b.lng) },
+      { lat: Math.min(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
+      { lat: Math.max(a.lat, b.lat), lng: Math.max(a.lng, b.lng) },
+      { lat: Math.max(a.lat, b.lat), lng: Math.min(a.lng, b.lng) }];
+
     }
     if (areaMode === 'circle' && areaPoints.length >= 2) {
       // Approximate circle as polygon for fallback
@@ -603,12 +603,12 @@ export default function MapPage({
       const points: LatLng[] = [];
       const n = 32;
       for (let i = 0; i < n; i++) {
-        const angle = (2 * Math.PI * i) / n;
-        const dLat = (radiusMeters / 6371000) * (180 / Math.PI);
+        const angle = 2 * Math.PI * i / n;
+        const dLat = radiusMeters / 6371000 * (180 / Math.PI);
         const dLng = dLat / Math.cos(center.lat * Math.PI / 180);
         points.push({
           lat: center.lat + dLat * Math.cos(angle),
-          lng: center.lng + dLng * Math.sin(angle),
+          lng: center.lng + dLng * Math.sin(angle)
         });
       }
       return points;
@@ -625,7 +625,7 @@ export default function MapPage({
 
       if (areaMode === 'circle' && circleParams) {
         const initialWays = await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories);
-        
+
         if (initialWays.length === 0) {
           toast.warning('No se encontraron vías en la zona seleccionada');
           setIsLoadingArea(false);
@@ -633,7 +633,7 @@ export default function MapPage({
         }
 
         const realNames = [...new Set(initialWays.filter((w) => w.name && !w.name.startsWith('Vía ')).map((w) => w.name))];
-        
+
         if (realNames.length > 0) {
           toast.info(`Completando ${realNames.length} vías...`);
           const completeWays = await fetchCompleteRoads(circleParams.center, circleParams.radiusMeters, realNames, categories);
@@ -686,7 +686,7 @@ export default function MapPage({
         type: 'tramo',
         status: 'pendiente',
         kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
-        layer: layerName || undefined,
+        layer: layerName || undefined
       };
       onAddSegment(segment);
     }
@@ -709,7 +709,7 @@ export default function MapPage({
           type: 'tramo',
           status: 'pendiente',
           kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
-          layer: reverseLayerName,
+          layer: reverseLayerName
         };
         onAddSegment(segment);
       }
@@ -732,7 +732,7 @@ export default function MapPage({
     const visiblePending = state.route?.segments.filter((s) => {
       if (s.nonRecordable) return false;
       if (s.layer && hiddenLayers.has(s.layer)) return false;
-      return s.status === 'pendiente' || (s.status === 'posible_repetir' && s.needsRepeat);
+      return s.status === 'pendiente' || s.status === 'posible_repetir' && s.needsRepeat;
     }) || [];
 
     if (visiblePending.length === 0) {
@@ -757,7 +757,7 @@ export default function MapPage({
   const prevBlockOpenRef = useRef(false);
   useEffect(() => {
     if (state.blockEndPrompt.isOpen && !prevBlockOpenRef.current) {
-      try { navigator.vibrate?.([200, 100, 200]); } catch {}
+      try {navigator.vibrate?.([200, 100, 200]);} catch {}
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const osc = ctx.createOscillator();
@@ -775,7 +775,7 @@ export default function MapPage({
   }, [state.blockEndPrompt.isOpen]);
 
   // Copilot: build queue of next eligible segments
-  const getNextEligibleSegments = useCallback((fromCursor: number, count: number): { items: QueueItem[]; newCursor: number; segments: Segment[] } => {
+  const getNextEligibleSegments = useCallback((fromCursor: number, count: number): {items: QueueItem[];newCursor: number;segments: Segment[];} => {
     if (!state.route) return { items: [], newCursor: fromCursor, segments: [] };
     const order = state.route.optimizedOrder;
     const allSegments = state.route.segments;
@@ -784,7 +784,7 @@ export default function MapPage({
     let cursor = fromCursor;
 
     while (items.length < count && cursor < order.length) {
-      const seg = allSegments.find(s => s.id === order[cursor]);
+      const seg = allSegments.find((s) => s.id === order[cursor]);
       cursor++;
       if (!seg) continue;
       if (seg.layer && hiddenLayers.has(seg.layer)) continue;
@@ -804,7 +804,7 @@ export default function MapPage({
     const order = state.route.optimizedOrder;
     const parts: string[] = [];
     for (const id of order) {
-      const seg = state.route.segments.find(s => s.id === id);
+      const seg = state.route.segments.find((s) => s.id === id);
       if (!seg) continue;
       if (seg.layer && hiddenLayers.has(seg.layer)) continue;
       if (seg.nonRecordable) continue;
@@ -942,7 +942,7 @@ export default function MapPage({
   const layers = useMemo(() => {
     if (!route) return [];
     const set = new Set<string>();
-    route.segments.forEach((s) => { if (s.layer) set.add(s.layer); });
+    route.segments.forEach((s) => {if (s.layer) set.add(s.layer);});
     return Array.from(set).sort();
   }, [route]);
 
@@ -986,8 +986,8 @@ export default function MapPage({
           <Upload className="w-5 h-5 mr-2" />
           Cargar archivo
         </Button>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -998,114 +998,114 @@ export default function MapPage({
           activeSegmentId={state.activeSegmentId}
           currentPosition={geo.position}
           optimizedOrder={visibleOrder}
-           onSegmentClick={handleSegmentClick}
-           selectedSegmentIds={selectedSegmentIds.size > 0 || selectionMode ? selectedSegmentIds : undefined}
-           layerColorMap={layerColorMap}
-           creationMode={creationMode}
-           onMapClick={handleMapClick}
-           creationStartPoint={creationStart}
-           creationEndPoint={creationEnd}
-           creationRoutePreview={creationRoute}
-           areaSelectionMode={zoneSelectMode !== 'none' ? zoneSelectMode : areaMode}
-           areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
-           onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
-           fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
-           centerActiveRequest={centerActiveRequest}
-           arrowSegmentIds={arrowSegmentIds}
-        />
+          onSegmentClick={handleSegmentClick}
+          selectedSegmentIds={selectedSegmentIds.size > 0 || selectionMode ? selectedSegmentIds : undefined}
+          layerColorMap={layerColorMap}
+          creationMode={creationMode}
+          onMapClick={handleMapClick}
+          creationStartPoint={creationStart}
+          creationEndPoint={creationEnd}
+          creationRoutePreview={creationRoute}
+          areaSelectionMode={zoneSelectMode !== 'none' ? zoneSelectMode : areaMode}
+          areaPoints={zoneSelectMode !== 'none' ? zoneSelectPoints : areaPoints}
+          onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
+          fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
+          centerActiveRequest={centerActiveRequest}
+          arrowSegmentIds={arrowSegmentIds} />
+        
       </div>
 
       {/* Map mode indicator */}
       <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
-        mapMode === 'google' 
-          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-          : 'bg-muted/80 text-muted-foreground border border-border'
-      }`}>
+      mapMode === 'google' ?
+      'bg-green-500/20 text-green-400 border border-green-500/30' :
+      'bg-muted/80 text-muted-foreground border border-border'}`
+      }>
         {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
       </div>
       {/* Debug mode toggle */}
       <button
         onClick={() => setDebugMode(!debugMode)}
         className={`absolute top-12 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm transition-colors ${
-          debugMode
-            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-            : 'bg-muted/60 text-muted-foreground/50 border border-transparent hover:border-border'
-        }`}
-        title="Debug optimizador"
-      >
+        debugMode ?
+        'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+        'bg-muted/60 text-muted-foreground/50 border border-transparent hover:border-border'}`
+        }
+        title="Debug optimizador">
+        
         🐛 Debug
       </button>
 
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
-      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' && (
-        <NavigationOverlay
-          segment={activeSegment}
-          operationalState={navTracker.operationalState}
-          distanceToStart={navTracker.distanceToStart}
-          distanceToEnd={navTracker.distanceToEnd}
-          etaToStart={navTracker.etaToStart}
-          progressPercent={navTracker.progressPercent}
-          distanceRemaining={navTracker.distanceRemaining}
-          totalDistance={navTracker.totalDistance}
-          speedKmh={navTracker.speedKmh}
-          deviationMeters={navTracker.deviationMeters}
-          showApproachPrompt={navTracker.showApproachPrompt}
-          onStartSegment={() => {
-            navTracker.dismissApproachPrompt();
-            onConfirmStart(activeSegment.id, hiddenLayers);
-          }}
-          onCompleteSegment={() => onComplete(activeSegment.id, hiddenLayers)}
-          onSkipSegment={() => onSkipSegment(activeSegment.id, hiddenLayers)}
-          onPostpone={() => {
-            navTracker.dismissApproachPrompt();
-            onSkipSegment(activeSegment.id, hiddenLayers);
-          }}
-          onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
-          onRestartSegment={handleRestartSegment}
-          onConfirmF5={handleConfirmF5}
-          currentPosition={geo.position}
-          isBlocked={videoEndBlocking}
-          isInvalidated={navTracker.isInvalidated}
-          contiguousInfo={navTracker.contiguousInfo}
-          activeReference={navTracker.activeReference}
-          headingDelta={navTracker.headingDelta}
-          stats={navTracker.stats}
-          approachSequenceValid={navTracker.approachSequenceValid}
-          geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
-          f5Events={f5EventsRef.current}
-          distanceCovered={navTracker.stats.validDistanceM + navTracker.stats.invalidDistanceM}
-          distancePastEnd={navTracker.distancePastEnd}
-          showF7Prompt={navTracker.showF7Prompt}
-          showF9PostPrompt={navTracker.showF9PostPrompt}
-          distanceToNextSegment={navTracker.distanceToNextSegment}
-          onInvertSegment={() => {
-            if (activeSegment) {
-              onReverseSegment(activeSegment.id);
-            }
-          }}
-        />
-      )}
+      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
+      <NavigationOverlay
+        segment={activeSegment}
+        operationalState={navTracker.operationalState}
+        distanceToStart={navTracker.distanceToStart}
+        distanceToEnd={navTracker.distanceToEnd}
+        etaToStart={navTracker.etaToStart}
+        progressPercent={navTracker.progressPercent}
+        distanceRemaining={navTracker.distanceRemaining}
+        totalDistance={navTracker.totalDistance}
+        speedKmh={navTracker.speedKmh}
+        deviationMeters={navTracker.deviationMeters}
+        showApproachPrompt={navTracker.showApproachPrompt}
+        onStartSegment={() => {
+          navTracker.dismissApproachPrompt();
+          onConfirmStart(activeSegment.id, hiddenLayers);
+        }}
+        onCompleteSegment={() => onComplete(activeSegment.id, hiddenLayers)}
+        onSkipSegment={() => onSkipSegment(activeSegment.id, hiddenLayers)}
+        onPostpone={() => {
+          navTracker.dismissApproachPrompt();
+          onSkipSegment(activeSegment.id, hiddenLayers);
+        }}
+        onAddIncident={(cat, impact, note, nonRec) => onAddIncident(activeSegment.id, cat, impact, note, geo.position ?? undefined, nonRec)}
+        onRestartSegment={handleRestartSegment}
+        onConfirmF5={handleConfirmF5}
+        currentPosition={geo.position}
+        isBlocked={videoEndBlocking}
+        isInvalidated={navTracker.isInvalidated}
+        contiguousInfo={navTracker.contiguousInfo}
+        activeReference={navTracker.activeReference}
+        headingDelta={navTracker.headingDelta}
+        stats={navTracker.stats}
+        approachSequenceValid={navTracker.approachSequenceValid}
+        geometricRecoveryOnly={navTracker.geometricRecoveryOnly}
+        f5Events={f5EventsRef.current}
+        distanceCovered={navTracker.stats.validDistanceM + navTracker.stats.invalidDistanceM}
+        distancePastEnd={navTracker.distancePastEnd}
+        showF7Prompt={navTracker.showF7Prompt}
+        showF9PostPrompt={navTracker.showF9PostPrompt}
+        distanceToNextSegment={navTracker.distanceToNextSegment}
+        onInvertSegment={() => {
+          if (activeSegment) {
+            onReverseSegment(activeSegment.id);
+          }
+        }} />
+
+      }
 
       {/* Creation mode panel */}
-      {creationMode && (
-        <SegmentCreatorPanel
-          layers={layers}
-          onCreateSegment={handleCreateSegment}
-          onCancel={handleCancelCreation}
-          startPoint={creationStart}
-          endPoint={creationEnd}
-          routePreview={creationRoute}
-          isLoadingRoute={isLoadingRoute}
-          roadInfo={creationRoadInfo}
-          isLoadingRoadInfo={isLoadingRoadInfo}
-        />
-      )}
+      {creationMode &&
+      <SegmentCreatorPanel
+        layers={layers}
+        onCreateSegment={handleCreateSegment}
+        onCancel={handleCancelCreation}
+        startPoint={creationStart}
+        endPoint={creationEnd}
+        routePreview={creationRoute}
+        isLoadingRoute={isLoadingRoute}
+        roadInfo={creationRoadInfo}
+        isLoadingRoadInfo={isLoadingRoadInfo} />
+
+      }
 
       {/* Area selection panel */}
-      {areaMode !== 'none' && !showAreaDialog && (
-        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
+      {areaMode !== 'none' && !showAreaDialog &&
+      <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-border rounded-xl shadow-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
               {areaMode === 'rectangle' ? <Square className="w-4 h-4 text-primary" /> : areaMode === 'circle' ? <Circle className="w-4 h-4 text-primary" /> : <Pentagon className="w-4 h-4 text-primary" />}
@@ -1116,28 +1116,28 @@ export default function MapPage({
             </button>
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            {areaMode === 'rectangle'
-              ? `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)`
-              : areaMode === 'circle'
-                ? `Haz click en el centro y luego en el borde del círculo. (${areaPoints.length}/2)`
-                : `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
+            {areaMode === 'rectangle' ?
+          `Haz click en 2 esquinas opuestas del rectángulo. (${areaPoints.length}/2)` :
+          areaMode === 'circle' ?
+          `Haz click en el centro y luego en el borde del círculo. (${areaPoints.length}/2)` :
+          `Haz click para definir los vértices del polígono. (${areaPoints.length} puntos)`}
           </p>
-          {areaMode === 'circle' && areaPoints.length >= 2 && (
-            <p className="text-[10px] text-accent mb-2">
+          {areaMode === 'circle' && areaPoints.length >= 2 &&
+        <p className="text-[10px] text-accent mb-2">
               ⓘ Las vías se completarán de inicio a fin, incluso si se extienden fuera del círculo.
             </p>
-          )}
-          {areaMode === 'polygon' && areaPoints.length >= 3 && (
-            <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
+        }
+          {areaMode === 'polygon' && areaPoints.length >= 3 &&
+        <Button size="sm" onClick={handleFinishPolygon} className="w-full h-8 text-xs bg-primary text-primary-foreground">
               Cerrar polígono y generar
             </Button>
-          )}
+        }
         </div>
-      )}
+      }
 
       {/* Zone selection panel */}
-      {zoneSelectMode !== 'none' && (
-        <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-accent/30 rounded-xl shadow-lg p-3">
+      {zoneSelectMode !== 'none' &&
+      <div className="absolute top-3 left-3 right-3 z-30 bg-card/95 backdrop-blur-sm border border-accent/30 rounded-xl shadow-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
               <BoxSelect className="w-4 h-4 text-accent" />
@@ -1148,19 +1148,19 @@ export default function MapPage({
             </button>
           </div>
           <p className="text-xs text-muted-foreground mb-2">
-            {zoneSelectMode === 'rectangle'
-              ? `Haz click en 2 esquinas opuestas. (${zoneSelectPoints.length}/2)`
-              : zoneSelectMode === 'circle'
-                ? `Haz click en el centro y luego en el borde. (${zoneSelectPoints.length}/2)`
-                : `Haz click para definir los vértices. (${zoneSelectPoints.length} puntos)`}
+            {zoneSelectMode === 'rectangle' ?
+          `Haz click en 2 esquinas opuestas. (${zoneSelectPoints.length}/2)` :
+          zoneSelectMode === 'circle' ?
+          `Haz click en el centro y luego en el borde. (${zoneSelectPoints.length}/2)` :
+          `Haz click para definir los vértices. (${zoneSelectPoints.length} puntos)`}
           </p>
-          {zoneSelectMode === 'polygon' && zoneSelectPoints.length >= 3 && (
-            <Button size="sm" onClick={finishZonePolygon} className="w-full h-8 text-xs bg-accent text-accent-foreground">
+          {zoneSelectMode === 'polygon' && zoneSelectPoints.length >= 3 &&
+        <Button size="sm" onClick={finishZonePolygon} className="w-full h-8 text-xs bg-accent text-accent-foreground">
               Cerrar polígono y seleccionar
             </Button>
-          )}
+        }
         </div>
-      )}
+      }
 
       {/* Area selection dialog */}
       <AreaSelectionDialog
@@ -1169,163 +1169,163 @@ export default function MapPage({
         onConfirm={handleFetchRoads}
         pointCount={areaPoints.length}
         isLoading={isLoadingArea}
-        layers={layers}
-      />
+        layers={layers} />
+      
 
       {/* Area results dialog */}
       <AreaResultsDialog
         open={showResultsDialog}
-        onClose={() => { setShowResultsDialog(false); setFetchedWays([]); handleCancelArea(); }}
+        onClose={() => {setShowResultsDialog(false);setFetchedWays([]);handleCancelArea();}}
         onConfirm={handleConfirmGeneration}
-        ways={fetchedWays}
-      />
+        ways={fetchedWays} />
+      
 
       {/* FAB buttons */}
-      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
-        <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' &&
+      <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
           {/* Selection mode toggle */}
           <button
-            onClick={() => {
-              setSelectionMode(!selectionMode);
-              if (selectionMode) setSelectedSegmentIds(new Set());
-            }}
-            className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${
-              selectionMode
-                ? 'bg-accent text-accent-foreground ring-2 ring-accent/50'
-                : 'bg-secondary text-muted-foreground hover:text-foreground'
-            }`}
-            title={selectionMode ? 'Desactivar selección' : 'Seleccionar tramos'}
-          >
+          onClick={() => {
+            setSelectionMode(!selectionMode);
+            if (selectionMode) setSelectedSegmentIds(new Set());
+          }}
+          className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+          selectionMode ?
+          'bg-accent text-accent-foreground ring-2 ring-accent/50' :
+          'bg-secondary text-muted-foreground hover:text-foreground'}`
+          }
+          title={selectionMode ? 'Desactivar selección' : 'Seleccionar tramos'}>
+          
             <MousePointer2 className="w-4 h-4" />
           </button>
 
           {/* Zone selection buttons - only show in selection mode */}
-          {selectionMode && (
-            <>
+          {selectionMode &&
+        <>
               <button
-                onClick={() => setZoneSelectMode('rectangle')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por rectángulo"
-              >
+            onClick={() => setZoneSelectMode('rectangle')}
+            className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+            title="Seleccionar por rectángulo">
+            
                 <Square className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setZoneSelectMode('polygon')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por polígono"
-              >
+            onClick={() => setZoneSelectMode('polygon')}
+            className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+            title="Seleccionar por polígono">
+            
                 <Pentagon className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setZoneSelectMode('circle')}
-                className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
-                title="Seleccionar por círculo"
-              >
+            onClick={() => setZoneSelectMode('circle')}
+            className="w-10 h-10 rounded-full bg-accent/80 text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent transition-colors"
+            title="Seleccionar por círculo">
+            
                 <Circle className="w-4 h-4" />
               </button>
             </>
-          )}
+        }
 
           {/* Divider */}
           {selectionMode && <div className="w-6 h-px bg-border mx-auto" />}
 
-          {state.activeSegmentId && state.navigationActive && (
-            <button
-              onClick={() => setCenterActiveRequest((c) => c + 1)}
-              className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-              title="Centrar en tramo activo"
-            >
+          {state.activeSegmentId && state.navigationActive &&
+        <button
+          onClick={() => setCenterActiveRequest((c) => c + 1)}
+          className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          title="Centrar en tramo activo">
+          
               <Crosshair className="w-4 h-4" />
             </button>
-          )}
+        }
 
           <button
-            onClick={() => setCreationMode(true)}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
-            title="Crear tramo manual"
-          >
+          onClick={() => setCreationMode(true)}
+          className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          title="Crear tramo manual">
+          
             <Plus className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => setAreaMode('rectangle')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Rectángulo"
-          >
-            <Square className="w-4 h-4" />
-          </button>
+          
+
+
+
+
+
+        
            <button
-            onClick={() => setAreaMode('polygon')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Polígono"
-          >
+          onClick={() => setAreaMode('polygon')}
+          className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
+          title="Generar tramos - Polígono">
+          
             <Pentagon className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setAreaMode('circle')}
-            className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
-            title="Generar tramos - Círculo"
-          >
+          onClick={() => setAreaMode('circle')}
+          className="w-10 h-10 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:bg-accent/90 transition-colors"
+          title="Generar tramos - Círculo">
+          
             <Circle className="w-4 h-4" />
           </button>
         </div>
-      )}
+      }
 
       {/* Optimizer debug panel */}
-      {debugMode && (
-        <OptimizerDebugPanel
-          debugInfo={optimizerDebugInfo}
-          segments={state.route?.segments || []}
-        />
-      )}
+      {debugMode &&
+      <OptimizerDebugPanel
+        debugInfo={optimizerDebugInfo}
+        segments={state.route?.segments || []} />
+
+      }
 
       {/* Control panel overlay */}
-      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
-        <MapControlPanel
-          segments={visibleSegments}
-          optimizedOrder={visibleOrder}
-          activeSegmentId={state.activeSegmentId}
-          gpsEnabled={gpsEnabled}
-          currentPosition={geo.position}
-          gpsAccuracy={geo.accuracy}
-          gpsSpeed={geo.speed}
-          gpsError={geo.error}
-          navigationActive={state.navigationActive}
-          base={state.base}
-          rstMode={state.rstMode}
-          rstGroupSize={state.rstGroupSize}
-          trackSession={state.trackSession}
-          onToggleGps={(v) => { if (v) primeAudio(); setGpsEnabled(v); }}
-          onConfirmStart={(segId) => onConfirmStart(segId, hiddenLayers)}
-          onComplete={(segId) => onComplete(segId, hiddenLayers)}
-          onResetSegment={onResetSegment}
-          onAddIncident={onAddIncident}
-          onRepeatSegment={onRepeatSegment}
-          onReoptimize={handleReoptimize}
-          onStartNavigation={handleStartNavigation}
-          onStopNavigation={onStopNavigation}
-          onExportToGoogleMaps={handleExportToGoogleMaps}
-          onSegmentSelect={onSetActiveSegment}
-          onSetBase={onSetBase}
-          selectedSegmentIds={selectedSegmentIds}
-          onSelectedSegmentsChange={setSelectedSegmentIds}
-          onMergeSegments={onMergeSegments}
-          onSetRstMode={onSetRstMode}
-          onSetRstGroupSize={onSetRstGroupSize}
-          onFinalizeTrack={onFinalizeTrack}
-          onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
-          workDay={state.workDay}
-          onSetWorkDay={onSetWorkDay}
-          activeRouteBlock={activeRouteBlock}
-          videoEndBlocking={videoEndBlocking}
-          onVideoEndContinue={handleVideoEndContinue}
-          
-          copilotSession={copilot.session}
-          copilotActive={copilot.active}
-          onCopilotStart={copilot.createSession}
-          onCopilotEnd={copilot.endSession}
-          onForceSendBatch={handleForceSendBatch}
-        />
-      )}
-    </div>
-  );
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' &&
+      <MapControlPanel
+        segments={visibleSegments}
+        optimizedOrder={visibleOrder}
+        activeSegmentId={state.activeSegmentId}
+        gpsEnabled={gpsEnabled}
+        currentPosition={geo.position}
+        gpsAccuracy={geo.accuracy}
+        gpsSpeed={geo.speed}
+        gpsError={geo.error}
+        navigationActive={state.navigationActive}
+        base={state.base}
+        rstMode={state.rstMode}
+        rstGroupSize={state.rstGroupSize}
+        trackSession={state.trackSession}
+        onToggleGps={(v) => {if (v) primeAudio();setGpsEnabled(v);}}
+        onConfirmStart={(segId) => onConfirmStart(segId, hiddenLayers)}
+        onComplete={(segId) => onComplete(segId, hiddenLayers)}
+        onResetSegment={onResetSegment}
+        onAddIncident={onAddIncident}
+        onRepeatSegment={onRepeatSegment}
+        onReoptimize={handleReoptimize}
+        onStartNavigation={handleStartNavigation}
+        onStopNavigation={onStopNavigation}
+        onExportToGoogleMaps={handleExportToGoogleMaps}
+        onSegmentSelect={onSetActiveSegment}
+        onSetBase={onSetBase}
+        selectedSegmentIds={selectedSegmentIds}
+        onSelectedSegmentsChange={setSelectedSegmentIds}
+        onMergeSegments={onMergeSegments}
+        onSetRstMode={onSetRstMode}
+        onSetRstGroupSize={onSetRstGroupSize}
+        onFinalizeTrack={onFinalizeTrack}
+        onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
+        workDay={state.workDay}
+        onSetWorkDay={onSetWorkDay}
+        activeRouteBlock={activeRouteBlock}
+        videoEndBlocking={videoEndBlocking}
+        onVideoEndContinue={handleVideoEndContinue}
+
+        copilotSession={copilot.session}
+        copilotActive={copilot.active}
+        onCopilotStart={copilot.createSession}
+        onCopilotEnd={copilot.endSession}
+        onForceSendBatch={handleForceSendBatch} />
+
+      }
+    </div>);
+
 }
