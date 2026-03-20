@@ -160,9 +160,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     const trackReal = seg.nonRecordable ? '' : (seg.trackNumber ?? '');
     const durSec = durationSeconds(seg.startedAt || seg.timestampInicio, seg.endedAt || seg.timestampFin);
     return {
-      'ID_EMPRESA': seg.companySegmentId || '',
+      'ID_EMPRESA': seg.companySegmentId || seg.kmlId || '',
       'NOMBRE_TRAMO': seg.name,
-      'Ident. Tramo': seg.companySegmentId || seg.kmlMeta?.identtramo || '',
+      'Ident. Tramo': seg.kmlId || seg.companySegmentId || seg.kmlMeta?.identtramo || '',
       'CAPA': seg.layer || 'Sin capa',
       'DIA': seg.workDay ?? '',
       'TRACK': trackReal,
