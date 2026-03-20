@@ -162,7 +162,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     return {
       'ID_EMPRESA': seg.companySegmentId || '',
       'NOMBRE_TRAMO': seg.name,
-      'Ident. Tramo': seg.kmlMeta?.identtramo || '',
+      'Ident. Tramo': seg.companySegmentId || seg.kmlMeta?.identtramo || '',
       'CAPA': seg.layer || 'Sin capa',
       'DIA': seg.workDay ?? '',
       'TRACK': trackReal,
