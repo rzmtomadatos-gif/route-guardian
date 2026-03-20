@@ -207,7 +207,7 @@ export function NavigationOverlay({
   return (
     <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
       {/* === TOP HUD BAR === */}
-      <div className="mx-2 mt-2 pointer-events-auto">
+        <div className="mx-2 mt-2 mr-14 pointer-events-auto">
         <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl overflow-hidden">
           {/* Status bar */}
           <div className={`px-3 py-1.5 flex items-center gap-2 ${config.colorClass}`}>
