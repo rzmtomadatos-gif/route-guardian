@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { NumberStepper } from '@/components/ui/number-stepper';
 import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/StatusBadge';
 import { IncidentDialog } from '@/components/IncidentDialog';
@@ -451,18 +452,7 @@ export function MapControlPanel({
                 <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
                   <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <label className="text-[10px] text-muted-foreground flex-shrink-0">Día</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={workDay}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= 1) onSetWorkDay(v);
-                    }}
-                    className="w-14 h-6 text-[10px] text-center px-1 py-0"
-                  />
-                  <span className="text-[9px] text-accent whitespace-nowrap">Día {workDay}</span>
+                  <NumberStepper value={workDay} min={1} max={999} onChange={onSetWorkDay} />
                 </div>
 
                 {/* RST Mode */}
@@ -471,19 +461,8 @@ export function MapControlPanel({
                   <label className="text-[10px] text-muted-foreground flex-shrink-0">RST</label>
                   <Switch checked={rstMode} onCheckedChange={onSetRstMode} className="scale-75 origin-left" />
                   {rstMode && (
-                    <Input
-                      type="number"
-                      min={2}
-                      max={12}
-                      value={rstGroupSize}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!isNaN(v) && v >= 2 && v <= 12) onSetRstGroupSize(v);
-                      }}
-                      className="w-14 h-6 text-[10px] text-center px-1 py-0"
-                    />
+                    <NumberStepper value={rstGroupSize} min={2} max={12} onChange={onSetRstGroupSize} />
                   )}
-                  {rstMode && <span className="text-[9px] text-accent whitespace-nowrap">×{rstGroupSize}</span>}
                 </div>
 
                 {/* Track session indicator + finalize */}
