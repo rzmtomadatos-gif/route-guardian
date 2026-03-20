@@ -1035,15 +1035,8 @@ export default function MapPage({
       >
         🐛 Debug
       </button>
-      {state.activeSegmentId && state.navigationActive && (
-        <button
-          onClick={() => setCenterActiveRequest((c) => c + 1)}
-          className="absolute top-3 left-48 z-10 w-9 h-9 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          title="Centrar en tramo activo"
-        >
-          <Crosshair className="w-4 h-4" />
-        </button>
-      )}
+
+
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
       {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' && (
