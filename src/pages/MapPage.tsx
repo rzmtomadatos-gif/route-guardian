@@ -1229,6 +1229,16 @@ export default function MapPage({
           {/* Divider */}
           {selectionMode && <div className="w-6 h-px bg-border mx-auto" />}
 
+          {state.activeSegmentId && state.navigationActive && (
+            <button
+              onClick={() => setCenterActiveRequest((c) => c + 1)}
+              className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              title="Centrar en tramo activo"
+            >
+              <Crosshair className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => setCreationMode(true)}
             className="w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
