@@ -460,19 +460,8 @@ export function MapControlPanel({
                   <label className="text-[10px] text-muted-foreground flex-shrink-0">RST</label>
                   <Switch checked={rstMode} onCheckedChange={onSetRstMode} className="scale-75 origin-left" />
                   {rstMode && (
-                    <Input
-                      type="number"
-                      min={2}
-                      max={12}
-                      value={rstGroupSize}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!isNaN(v) && v >= 2 && v <= 12) onSetRstGroupSize(v);
-                      }}
-                      className="w-14 h-6 text-[10px] text-center px-1 py-0"
-                    />
+                    <NumberStepper value={rstGroupSize} min={2} max={12} onChange={onSetRstGroupSize} />
                   )}
-                  {rstMode && <span className="text-[9px] text-accent whitespace-nowrap">×{rstGroupSize}</span>}
                 </div>
 
                 {/* Track session indicator + finalize */}
