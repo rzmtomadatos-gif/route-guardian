@@ -451,18 +451,7 @@ export function MapControlPanel({
                 <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
                   <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <label className="text-[10px] text-muted-foreground flex-shrink-0">Día</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={workDay}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= 1) onSetWorkDay(v);
-                    }}
-                    className="w-14 h-6 text-[10px] text-center px-1 py-0"
-                  />
-                  <span className="text-[9px] text-accent whitespace-nowrap">Día {workDay}</span>
+                  <NumberStepper value={workDay} min={1} max={999} onChange={onSetWorkDay} />
                 </div>
 
                 {/* RST Mode */}
