@@ -460,6 +460,27 @@ export function MapControlPanel({
                   <NumberStepper value={workDay} min={1} max={999} onChange={onSetWorkDay} />
                 </div>
 
+                {/* Acquisition Mode */}
+                <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
+                  <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <label className="text-[10px] text-muted-foreground flex-shrink-0">Modo</label>
+                  <div className="flex gap-0.5">
+                    {(['RST', 'GARMIN'] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => onSetAcquisitionMode(m)}
+                        className={`px-2 py-0.5 rounded text-[9px] font-bold transition-colors ${
+                          acquisitionMode === m
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* RST Mode */}
                 <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
                   <Repeat className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
