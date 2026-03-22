@@ -201,10 +201,26 @@ export function useRouteState() {
 
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
+      // Garmin mode: compute segmentStartSeconds relative to track start
+      const garminStart = s.acquisitionMode === 'GARMIN' && trackSession.trackStartTime
+        ? Math.round((Date.now() - trackSession.trackStartTime) / 1000)
+        : null;
+
       // Start this segment – assign real trackNumber, workDay, segmentOrder
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now, workDay: s.workDay, segmentOrder }
+          ? {
+              ...seg,
+              status: 'en_progreso' as const,
+              trackNumber: nextTrack,
+              plannedTrackNumber: null,
+              plannedBy: undefined,
+              timestampInicio: now,
+              startedAt: now,
+              workDay: s.workDay,
+              segmentOrder,
+              segmentStartSeconds: garminStart,
+            }
           : seg
       );
 
