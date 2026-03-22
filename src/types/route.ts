@@ -152,6 +152,8 @@ export interface TrackSession {
   startedAt: string | null;
   endedAt: string | null;
   closedManually: boolean;
+  /** Epoch ms when this track started (for Garmin time-based mode) */
+  trackStartTime?: number | null;
 }
 
 export interface BlockEndPrompt {
