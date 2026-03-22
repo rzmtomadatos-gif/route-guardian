@@ -144,6 +144,7 @@ export function NavigationOverlay({
   const isApproach = APPROACH_STATES.includes(operationalState);
   const isRecording = RECORDING_STATES.includes(operationalState);
   const isInvalid = INVALID_STATES.includes(operationalState);
+  const isGarmin = acquisitionMode === 'GARMIN';
   const direction = segment.kmlMeta?.sentido || segment.direction || '—';
 
   const [, setTick] = useState(0);
