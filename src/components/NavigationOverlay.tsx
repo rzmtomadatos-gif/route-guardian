@@ -138,6 +138,7 @@ export function NavigationOverlay({
   showF7Prompt,
   showF9PostPrompt,
   distanceToNextSegment,
+  acquisitionMode,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
