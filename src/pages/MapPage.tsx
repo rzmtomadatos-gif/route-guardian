@@ -1321,7 +1321,8 @@ export default function MapPage({
         activeRouteBlock={activeRouteBlock}
         videoEndBlocking={videoEndBlocking}
         onVideoEndContinue={handleVideoEndContinue}
-
+        acquisitionMode={state.acquisitionMode}
+        onSetAcquisitionMode={onSetAcquisitionMode}
         copilotSession={copilot.session}
         copilotActive={copilot.active}
         onCopilotStart={copilot.createSession}
