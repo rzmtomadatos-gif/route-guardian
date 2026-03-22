@@ -334,13 +334,15 @@ export function NavigationOverlay({
                   )}
                 </div>
 
-                {/* F5 Summary strip */}
-                <F5SummaryStrip
-                  f5StartConfirmed={f5StartConfirmed}
-                  f5EndConfirmed={f5EndConfirmed}
-                  requiredPkMarkers={requiredPkMarkers}
-                  confirmedPks={confirmedPks}
-                />
+                {/* F5 Summary strip — only in RST mode */}
+                {!isGarmin && (
+                  <F5SummaryStrip
+                    f5StartConfirmed={f5StartConfirmed}
+                    f5EndConfirmed={f5EndConfirmed}
+                    requiredPkMarkers={requiredPkMarkers}
+                    confirmedPks={confirmedPks}
+                  />
+                )}
 
                 {/* End reference markers - show past-end distance */}
                 {(operationalState === 'past_end' || operationalState === 'end_ref_30m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_300m' || operationalState === 'ready_f5_end') && (
