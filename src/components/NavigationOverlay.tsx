@@ -411,7 +411,7 @@ export function NavigationOverlay({
       )}
 
       {/* === F5 START CONFIRMATION PROMPT === */}
-      {showApproachPrompt && (
+      {!isGarmin && showApproachPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
