@@ -1059,6 +1059,11 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Set acquisition mode (RST or GARMIN) */
+  const setAcquisitionMode = useCallback((mode: import('@/types/route').AcquisitionMode) => {
+    setState((s) => ({ ...s, acquisitionMode: mode }));
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -1101,5 +1106,6 @@ export function useRouteState() {
     setWorkDay,
     updateRouteContext,
     applyRetroactiveIds,
+    setAcquisitionMode,
   };
 }
