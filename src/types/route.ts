@@ -1,3 +1,4 @@
+export type AcquisitionMode = 'RST' | 'GARMIN';
 export type SegmentDirection = 'creciente' | 'ambos';
 export type SegmentType = 'tramo' | 'rotonda';
 export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado' | 'posible_repetir';
