@@ -263,6 +263,11 @@ export function useRouteState() {
         autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null, s.workDay);
       }
 
+      // Garmin mode: compute segmentEndSeconds relative to track start
+      const garminEnd = s.acquisitionMode === 'GARMIN' && s.trackSession?.trackStartTime
+        ? Math.round((Date.now() - s.trackSession.trackStartTime) / 1000)
+        : null;
+
       // Only complete THIS segment with invariants enforced
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
@@ -284,6 +289,7 @@ export function useRouteState() {
           repeatRequested: false,
           invalidatedByTrack: null,
           repeatNumber: (seg.repeatNumber || 0) + 1,
+          segmentEndSeconds: garminEnd ?? seg.segmentEndSeconds ?? null,
         };
       });
 
