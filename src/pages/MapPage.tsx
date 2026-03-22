@@ -53,6 +53,7 @@ interface Props {
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
+  onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
 }
 
 export default function MapPage({
