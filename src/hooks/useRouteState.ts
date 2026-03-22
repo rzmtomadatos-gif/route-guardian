@@ -644,6 +644,7 @@ export function useRouteState() {
       trackSession: null,
       blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
       workDay: s.workDay,
+      acquisitionMode: s.acquisitionMode,
     }));
   }, [setState]);
 
