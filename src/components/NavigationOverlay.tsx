@@ -520,7 +520,7 @@ export function NavigationOverlay({
       )}
 
       {/* === F7 — END ACQUISITION PROMPT === */}
-      {showF7Prompt && (
+      {!isGarmin && showF7Prompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
