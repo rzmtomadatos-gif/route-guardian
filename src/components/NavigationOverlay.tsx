@@ -385,7 +385,7 @@ export function NavigationOverlay({
       )}
 
       {/* === PK MILESTONE ALERT === */}
-      {pendingPk !== null && (
+      {!isGarmin && pendingPk !== null && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-accent rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
