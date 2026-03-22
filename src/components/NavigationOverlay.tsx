@@ -50,6 +50,7 @@ interface Props {
   showF7Prompt: boolean;
   showF9PostPrompt: boolean;
   distanceToNextSegment: number | null;
+  acquisitionMode: AcquisitionMode;
 }
 
 function formatDistance(meters: number | null): string {
