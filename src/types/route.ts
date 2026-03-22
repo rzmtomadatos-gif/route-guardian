@@ -175,4 +175,6 @@ export interface AppState {
   blockEndPrompt: BlockEndPrompt;
   /** Current work day number (1-based). Tracks reset each day. */
   workDay: number;
+  /** Acquisition mode: RST (F5-based) or GARMIN (time-based) */
+  acquisitionMode: AcquisitionMode;
 }
