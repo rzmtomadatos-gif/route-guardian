@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
-import type { Segment, LatLng, IncidentCategory, IncidentImpact, F5Event } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, IncidentImpact, F5Event, AcquisitionMode } from '@/types/route';
 import { getRequiredPkMarkers } from '@/types/route';
 import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
 import { playRef300Sound } from '@/utils/sounds';
