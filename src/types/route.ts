@@ -56,6 +56,10 @@ export interface Segment {
   workDay?: number;
   /** Order of this segment within its track */
   segmentOrder?: number;
+  /** Garmin mode: seconds from track start to segment start */
+  segmentStartSeconds?: number | null;
+  /** Garmin mode: seconds from track start to segment end */
+  segmentEndSeconds?: number | null;
 }
 
 /** F5 confirmation event recorded by operator */
