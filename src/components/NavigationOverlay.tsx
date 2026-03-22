@@ -640,12 +640,12 @@ export function NavigationOverlay({
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="flex gap-2">
             <Button
-              onClick={() => { onConfirmF5('fin'); onCompleteSegment(); }}
+              onClick={() => { if (!isGarmin) onConfirmF5('fin'); onCompleteSegment(); }}
               size="sm"
               className="flex-1 h-10 text-xs bg-primary/80 text-primary-foreground"
             >
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-              Confirmar F5 Cierre
+              {isGarmin ? 'Finalizar tramo' : 'Confirmar F5 Cierre'}
             </Button>
             <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
               <Button
