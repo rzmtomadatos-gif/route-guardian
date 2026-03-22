@@ -130,6 +130,8 @@ export function MapControlPanel({
   onCopilotStart,
   onCopilotEnd,
   onForceSendBatch,
+  acquisitionMode,
+  onSetAcquisitionMode,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
