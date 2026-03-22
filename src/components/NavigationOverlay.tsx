@@ -410,6 +410,43 @@ export function NavigationOverlay({
         </div>
       )}
 
+      {/* === GARMIN START PROMPT (simple, no F5) === */}
+      {isGarmin && showApproachPrompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Play className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Zona de inicio alcanzada</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Pulsa Iniciar para comenzar la grabación Garmin.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                disabled={isBlocked}
+                onClick={() => onStartSegment()}
+                className="h-14 text-sm font-bold bg-primary text-primary-foreground"
+              >
+                <Play className="w-5 h-5 mr-1" />
+                Iniciar tramo
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onPostpone}
+                className="h-14 text-sm border-border"
+              >
+                <SkipForward className="w-4 h-4 mr-1" />
+                Posponer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* === F5 START CONFIRMATION PROMPT === */}
       {!isGarmin && showApproachPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
