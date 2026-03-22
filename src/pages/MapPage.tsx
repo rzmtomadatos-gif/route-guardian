@@ -1082,6 +1082,7 @@ export default function MapPage({
         showF7Prompt={navTracker.showF7Prompt}
         showF9PostPrompt={navTracker.showF9PostPrompt}
         distanceToNextSegment={navTracker.distanceToNextSegment}
+        acquisitionMode={state.acquisitionMode}
         onInvertSegment={() => {
           if (activeSegment) {
             onReverseSegment(activeSegment.id);
