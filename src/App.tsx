@@ -60,6 +60,7 @@ function AppRoutes() {
     setWorkDay,
     updateRouteContext,
     applyRetroactiveIds,
+    setAcquisitionMode,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
