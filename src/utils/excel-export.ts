@@ -195,6 +195,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'Repetir': seg.needsRepeat ? 'Sí' : '',
       'Track invalidado por': seg.invalidatedByTrack ?? '',
       'Incidencias (total)': segIncidents.length,
+      'SEG_INICIO_TRACK': seg.segmentStartSeconds ?? '',
+      'SEG_FIN_TRACK': seg.segmentEndSeconds ?? '',
     };
   });
 
