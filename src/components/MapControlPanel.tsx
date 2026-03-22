@@ -75,6 +75,9 @@ interface Props {
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
   onVideoEndCancel?: () => void;
+  /** Acquisition mode */
+  acquisitionMode: AcquisitionMode;
+  onSetAcquisitionMode: (mode: AcquisitionMode) => void;
   /** Copilot session props */
   copilotSession: import('@/hooks/useCopilotSession').CopilotSession | null;
   copilotActive: boolean;
