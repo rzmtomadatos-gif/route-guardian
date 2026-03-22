@@ -47,6 +47,7 @@ export function loadState(): AppState {
       if (!('trackSession' in parsed)) parsed.trackSession = null;
       if (!('blockEndPrompt' in parsed)) parsed.blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
       if (!('workDay' in parsed)) parsed.workDay = 1;
+      if (!('acquisitionMode' in parsed)) parsed.acquisitionMode = 'RST';
       return parsed;
     }
   } catch (e) {
@@ -64,6 +65,7 @@ export function loadState(): AppState {
     trackSession: null,
     blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
     workDay: 1,
+    acquisitionMode: 'RST' as const,
   };
 }
 

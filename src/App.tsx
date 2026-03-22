@@ -60,6 +60,7 @@ function AppRoutes() {
     setWorkDay,
     updateRouteContext,
     applyRetroactiveIds,
+    setAcquisitionMode,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -127,6 +128,7 @@ function AppRoutes() {
               onCloseBlockEndPrompt={closeBlockEndPrompt}
               onSetWorkDay={setWorkDay}
               onReverseSegment={reverseSegment}
+              onSetAcquisitionMode={setAcquisitionMode}
             />
           }
         />

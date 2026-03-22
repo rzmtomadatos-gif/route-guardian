@@ -16,7 +16,7 @@ import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
-import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession, AcquisitionMode } from '@/types/route';
 import {
   Collapsible,
   CollapsibleContent,
@@ -75,6 +75,9 @@ interface Props {
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
   onVideoEndCancel?: () => void;
+  /** Acquisition mode */
+  acquisitionMode: AcquisitionMode;
+  onSetAcquisitionMode: (mode: AcquisitionMode) => void;
   /** Copilot session props */
   copilotSession: import('@/hooks/useCopilotSession').CopilotSession | null;
   copilotActive: boolean;
@@ -127,6 +130,8 @@ export function MapControlPanel({
   onCopilotStart,
   onCopilotEnd,
   onForceSendBatch,
+  acquisitionMode,
+  onSetAcquisitionMode,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -453,6 +458,27 @@ export function MapControlPanel({
                   <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <label className="text-[10px] text-muted-foreground flex-shrink-0">Día</label>
                   <NumberStepper value={workDay} min={1} max={999} onChange={onSetWorkDay} />
+                </div>
+
+                {/* Acquisition Mode */}
+                <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2 py-1.5">
+                  <Film className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <label className="text-[10px] text-muted-foreground flex-shrink-0">Modo</label>
+                  <div className="flex gap-0.5">
+                    {(['RST', 'GARMIN'] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => onSetAcquisitionMode(m)}
+                        className={`px-2 py-0.5 rounded text-[9px] font-bold transition-colors ${
+                          acquisitionMode === m
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* RST Mode */}

@@ -167,6 +167,7 @@ export function useRouteState() {
           startedAt: now,
           endedAt: null,
           closedManually: false,
+          trackStartTime: Date.now(),
         };
       } else {
         trackSession = {
@@ -200,10 +201,26 @@ export function useRouteState() {
 
       const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
 
+      // Garmin mode: compute segmentStartSeconds relative to track start
+      const garminStart = s.acquisitionMode === 'GARMIN' && trackSession.trackStartTime
+        ? Math.round((Date.now() - trackSession.trackStartTime) / 1000)
+        : null;
+
       // Start this segment – assign real trackNumber, workDay, segmentOrder
       let segments = s.route.segments.map((seg) =>
         seg.id === segmentId
-          ? { ...seg, status: 'en_progreso' as const, trackNumber: nextTrack, plannedTrackNumber: null, plannedBy: undefined, timestampInicio: now, startedAt: now, workDay: s.workDay, segmentOrder }
+          ? {
+              ...seg,
+              status: 'en_progreso' as const,
+              trackNumber: nextTrack,
+              plannedTrackNumber: null,
+              plannedBy: undefined,
+              timestampInicio: now,
+              startedAt: now,
+              workDay: s.workDay,
+              segmentOrder,
+              segmentStartSeconds: garminStart,
+            }
           : seg
       );
 
@@ -246,6 +263,11 @@ export function useRouteState() {
         autoTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, s.trackSession && s.trackSession.active ? s.trackSession : null, s.workDay);
       }
 
+      // Garmin mode: compute segmentEndSeconds relative to track start
+      const garminEnd = s.acquisitionMode === 'GARMIN' && s.trackSession?.trackStartTime
+        ? Math.round((Date.now() - s.trackSession.trackStartTime) / 1000)
+        : null;
+
       // Only complete THIS segment with invariants enforced
       const segments = s.route.segments.map((seg) => {
         if (seg.id !== segmentId) return seg;
@@ -267,6 +289,7 @@ export function useRouteState() {
           repeatRequested: false,
           invalidatedByTrack: null,
           repeatNumber: (seg.repeatNumber || 0) + 1,
+          segmentEndSeconds: garminEnd ?? seg.segmentEndSeconds ?? null,
         };
       });
 
@@ -644,6 +667,7 @@ export function useRouteState() {
       trackSession: null,
       blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
       workDay: s.workDay,
+      acquisitionMode: s.acquisitionMode,
     }));
   }, [setState]);
 
@@ -1035,6 +1059,11 @@ export function useRouteState() {
     }, true);
   }, [setState]);
 
+  /** Set acquisition mode (RST or GARMIN) */
+  const setAcquisitionMode = useCallback((mode: import('@/types/route').AcquisitionMode) => {
+    setState((s) => ({ ...s, acquisitionMode: mode }));
+  }, [setState]);
+
   return {
     state,
     isDirty,
@@ -1077,5 +1106,6 @@ export function useRouteState() {
     setWorkDay,
     updateRouteContext,
     applyRetroactiveIds,
+    setAcquisitionMode,
   };
 }

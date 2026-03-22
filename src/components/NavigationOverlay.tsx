@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { IncidentDialog } from '@/components/IncidentDialog';
-import type { Segment, LatLng, IncidentCategory, IncidentImpact, F5Event } from '@/types/route';
+import type { Segment, LatLng, IncidentCategory, IncidentImpact, F5Event, AcquisitionMode } from '@/types/route';
 import { getRequiredPkMarkers } from '@/types/route';
 import type { NavOperationalState, ContiguousInfo, NavSegmentStats } from '@/hooks/useNavigationTracker';
 import { playRef300Sound } from '@/utils/sounds';
@@ -50,6 +50,7 @@ interface Props {
   showF7Prompt: boolean;
   showF9PostPrompt: boolean;
   distanceToNextSegment: number | null;
+  acquisitionMode: AcquisitionMode;
 }
 
 function formatDistance(meters: number | null): string {
@@ -137,11 +138,13 @@ export function NavigationOverlay({
   showF7Prompt,
   showF9PostPrompt,
   distanceToNextSegment,
+  acquisitionMode,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
   const isRecording = RECORDING_STATES.includes(operationalState);
   const isInvalid = INVALID_STATES.includes(operationalState);
+  const isGarmin = acquisitionMode === 'GARMIN';
   const direction = segment.kmlMeta?.sentido || segment.direction || '—';
 
   const [, setTick] = useState(0);
@@ -331,13 +334,15 @@ export function NavigationOverlay({
                   )}
                 </div>
 
-                {/* F5 Summary strip */}
-                <F5SummaryStrip
-                  f5StartConfirmed={f5StartConfirmed}
-                  f5EndConfirmed={f5EndConfirmed}
-                  requiredPkMarkers={requiredPkMarkers}
-                  confirmedPks={confirmedPks}
-                />
+                {/* F5 Summary strip — only in RST mode */}
+                {!isGarmin && (
+                  <F5SummaryStrip
+                    f5StartConfirmed={f5StartConfirmed}
+                    f5EndConfirmed={f5EndConfirmed}
+                    requiredPkMarkers={requiredPkMarkers}
+                    confirmedPks={confirmedPks}
+                  />
+                )}
 
                 {/* End reference markers - show past-end distance */}
                 {(operationalState === 'past_end' || operationalState === 'end_ref_30m' || operationalState === 'end_ref_150m' || operationalState === 'end_ref_300m' || operationalState === 'ready_f5_end') && (
@@ -380,7 +385,7 @@ export function NavigationOverlay({
       )}
 
       {/* === PK MILESTONE ALERT === */}
-      {pendingPk !== null && (
+      {!isGarmin && pendingPk !== null && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-accent rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -405,8 +410,45 @@ export function NavigationOverlay({
         </div>
       )}
 
+      {/* === GARMIN START PROMPT (simple, no F5) === */}
+      {isGarmin && showApproachPrompt && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Play className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Zona de inicio alcanzada</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Pulsa Iniciar para comenzar la grabación Garmin.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                disabled={isBlocked}
+                onClick={() => onStartSegment()}
+                className="h-14 text-sm font-bold bg-primary text-primary-foreground"
+              >
+                <Play className="w-5 h-5 mr-1" />
+                Iniciar tramo
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onPostpone}
+                className="h-14 text-sm border-border"
+              >
+                <SkipForward className="w-4 h-4 mr-1" />
+                Posponer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* === F5 START CONFIRMATION PROMPT === */}
-      {showApproachPrompt && (
+      {!isGarmin && showApproachPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -457,7 +499,7 @@ export function NavigationOverlay({
       )}
 
       {/* === F5 END / COMPLETION PROMPT === */}
-      {operationalState === 'ready_f5_end' && (
+      {!isGarmin && operationalState === 'ready_f5_end' && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-primary rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -515,7 +557,7 @@ export function NavigationOverlay({
       )}
 
       {/* === F7 — END ACQUISITION PROMPT === */}
-      {showF7Prompt && (
+      {!isGarmin && showF7Prompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -542,7 +584,7 @@ export function NavigationOverlay({
       )}
 
       {/* === F9 — TRANSPORT MODE PROMPT === */}
-      {showF9PostPrompt && (
+      {!isGarmin && showF9PostPrompt && (
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="bg-card border-2 border-amber-500 rounded-xl shadow-2xl p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -635,12 +677,12 @@ export function NavigationOverlay({
         <div className="mx-2 mt-2 pointer-events-auto">
           <div className="flex gap-2">
             <Button
-              onClick={() => { onConfirmF5('fin'); onCompleteSegment(); }}
+              onClick={() => { if (!isGarmin) onConfirmF5('fin'); onCompleteSegment(); }}
               size="sm"
               className="flex-1 h-10 text-xs bg-primary/80 text-primary-foreground"
             >
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-              Confirmar F5 Cierre
+              {isGarmin ? 'Finalizar tramo' : 'Confirmar F5 Cierre'}
             </Button>
             <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(cat, impact, note, nonRec)}>
               <Button

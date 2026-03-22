@@ -1,3 +1,4 @@
+export type AcquisitionMode = 'RST' | 'GARMIN';
 export type SegmentDirection = 'creciente' | 'ambos';
 export type SegmentType = 'tramo' | 'rotonda';
 export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado' | 'posible_repetir';
@@ -55,6 +56,10 @@ export interface Segment {
   workDay?: number;
   /** Order of this segment within its track */
   segmentOrder?: number;
+  /** Garmin mode: seconds from track start to segment start */
+  segmentStartSeconds?: number | null;
+  /** Garmin mode: seconds from track start to segment end */
+  segmentEndSeconds?: number | null;
 }
 
 /** F5 confirmation event recorded by operator */
@@ -147,6 +152,8 @@ export interface TrackSession {
   startedAt: string | null;
   endedAt: string | null;
   closedManually: boolean;
+  /** Epoch ms when this track started (for Garmin time-based mode) */
+  trackStartTime?: number | null;
 }
 
 export interface BlockEndPrompt {
@@ -168,4 +175,6 @@ export interface AppState {
   blockEndPrompt: BlockEndPrompt;
   /** Current work day number (1-based). Tracks reset each day. */
   workDay: number;
+  /** Acquisition mode: RST (F5-based) or GARMIN (time-based) */
+  acquisitionMode: AcquisitionMode;
 }

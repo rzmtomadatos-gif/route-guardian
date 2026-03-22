@@ -53,6 +53,7 @@ interface Props {
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
+  onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
 }
 
 export default function MapPage({
@@ -78,7 +79,8 @@ export default function MapPage({
   onSkipSegment,
   onCloseBlockEndPrompt,
   onSetWorkDay,
-  onReverseSegment
+  onReverseSegment,
+  onSetAcquisitionMode,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1080,6 +1082,7 @@ export default function MapPage({
         showF7Prompt={navTracker.showF7Prompt}
         showF9PostPrompt={navTracker.showF9PostPrompt}
         distanceToNextSegment={navTracker.distanceToNextSegment}
+        acquisitionMode={state.acquisitionMode}
         onInvertSegment={() => {
           if (activeSegment) {
             onReverseSegment(activeSegment.id);
@@ -1318,7 +1321,8 @@ export default function MapPage({
         activeRouteBlock={activeRouteBlock}
         videoEndBlocking={videoEndBlocking}
         onVideoEndContinue={handleVideoEndContinue}
-
+        acquisitionMode={state.acquisitionMode}
+        onSetAcquisitionMode={onSetAcquisitionMode}
         copilotSession={copilot.session}
         copilotActive={copilot.active}
         onCopilotStart={copilot.createSession}
