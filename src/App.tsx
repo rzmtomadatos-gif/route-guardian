@@ -128,6 +128,7 @@ function AppRoutes() {
               onCloseBlockEndPrompt={closeBlockEndPrompt}
               onSetWorkDay={setWorkDay}
               onReverseSegment={reverseSegment}
+              onSetAcquisitionMode={setAcquisitionMode}
             />
           }
         />
