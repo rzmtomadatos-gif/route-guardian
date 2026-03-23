@@ -210,7 +210,7 @@ export function NavigationOverlay({
   const hasPendingF5 = requiredPkMarkers.some((pk) => !confirmedPks.has(pk));
 
   // Garmin track timer
-  const trackStartTime = (segment as any)?.trackStartTime ?? null;
+  const trackStartTime = trackStartTimeProp ?? null;
   const [, setGarminTick] = useState(0);
   const garminTrackActive = isGarmin && trackStartTime;
   if (garminTrackActive) {
