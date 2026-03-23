@@ -244,96 +244,95 @@ export function MapControlPanel({
 
         {/* COLLAPSED: minimal controls */}
         {!expanded && (
-          <div className="px-3 pb-2 space-y-1">
+          <div className="px-2 pb-1.5 space-y-1">
             {/* Pinned segment */}
             {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
-                </div>
-                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-12 px-4 text-xs bg-success text-success-foreground">
-                  <Square className="w-4 h-4 mr-1" />
-                  Finalizar
+              <div className="flex items-center gap-1">
+                <p className="flex-1 min-w-0 text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
+                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-8 px-3 text-[10px] bg-success text-success-foreground">
+                  <Square className="w-3 h-3 mr-0.5" />
+                  Fin
                 </Button>
                 <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
-                  <Button size="sm" variant="ghost" className="h-12 px-3 text-destructive">
-                    <AlertTriangle className="w-4 h-4" />
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive">
+                    <AlertTriangle className="w-3 h-3" />
                   </Button>
                 </IncidentDialog>
               </div>
             )}
             {pinnedSegment && pinnedSegment.status === 'pendiente' && (
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
                   {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
-                  <p className="text-xs text-foreground truncate">{pinnedSegment.name}</p>
+                  <p className="text-[10px] text-foreground truncate max-w-[120px]">{pinnedSegment.name}</p>
                 </button>
-                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-12 px-4 text-xs bg-primary text-primary-foreground">
-                  <Play className="w-4 h-4 mr-1" />
+                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-8 px-2 text-[10px] bg-primary text-primary-foreground">
+                  <Play className="w-3 h-3 mr-0.5" />
                   Iniciar
                 </Button>
               </div>
             )}
-            {/* Nav controls: Prev / Navigate / Next */}
-            <div className="flex gap-1">
-              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-8 px-2" title="Anterior">
-                <ChevronLeft className="w-3.5 h-3.5" />
+            {/* Nav controls + Optimize */}
+            <div className="flex gap-0.5">
+              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-7 px-1.5" title="Anterior">
+                <ChevronLeft className="w-3 h-3" />
               </Button>
               {navigationActive ? (
-                <Button onClick={onStopNavigation} variant="outline" size="sm" className="flex-1 h-8 text-[10px] font-bold border-destructive/40 text-destructive">
-                  <Square className="w-3 h-3 mr-1" />
-                  Detener
+                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-7 px-2 text-[9px] font-bold border-destructive/40 text-destructive">
+                  <Square className="w-2.5 h-2.5 mr-0.5" />
+                  Stop
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="flex-1 h-8 text-[10px] font-bold bg-primary text-primary-foreground">
-                  <Navigation className="w-3 h-3 mr-1" />
-                  Navegar
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-7 px-2 text-[9px] font-bold bg-primary text-primary-foreground">
+                  <Navigation className="w-2.5 h-2.5 mr-0.5" />
+                  Nav
                 </Button>
               )}
-              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-8 px-2" title="Siguiente">
-                <ChevronRight className="w-3.5 h-3.5" />
+              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-7 px-1.5" title="Siguiente">
+                <ChevronRight className="w-3 h-3" />
+              </Button>
+              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-7 px-2 text-[9px]" title="Optimizar todo">
+                <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
+                Opt
               </Button>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span>
-                  {pending} pend. · {completed} compl.
-                  {rstMode && trackSession && (
-                    <> · T{trackSession.trackNumber} ({rstValidCount}/{rstGroupSize})</>
-                  )}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {gpsEnabled ? <LocateFixed className="w-3 h-3 text-accent" /> : <LocateOff className="w-3 h-3" />}
-                  <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-75 origin-right" />
-                </div>
+            <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+              <span>
+                {pending}p · {completed}c
+                {rstMode && trackSession && (
+                  <> · T{trackSession.trackNumber} {rstValidCount}/{rstGroupSize}</>
+                )}
+              </span>
+              <div className="flex items-center gap-1">
+                {gpsEnabled ? <LocateFixed className="w-2.5 h-2.5 text-accent" /> : <LocateOff className="w-2.5 h-2.5" />}
+                <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-[0.6] origin-right" />
               </div>
-              {rstMode && trackSession && (
-                <div className="flex items-center gap-2">
-                  <Progress
-                    value={(rstValidCount / rstGroupSize) * 100}
-                    className={`h-2 flex-1 ${
-                      rstValidCount >= rstGroupSize
-                        ? '[&>div]:bg-destructive'
-                        : rstValidCount >= rstGroupSize - 1
-                          ? '[&>div]:bg-amber-500'
-                          : '[&>div]:bg-primary'
-                    }`}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { if (window.confirm(`¿Finalizar track T${trackSession.trackNumber}? Esta acción cerrará el bloque actual.`)) onFinalizeTrack(); }}
-                    className="h-6 px-2 text-[10px] border-destructive/40 text-destructive hover:bg-destructive/10"
-                    title="Finalizar track manualmente"
-                  >
-                    <StopCircle className="w-3 h-3 mr-1" />
-                    Fin T{trackSession.trackNumber}
-                  </Button>
-                </div>
-              )}
             </div>
+            {rstMode && trackSession && (
+              <div className="flex items-center gap-1">
+                <Progress
+                  value={(rstValidCount / rstGroupSize) * 100}
+                  className={`h-1.5 flex-1 ${
+                    rstValidCount >= rstGroupSize
+                      ? '[&>div]:bg-destructive'
+                      : rstValidCount >= rstGroupSize - 1
+                        ? '[&>div]:bg-amber-500'
+                        : '[&>div]:bg-primary'
+                  }`}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { if (window.confirm(`¿Finalizar track T${trackSession.trackNumber}?`)) onFinalizeTrack(); }}
+                  className="h-5 px-1.5 text-[8px] border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  <StopCircle className="w-2.5 h-2.5 mr-0.5" />
+                  Fin T{trackSession.trackNumber}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
