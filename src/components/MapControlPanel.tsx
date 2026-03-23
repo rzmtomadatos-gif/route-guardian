@@ -210,10 +210,10 @@ export function MapControlPanel({
     onComplete(segId);
   };
 
-  // Pinned segment: active (en_progreso) or next pending
+  // Pinned segment: active (en_progreso) or next pending or explicitly selected
   const pinnedSegment = activeSegment?.status === 'en_progreso'
     ? activeSegment
-    : nextPending;
+    : activeSegment ?? nextPending;
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col safe-area-bottom">
