@@ -173,6 +173,33 @@ export function MapControlPanel({
 
   const nextPending = orderedSegments.find((s) => s.status === 'pendiente');
 
+  // Compute prev/next segment relative to pinned/active in itinerary
+  const currentIdx = useMemo(() => {
+    const id = activeSegmentId || pinnedSegment?.id;
+    if (!id) return -1;
+    return orderedSegments.findIndex((s) => s.id === id);
+  }, [orderedSegments, activeSegmentId, pinnedSegment?.id]);
+
+  const canGoPrev = useMemo(() => {
+    if (currentIdx <= 0) return false;
+    const prev = orderedSegments[currentIdx - 1];
+    return prev && (prev.status === 'pendiente' || prev.status === 'posible_repetir' || prev.status === 'completado');
+  }, [currentIdx, orderedSegments]);
+
+  const canGoNext = currentIdx >= 0 && currentIdx < orderedSegments.length - 1;
+
+  const handlePrev = () => {
+    if (!canGoPrev) return;
+    const prev = orderedSegments[currentIdx - 1];
+    if (prev) onSegmentSelect(prev.id);
+  };
+
+  const handleNext = () => {
+    if (!canGoNext) return;
+    const next = orderedSegments[currentIdx + 1];
+    if (next) onSegmentSelect(next.id);
+  };
+
   const handleConfirmStart = (segId: string) => {
     playStartSound();
     onConfirmStart(segId);
