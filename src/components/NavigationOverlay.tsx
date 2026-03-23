@@ -207,6 +207,23 @@ export function NavigationOverlay({
   );
   const hasPendingF5 = requiredPkMarkers.some((pk) => !confirmedPks.has(pk));
 
+  // Garmin track timer
+  const trackStartTime = (segment as any)?.trackStartTime ?? null;
+  const [, setGarminTick] = useState(0);
+  const garminTrackActive = isGarmin && trackStartTime;
+  if (garminTrackActive) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    setTimeout(() => setGarminTick((t) => t + 1), 1000);
+  }
+  const garminElapsed = garminTrackActive ? Math.max(0, Math.round((Date.now() - trackStartTime) / 1000)) : 0;
+  const garminMins = Math.floor(garminElapsed / 60);
+  const garminSecs = garminElapsed % 60;
+  const garminHrs = Math.floor(garminMins / 60);
+  const garminRemMins = garminMins % 60;
+  const garminTimeStr = garminHrs > 0
+    ? `${garminHrs}:${String(garminRemMins).padStart(2, '0')}:${String(garminSecs).padStart(2, '0')}`
+    : `${garminRemMins}:${String(garminSecs).padStart(2, '0')}`;
+
   return (
     <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
       {/* === TOP HUD BAR === */}
@@ -216,7 +233,12 @@ export function NavigationOverlay({
           <div className={`px-3 py-1.5 flex items-center gap-2 ${config.colorClass}`}>
             <config.icon className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="text-xs font-bold uppercase tracking-wider">{config.label}</span>
-            {(operationalState === 'deviated' || operationalState === 'pre_alert') && (
+            {isGarmin && garminTrackActive && (
+              <span className="text-[10px] ml-auto font-mono bg-card/60 rounded px-1.5 py-0.5 text-accent font-bold">
+                🎥 {garminTimeStr}
+              </span>
+            )}
+            {!isGarmin && (operationalState === 'deviated' || operationalState === 'pre_alert') && (
               <span className="text-[10px] ml-auto font-mono">↕ {Math.round(deviationMeters)}m</span>
             )}
             {operationalState === 'wrong_direction' && (

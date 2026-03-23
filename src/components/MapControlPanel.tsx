@@ -371,8 +371,17 @@ export function MapControlPanel({
               </div>
             )}
 
-            {/* === PRIMARY ACTION BUTTONS === */}
+            {/* === NAV CONTROLS: Prev / Navigate / Next === */}
             <div className="flex gap-1.5">
+              <Button
+                variant="outline"
+                disabled={!canGoPrev}
+                onClick={handlePrev}
+                className="h-12 px-3"
+                title="Tramo anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
               {navigationActive ? (
                 <Button onClick={onStopNavigation} variant="outline" className="flex-1 h-12 text-sm font-bold border-destructive/40 text-destructive">
                   <Square className="w-4 h-4 mr-1.5" />
@@ -381,9 +390,18 @@ export function MapControlPanel({
               ) : (
                 <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} className="flex-1 h-12 text-sm font-bold bg-primary text-primary-foreground">
                   <Navigation className="w-4 h-4 mr-1.5" />
-                  {noVisibleSegments ? 'No hay tramos visibles' : 'Navegar'}
+                  {noVisibleSegments ? 'Sin tramos' : 'Navegar'}
                 </Button>
               )}
+              <Button
+                variant="outline"
+                disabled={!canGoNext}
+                onClick={handleNext}
+                className="h-12 px-3"
+                title="Tramo siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
               <CopilotPanel
                 session={copilotSession}
                 active={copilotActive}
