@@ -51,6 +51,7 @@ interface Props {
   showF9PostPrompt: boolean;
   distanceToNextSegment: number | null;
   acquisitionMode: AcquisitionMode;
+  trackStartTime?: number | null;
 }
 
 function formatDistance(meters: number | null): string {
