@@ -276,6 +276,26 @@ export function MapControlPanel({
                 </Button>
               </div>
             )}
+            {/* Nav controls: Prev / Navigate / Next */}
+            <div className="flex gap-1">
+              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-8 px-2" title="Anterior">
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
+              {navigationActive ? (
+                <Button onClick={onStopNavigation} variant="outline" size="sm" className="flex-1 h-8 text-[10px] font-bold border-destructive/40 text-destructive">
+                  <Square className="w-3 h-3 mr-1" />
+                  Detener
+                </Button>
+              ) : (
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="flex-1 h-8 text-[10px] font-bold bg-primary text-primary-foreground">
+                  <Navigation className="w-3 h-3 mr-1" />
+                  Navegar
+                </Button>
+              )}
+              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-8 px-2" title="Siguiente">
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>
