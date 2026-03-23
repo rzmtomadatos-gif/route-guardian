@@ -97,7 +97,14 @@ export function useRouteState() {
   }, [setState]);
 
   const stopNavigation = useCallback(() => {
-    setState((s) => ({ ...s, navigationActive: false, activeSegmentId: null }));
+    setState((s) => ({
+      ...s,
+      navigationActive: false,
+      activeSegmentId: null,
+      trackSession: s.trackSession
+        ? { ...s.trackSession, trackStartTime: null }
+        : null,
+    }));
   }, [setState]);
 
   /** Allocate the next track number based on mode. Resets per workDay. */
