@@ -140,6 +140,7 @@ export function NavigationOverlay({
   showF9PostPrompt,
   distanceToNextSegment,
   acquisitionMode,
+  trackStartTime: trackStartTimeProp,
 }: Props) {
   const config = STATE_CONFIG[operationalState];
   const isApproach = APPROACH_STATES.includes(operationalState);
