@@ -173,12 +173,27 @@ export function MapControlPanel({
 
   const nextPending = orderedSegments.find((s) => s.status === 'pendiente');
 
+  const handleConfirmStart = (segId: string) => {
+    playStartSound();
+    onConfirmStart(segId);
+  };
+
+  const handleComplete = (segId: string) => {
+    playEndSound();
+    onComplete(segId);
+  };
+
+  // Pinned segment: active (en_progreso) or explicitly selected or next pending
+  const pinnedSegment = activeSegment?.status === 'en_progreso'
+    ? activeSegment
+    : activeSegment ?? nextPending;
+
   // Compute prev/next segment relative to pinned/active in itinerary
   const currentIdx = useMemo(() => {
-    const id = activeSegmentId || pinnedSegment?.id;
+    const id = activeSegmentId || nextPending?.id;
     if (!id) return -1;
     return orderedSegments.findIndex((s) => s.id === id);
-  }, [orderedSegments, activeSegmentId, pinnedSegment?.id]);
+  }, [orderedSegments, activeSegmentId, nextPending?.id]);
 
   const canGoPrev = useMemo(() => {
     if (currentIdx <= 0) return false;
@@ -199,21 +214,6 @@ export function MapControlPanel({
     const next = orderedSegments[currentIdx + 1];
     if (next) onSegmentSelect(next.id);
   };
-
-  const handleConfirmStart = (segId: string) => {
-    playStartSound();
-    onConfirmStart(segId);
-  };
-
-  const handleComplete = (segId: string) => {
-    playEndSound();
-    onComplete(segId);
-  };
-
-  // Pinned segment: active (en_progreso) or next pending or explicitly selected
-  const pinnedSegment = activeSegment?.status === 'en_progreso'
-    ? activeSegment
-    : activeSegment ?? nextPending;
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col safe-area-bottom">
