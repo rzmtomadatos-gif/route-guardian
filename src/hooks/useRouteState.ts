@@ -102,7 +102,7 @@ export function useRouteState() {
       navigationActive: false,
       activeSegmentId: null,
       trackSession: s.trackSession
-        ? { ...s.trackSession, trackStartTime: null as unknown as number }
+        ? { ...s.trackSession, trackStartTime: null }
         : null,
     }));
   }, [setState]);
