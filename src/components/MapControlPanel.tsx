@@ -3,7 +3,7 @@ import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward, Film, Radio, ChevronLeft, ChevronRight,
+  SkipForward, Film, Radio, ChevronLeft, ChevronRight, Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -136,6 +136,9 @@ export function MapControlPanel({
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
+  type CollapsedWidth = 'normal' | 'medio' | 'extremo';
+  const [collapsedWidth, setCollapsedWidth] = useState<CollapsedWidth>('normal');
+  const cycleWidth = () => setCollapsedWidth(w => w === 'normal' ? 'medio' : w === 'medio' ? 'extremo' : 'normal');
 
   // Compute valid completed count in current track (RST mode)
   const rstValidCount = useMemo(() => {
@@ -215,8 +218,10 @@ export function MapControlPanel({
     if (next) onSegmentSelect(next.id);
   };
 
+  const collapsedMaxW = collapsedWidth === 'extremo' ? 'max-w-[160px]' : collapsedWidth === 'medio' ? 'max-w-[260px]' : '';
+
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col safe-area-bottom">
+    <div className={`absolute bottom-0 z-20 flex flex-col safe-area-bottom ${expanded ? 'left-0 right-0' : collapsedWidth === 'normal' ? 'left-0 right-0' : 'left-0'}`}>
       {/* GPS info bar */}
       {gpsEnabled && currentPosition && (
         <div className="mx-3 mb-1 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-2 py-1 text-[10px] flex items-center gap-2 self-start">
@@ -233,7 +238,7 @@ export function MapControlPanel({
       )}
 
       {/* Main panel */}
-      <div className="bg-card border-t border-border rounded-t-xl">
+      <div className={`bg-card border-t border-border rounded-t-xl ${!expanded ? collapsedMaxW : ''}`}>
         {/* Toggle handle */}
         <button
           onClick={() => setExpanded(!expanded)}
@@ -244,72 +249,79 @@ export function MapControlPanel({
 
         {/* COLLAPSED: minimal controls */}
         {!expanded && (
-          <div className="px-2 pb-1.5 space-y-1">
-            {/* Pinned segment */}
-            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
-              <div className="flex items-center gap-1">
-                <p className="flex-1 min-w-0 text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
-                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-8 px-3 text-[10px] bg-success text-success-foreground">
-                  <Square className="w-3 h-3 mr-0.5" />
+          <div className="px-1.5 pb-1 space-y-0.5">
+            {/* Pinned segment — hidden in extremo */}
+            {collapsedWidth !== 'extremo' && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+              <div className="flex items-center gap-0.5">
+                <p className="flex-1 min-w-0 text-[9px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
+                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-6 px-2 text-[9px] bg-success text-success-foreground">
+                  <Square className="w-2.5 h-2.5 mr-0.5" />
                   Fin
                 </Button>
                 <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
-                  <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive">
-                    <AlertTriangle className="w-3 h-3" />
+                  <Button size="sm" variant="ghost" className="h-6 px-1 text-destructive">
+                    <AlertTriangle className="w-2.5 h-2.5" />
                   </Button>
                 </IncidentDialog>
               </div>
             )}
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
-              <div className="flex items-center gap-1">
-                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
-                  {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
-                </span>
+            {collapsedWidth !== 'extremo' && pinnedSegment && pinnedSegment.status === 'pendiente' && (
+              <div className="flex items-center gap-0.5">
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
-                  <p className="text-[10px] text-foreground truncate max-w-[120px]">{pinnedSegment.name}</p>
+                  <p className="text-[9px] text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
-                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-8 px-2 text-[10px] bg-primary text-primary-foreground">
-                  <Play className="w-3 h-3 mr-0.5" />
-                  Iniciar
+                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-6 px-1.5 text-[9px] bg-primary text-primary-foreground">
+                  <Play className="w-2.5 h-2.5" />
                 </Button>
               </div>
             )}
-            {/* Nav controls + Optimize */}
-            <div className="flex gap-0.5 items-center">
+            {/* Nav controls row */}
+            <div className="flex gap-0.5 items-center flex-wrap">
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-6 w-6 p-0" title="Anterior">
                 <ChevronLeft className="w-3 h-3" />
               </Button>
               {navigationActive ? (
-                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-6 px-1.5 text-[9px] font-bold border-destructive/40 text-destructive">
+                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-6 w-6 p-0 border-destructive/40 text-destructive">
                   <Square className="w-2.5 h-2.5" />
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-6 px-1.5 text-[9px] font-bold bg-primary text-primary-foreground">
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-6 w-6 p-0 bg-primary text-primary-foreground">
                   <Navigation className="w-2.5 h-2.5" />
                 </Button>
               )}
               <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-6 w-6 p-0" title="Siguiente">
                 <ChevronRight className="w-3 h-3" />
               </Button>
-              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar todo">
-                <RotateCcw className="w-2.5 h-2.5" />
+              {collapsedWidth !== 'extremo' && (
+                <>
+                  <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar">
+                    <RotateCcw className="w-2.5 h-2.5" />
+                  </Button>
+                  <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
+                    <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
+                      <Radio className="w-2.5 h-2.5" />
+                    </Button>
+                  </CopilotPanel>
+                </>
+              )}
+              {/* Width cycle button */}
+              <Button variant="ghost" onClick={cycleWidth} size="sm" className="h-6 w-6 p-0 ml-auto" title={`Ancho: ${collapsedWidth}`}>
+                <Minimize2 className="w-2.5 h-2.5" />
               </Button>
-              <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
-                <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
-                  <Radio className="w-2.5 h-2.5" />
-                </Button>
-              </CopilotPanel>
-              <div className="ml-auto flex items-center gap-0.5 text-[9px] text-muted-foreground">
-                <span>{pending}p·{completed}c</span>
-                {gpsEnabled ? <LocateFixed className="w-2.5 h-2.5 text-accent" /> : <LocateOff className="w-2.5 h-2.5" />}
-                <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-[0.55] origin-right" />
-              </div>
             </div>
-            {rstMode && trackSession && (
-              <div className="flex items-center gap-1">
+            {/* Stats — hidden in extremo */}
+            {collapsedWidth !== 'extremo' && (
+              <div className="flex items-center gap-1 text-[8px] text-muted-foreground">
+                <span>{pending}p·{completed}c</span>
+                {rstMode && trackSession && <span>T{trackSession.trackNumber} {rstValidCount}/{rstGroupSize}</span>}
+                {gpsEnabled ? <LocateFixed className="w-2 h-2 text-accent" /> : <LocateOff className="w-2 h-2" />}
+              </div>
+            )}
+            {collapsedWidth !== 'extremo' && rstMode && trackSession && (
+              <div className="flex items-center gap-0.5">
                 <Progress
                   value={(rstValidCount / rstGroupSize) * 100}
-                  className={`h-1.5 flex-1 ${
+                  className={`h-1 flex-1 ${
                     rstValidCount >= rstGroupSize
                       ? '[&>div]:bg-destructive'
                       : rstValidCount >= rstGroupSize - 1
@@ -321,10 +333,9 @@ export function MapControlPanel({
                   size="sm"
                   variant="outline"
                   onClick={() => { if (window.confirm(`¿Finalizar track T${trackSession.trackNumber}?`)) onFinalizeTrack(); }}
-                  className="h-5 px-1.5 text-[8px] border-destructive/40 text-destructive hover:bg-destructive/10"
+                  className="h-4 px-1 text-[7px] border-destructive/40 text-destructive hover:bg-destructive/10"
                 >
-                  <StopCircle className="w-2.5 h-2.5 mr-0.5" />
-                  Fin T{trackSession.trackNumber}
+                  <StopCircle className="w-2 h-2" />
                 </Button>
               </div>
             )}
