@@ -92,6 +92,11 @@ export function useRouteState() {
         ...s,
         navigationActive: true,
         activeSegmentId: pendingSegments[0] || null,
+        trackSession: s.trackSession
+          ? { ...s.trackSession, trackStartTime: s.acquisitionMode === 'GARMIN' ? Date.now() : s.trackSession.trackStartTime }
+          : s.acquisitionMode === 'GARMIN'
+            ? { active: false, trackNumber: 0, capacity: 9, segmentIds: [], startedAt: null, endedAt: null, closedManually: false, trackStartTime: Date.now() }
+            : null,
       };
     });
   }, [setState]);
@@ -174,7 +179,7 @@ export function useRouteState() {
           startedAt: now,
           endedAt: null,
           closedManually: false,
-          trackStartTime: Date.now(),
+          trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
         };
       } else {
         trackSession = {
