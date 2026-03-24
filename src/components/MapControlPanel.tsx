@@ -218,8 +218,10 @@ export function MapControlPanel({
     if (next) onSegmentSelect(next.id);
   };
 
+  const collapsedMaxW = collapsedWidth === 'extremo' ? 'max-w-[160px]' : collapsedWidth === 'medio' ? 'max-w-[260px]' : '';
+
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col safe-area-bottom">
+    <div className={`absolute bottom-0 z-20 flex flex-col safe-area-bottom ${expanded ? 'left-0 right-0' : collapsedWidth === 'normal' ? 'left-0 right-0' : 'left-0'}`}>
       {/* GPS info bar */}
       {gpsEnabled && currentPosition && (
         <div className="mx-3 mb-1 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-2 py-1 text-[10px] flex items-center gap-2 self-start">
@@ -236,7 +238,7 @@ export function MapControlPanel({
       )}
 
       {/* Main panel */}
-      <div className="bg-card border-t border-border rounded-t-xl">
+      <div className={`bg-card border-t border-border rounded-t-xl ${!expanded ? collapsedMaxW : ''}`}>
         {/* Toggle handle */}
         <button
           onClick={() => setExpanded(!expanded)}
