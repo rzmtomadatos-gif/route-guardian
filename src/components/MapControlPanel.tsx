@@ -250,8 +250,8 @@ export function MapControlPanel({
         {/* COLLAPSED: minimal controls */}
         {!expanded && (
           <div className="px-1.5 pb-1 space-y-0.5">
-            {/* Pinned segment — hidden in extremo */}
-            {collapsedWidth !== 'extremo' && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {/* Pinned segment */}
+            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
               <div className="flex items-center gap-0.5">
                 <p className="flex-1 min-w-0 text-[9px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
                 <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-6 px-2 text-[9px] bg-success text-success-foreground">
@@ -265,7 +265,7 @@ export function MapControlPanel({
                 </IncidentDialog>
               </div>
             )}
-            {collapsedWidth !== 'extremo' && pinnedSegment && pinnedSegment.status === 'pendiente' && (
+            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="flex items-center gap-0.5">
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-[9px] text-foreground truncate">{pinnedSegment.name}</p>
@@ -276,7 +276,7 @@ export function MapControlPanel({
               </div>
             )}
             {/* Nav controls row */}
-            <div className="flex gap-0.5 items-center flex-wrap">
+            <div className="flex gap-0.5 items-center">
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-6 w-6 p-0" title="Anterior">
                 <ChevronLeft className="w-3 h-3" />
               </Button>
@@ -292,24 +292,20 @@ export function MapControlPanel({
               <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-6 w-6 p-0" title="Siguiente">
                 <ChevronRight className="w-3 h-3" />
               </Button>
-              {collapsedWidth !== 'extremo' && (
-                <>
-                  <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar">
-                    <RotateCcw className="w-2.5 h-2.5" />
-                  </Button>
-                  <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
-                    <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
-                      <Radio className="w-2.5 h-2.5" />
-                    </Button>
-                  </CopilotPanel>
-                </>
-              )}
+              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar">
+                <RotateCcw className="w-2.5 h-2.5" />
+              </Button>
+              <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
+                <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
+                  <Radio className="w-2.5 h-2.5" />
+                </Button>
+              </CopilotPanel>
               {/* Width cycle button */}
               <Button variant="ghost" onClick={cycleWidth} size="sm" className="h-6 w-6 p-0 ml-auto" title={`Ancho: ${collapsedWidth}`}>
                 <Minimize2 className="w-2.5 h-2.5" />
               </Button>
             </div>
-            {/* Stats — hidden in extremo */}
+            {/* Stats + track */}
             {collapsedWidth !== 'extremo' && (
               <div className="flex items-center gap-1 text-[8px] text-muted-foreground">
                 <span>{pending}p·{completed}c</span>
