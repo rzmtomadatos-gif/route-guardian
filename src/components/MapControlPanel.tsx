@@ -275,39 +275,34 @@ export function MapControlPanel({
               </div>
             )}
             {/* Nav controls + Optimize */}
-            <div className="flex gap-0.5">
-              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-7 px-1.5" title="Anterior">
+            <div className="flex gap-0.5 items-center">
+              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-6 w-6 p-0" title="Anterior">
                 <ChevronLeft className="w-3 h-3" />
               </Button>
               {navigationActive ? (
-                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-7 px-2 text-[9px] font-bold border-destructive/40 text-destructive">
-                  <Square className="w-2.5 h-2.5 mr-0.5" />
-                  Stop
+                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-6 px-1.5 text-[9px] font-bold border-destructive/40 text-destructive">
+                  <Square className="w-2.5 h-2.5" />
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-7 px-2 text-[9px] font-bold bg-primary text-primary-foreground">
-                  <Navigation className="w-2.5 h-2.5 mr-0.5" />
-                  Nav
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-6 px-1.5 text-[9px] font-bold bg-primary text-primary-foreground">
+                  <Navigation className="w-2.5 h-2.5" />
                 </Button>
               )}
-              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-7 px-1.5" title="Siguiente">
+              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-6 w-6 p-0" title="Siguiente">
                 <ChevronRight className="w-3 h-3" />
               </Button>
-              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-7 px-2 text-[9px]" title="Optimizar todo">
-                <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
-                Opt
+              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar todo">
+                <RotateCcw className="w-2.5 h-2.5" />
               </Button>
-            </div>
-            <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-              <span>
-                {pending}p · {completed}c
-                {rstMode && trackSession && (
-                  <> · T{trackSession.trackNumber} {rstValidCount}/{rstGroupSize}</>
-                )}
-              </span>
-              <div className="flex items-center gap-1">
+              <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
+                <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
+                  <Radio className="w-2.5 h-2.5" />
+                </Button>
+              </CopilotPanel>
+              <div className="ml-auto flex items-center gap-0.5 text-[9px] text-muted-foreground">
+                <span>{pending}p·{completed}c</span>
                 {gpsEnabled ? <LocateFixed className="w-2.5 h-2.5 text-accent" /> : <LocateOff className="w-2.5 h-2.5" />}
-                <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-[0.6] origin-right" />
+                <Switch checked={gpsEnabled} onCheckedChange={onToggleGps} className="scale-[0.55] origin-right" />
               </div>
             </div>
             {rstMode && trackSession && (
