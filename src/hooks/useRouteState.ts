@@ -179,7 +179,7 @@ export function useRouteState() {
           startedAt: now,
           endedAt: null,
           closedManually: false,
-          trackStartTime: Date.now(),
+          trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
         };
       } else {
         trackSession = {
