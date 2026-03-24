@@ -218,7 +218,7 @@ export function MapControlPanel({
     if (next) onSegmentSelect(next.id);
   };
 
-  const collapsedMaxW = collapsedWidth === 'extremo' ? 'max-w-[160px]' : collapsedWidth === 'medio' ? 'max-w-[260px]' : '';
+  const collapsedMaxW = collapsedWidth === 'extremo' ? 'max-w-[260px]' : collapsedWidth === 'medio' ? 'max-w-[360px]' : '';
 
   return (
     <div className={`absolute bottom-0 z-20 flex flex-col safe-area-bottom ${expanded ? 'left-0 right-0' : collapsedWidth === 'normal' ? 'left-0 right-0' : 'left-0'}`}>
