@@ -3,7 +3,7 @@ import {
   Play, Square, AlertTriangle, MapPin, RotateCcw, Navigation,
   LocateFixed, LocateOff, RefreshCw, Home, Check,
   Repeat, Repeat2, MoreHorizontal, ChevronDown, ChevronUp, StopCircle,
-  SkipForward, Film, Radio, ChevronLeft, ChevronRight,
+  SkipForward, Film, Radio, ChevronLeft, ChevronRight, Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
