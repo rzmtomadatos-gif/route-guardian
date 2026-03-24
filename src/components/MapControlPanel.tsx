@@ -136,6 +136,9 @@ export function MapControlPanel({
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
+  type CollapsedWidth = 'normal' | 'medio' | 'extremo';
+  const [collapsedWidth, setCollapsedWidth] = useState<CollapsedWidth>('normal');
+  const cycleWidth = () => setCollapsedWidth(w => w === 'normal' ? 'medio' : w === 'medio' ? 'extremo' : 'normal');
 
   // Compute valid completed count in current track (RST mode)
   const rstValidCount = useMemo(() => {
