@@ -61,6 +61,7 @@ function AppRoutes() {
     updateRouteContext,
     applyRetroactiveIds,
     setAcquisitionMode,
+    applyRouteOrder,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
