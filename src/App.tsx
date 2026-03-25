@@ -130,6 +130,7 @@ function AppRoutes() {
               onSetWorkDay={setWorkDay}
               onReverseSegment={reverseSegment}
               onSetAcquisitionMode={setAcquisitionMode}
+              onApplyRouteOrder={applyRouteOrder}
             />
           }
         />

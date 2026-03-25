@@ -1281,7 +1281,14 @@ export default function MapPage({
       {debugMode &&
       <OptimizerDebugPanel
         debugInfo={optimizerDebugInfo}
-        segments={state.route?.segments || []} />
+        segments={state.route?.segments || []}
+        onApplyRoute={(routeId, segmentIds) => {
+          onApplyRouteOrder(segmentIds, hiddenLayers);
+          setAppliedRouteId(routeId);
+          setTimeout(() => recalcBlock(), 50);
+          toast.success('Ruta operativa aplicada');
+        }}
+        appliedRouteId={appliedRouteId} />
 
       }
 
