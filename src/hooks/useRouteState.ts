@@ -1143,5 +1143,6 @@ export function useRouteState() {
     updateRouteContext,
     applyRetroactiveIds,
     setAcquisitionMode,
+    applyRouteOrder,
   };
 }
