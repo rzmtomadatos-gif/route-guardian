@@ -249,60 +249,60 @@ export function MapControlPanel({
 
         {/* COLLAPSED: minimal controls */}
         {!expanded && (
-          <div className="px-1.5 pb-1 space-y-0.5">
+          <div className="px-2 pb-1.5 space-y-1">
             {/* Pinned segment */}
             {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
-              <div className="flex items-center gap-0.5">
-                <p className="flex-1 min-w-0 text-[9px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
-                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-6 px-2 text-[9px] bg-success text-success-foreground">
-                  <Square className="w-2.5 h-2.5 mr-0.5" />
+              <div className="flex items-center gap-1">
+                <p className="flex-1 min-w-0 text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
+                <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-9 flex-1 text-xs bg-success text-success-foreground font-bold">
+                  <Square className="w-3.5 h-3.5 mr-1" />
                   Fin
                 </Button>
                 <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
-                  <Button size="sm" variant="ghost" className="h-6 px-1 text-destructive">
-                    <AlertTriangle className="w-2.5 h-2.5" />
+                  <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-destructive">
+                    <AlertTriangle className="w-4 h-4" />
                   </Button>
                 </IncidentDialog>
               </div>
             )}
             {pinnedSegment && pinnedSegment.status === 'pendiente' && (
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-1">
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
-                  <p className="text-[9px] text-foreground truncate">{pinnedSegment.name}</p>
+                  <p className="text-[10px] text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
-                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-6 px-1.5 text-[9px] bg-primary text-primary-foreground">
-                  <Play className="w-2.5 h-2.5" />
+                <Button size="sm" onClick={() => { onSegmentSelect(pinnedSegment.id); handleConfirmStart(pinnedSegment.id); }} className="h-10 px-4 text-xs font-bold bg-primary text-primary-foreground">
+                  <Play className="w-4 h-4 mr-1" />
+                  Iniciar
                 </Button>
               </div>
             )}
-            {/* Nav controls row */}
-            <div className="flex gap-0.5 items-center">
-              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-6 w-6 p-0" title="Anterior">
-                <ChevronLeft className="w-3 h-3" />
+            {/* Nav controls row — evenly distributed */}
+            <div className="flex gap-1 items-center">
+              <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-9 flex-1 p-0" title="Anterior">
+                <ChevronLeft className="w-4 h-4" />
               </Button>
               {navigationActive ? (
-                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-6 w-6 p-0 border-destructive/40 text-destructive">
-                  <Square className="w-2.5 h-2.5" />
+                <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-9 flex-1 p-0 border-destructive/40 text-destructive">
+                  <Square className="w-4 h-4" />
                 </Button>
               ) : (
-                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-6 w-6 p-0 bg-primary text-primary-foreground">
-                  <Navigation className="w-2.5 h-2.5" />
+                <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-9 flex-1 p-0 bg-primary text-primary-foreground">
+                  <Navigation className="w-4 h-4" />
                 </Button>
               )}
-              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-6 w-6 p-0" title="Siguiente">
-                <ChevronRight className="w-3 h-3" />
+              <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-9 flex-1 p-0" title="Siguiente">
+                <ChevronRight className="w-4 h-4" />
               </Button>
-              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-6 w-6 p-0" title="Optimizar">
-                <RotateCcw className="w-2.5 h-2.5" />
+              <Button variant="outline" onClick={onReoptimize} size="sm" className="h-9 flex-1 p-0" title="Optimizar">
+                <RotateCcw className="w-4 h-4" />
               </Button>
               <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
-                <Button variant="outline" size="sm" className={`h-6 w-6 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
-                  <Radio className="w-2.5 h-2.5" />
+                <Button variant="outline" size="sm" className={`h-9 flex-1 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
+                  <Radio className="w-4 h-4" />
                 </Button>
               </CopilotPanel>
-              {/* Width cycle button */}
-              <Button variant="ghost" onClick={cycleWidth} size="sm" className="h-6 w-6 p-0 ml-auto" title={`Ancho: ${collapsedWidth}`}>
-                <Minimize2 className="w-2.5 h-2.5" />
+              <Button variant="ghost" onClick={cycleWidth} size="sm" className="h-9 w-9 p-0 flex-shrink-0" title={`Ancho: ${collapsedWidth}`}>
+                <Minimize2 className="w-4 h-4" />
               </Button>
             </div>
             {/* Stats + track */}
