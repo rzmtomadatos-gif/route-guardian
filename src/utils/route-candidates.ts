@@ -1,6 +1,8 @@
 import type { LatLng, Segment } from '@/types/route';
 import { detectCorridors, orderWithCorridors, type Corridor } from '@/utils/corridor-detection';
 
+// ==================== Geometry Helpers ====================
+
 /** Haversine distance in meters */
 function haversine(a: LatLng, b: LatLng): number {
   const R = 6371000;
@@ -22,37 +24,239 @@ function segEnd(seg: Segment): LatLng {
   return seg.coordinates[seg.coordinates.length - 1];
 }
 
-/** Compute total route cost: segment lengths + transition distances */
-function computeRouteCost(ordered: Segment[], startPos: LatLng): number {
-  if (ordered.length === 0) return 0;
+/** Bearing of a segment in degrees [0, 360) */
+function segmentBearing(seg: Segment): number {
+  const s = seg.coordinates[0];
+  const e = seg.coordinates[seg.coordinates.length - 1];
+  const dLng = ((e.lng - s.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos((e.lat * Math.PI) / 180);
+  const x =
+    Math.cos((s.lat * Math.PI) / 180) * Math.sin((e.lat * Math.PI) / 180) -
+    Math.sin((s.lat * Math.PI) / 180) * Math.cos((e.lat * Math.PI) / 180) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Bearing from point A to point B */
+function bearingFromTo(a: LatLng, b: LatLng): number {
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos((b.lat * Math.PI) / 180);
+  const x =
+    Math.cos((a.lat * Math.PI) / 180) * Math.sin((b.lat * Math.PI) / 180) -
+    Math.sin((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Angular difference between two bearings, result in [0, 180] */
+function bearingDiff(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+// ==================== Scoring System ====================
+
+/**
+ * Penalty weights in equivalent meters.
+ * These represent the "cost" of operationally bad decisions,
+ * normalized to meters so they can be summed with transition distance.
+ *
+ * Priority order (highest penalty = highest priority to avoid):
+ * 1. Corridor re-entry (left and came back) — worst
+ * 2. Corridor break (non-consecutive corridor segments)
+ * 3. U-turn between consecutive segments
+ * 4. Wrong approach direction
+ */
+const PENALTY = {
+  /** Leaving a corridor and re-entering it later */
+  CORRIDOR_REENTRY: 3000,
+  /** Breaking corridor continuity (non-corridor segment between corridor segments) */
+  CORRIDOR_BREAK: 2000,
+  /** U-turn: bearing change > 150° between consecutive segments */
+  U_TURN: 1500,
+  /** Approaching a segment from a direction > 120° off its bearing */
+  WRONG_APPROACH: 800,
+};
+
+/** Average speeds for time estimation (m/s) */
+const SPEED = {
+  SEGMENT: 14,     // ~50 km/h during recording
+  TRANSITION: 11,  // ~40 km/h during transit
+};
+
+interface RouteScoring {
+  transitionDistanceM: number;
+  segmentDistanceM: number;
+  totalDriveDistanceM: number;
+  totalDriveTimeS: number;
+  corridorIntegrityPenalty: number;
+  wrongEntryPenalty: number;
+  uTurnPenalty: number;
+  maneuverPenalty: number;
+  finalScore: number;
+  /** Human-readable penalty breakdown */
+  notes: string[];
+}
+
+function computeSegmentDistance(ordered: Segment[]): number {
   let total = 0;
-
-  // Distance from start to first segment
-  total += haversine(startPos, segStart(ordered[0]));
-
-  for (let i = 0; i < ordered.length; i++) {
-    const seg = ordered[i];
-    // Segment length
+  for (const seg of ordered) {
     for (let j = 0; j < seg.coordinates.length - 1; j++) {
       total += haversine(seg.coordinates[j], seg.coordinates[j + 1]);
     }
-    // Transition to next
-    if (i < ordered.length - 1) {
-      total += haversine(segEnd(seg), segStart(ordered[i + 1]));
+  }
+  return total;
+}
+
+/**
+ * Score a candidate route considering corridor integrity, maneuver quality,
+ * and approach direction — not just raw distance.
+ */
+function scoreRoute(
+  ordered: Segment[],
+  startPos: LatLng,
+  corridors: Corridor[],
+): RouteScoring {
+  const notes: string[] = [];
+
+  if (ordered.length === 0) {
+    return {
+      transitionDistanceM: 0, segmentDistanceM: 0, totalDriveDistanceM: 0,
+      totalDriveTimeS: 0, corridorIntegrityPenalty: 0, wrongEntryPenalty: 0,
+      uTurnPenalty: 0, maneuverPenalty: 0, finalScore: 0, notes: [],
+    };
+  }
+
+  // Build segment → corridor lookup
+  const segCorridor = new Map<string, string>();
+  for (const c of corridors) {
+    for (const id of c.segmentIds) segCorridor.set(id, c.id);
+  }
+
+  // --- 1. Transition distance (dead km) ---
+  let transitionDistanceM = haversine(startPos, segStart(ordered[0]));
+  for (let i = 0; i < ordered.length - 1; i++) {
+    transitionDistanceM += haversine(segEnd(ordered[i]), segStart(ordered[i + 1]));
+  }
+
+  // --- 2. Segment distance ---
+  const segmentDistanceM = computeSegmentDistance(ordered);
+
+  // --- 3. U-turn penalty ---
+  let uTurnPenalty = 0;
+  for (let i = 0; i < ordered.length - 1; i++) {
+    const bearA = segmentBearing(ordered[i]);
+    const bearB = segmentBearing(ordered[i + 1]);
+    const diff = bearingDiff(bearA, bearB);
+    if (diff > 150) {
+      uTurnPenalty += PENALTY.U_TURN;
+      notes.push(`U-turn: "${ordered[i].name}" → "${ordered[i + 1].name}" (${Math.round(diff)}°)`);
     }
   }
 
-  return total;
+  // --- 4. Wrong approach penalty ---
+  let wrongEntryPenalty = 0;
+  let prevExit = startPos;
+  for (let i = 0; i < ordered.length; i++) {
+    const seg = ordered[i];
+    const distToStart = haversine(prevExit, segStart(seg));
+    // Only penalize if transition is long enough to matter
+    if (distToStart > 200) {
+      const approachBear = bearingFromTo(prevExit, segStart(seg));
+      const segBear = segmentBearing(seg);
+      const diff = bearingDiff(approachBear, segBear);
+      if (diff > 120) {
+        wrongEntryPenalty += PENALTY.WRONG_APPROACH;
+        notes.push(`Aprox. incorrecta: "${seg.name}" (${Math.round(diff)}° desfase)`);
+      }
+    }
+    prevExit = segEnd(seg);
+  }
+
+  // --- 5. Corridor integrity penalty ---
+  let corridorIntegrityPenalty = 0;
+
+  // 5a. Check for gaps in corridor segments (non-corridor segments between corridor segments)
+  const corridorPositions = new Map<string, number[]>();
+  for (let i = 0; i < ordered.length; i++) {
+    const cId = segCorridor.get(ordered[i].id);
+    if (cId) {
+      if (!corridorPositions.has(cId)) corridorPositions.set(cId, []);
+      corridorPositions.get(cId)!.push(i);
+    }
+  }
+
+  for (const [cId, positions] of corridorPositions) {
+    if (positions.length < 2) continue;
+    for (let i = 1; i < positions.length; i++) {
+      const gap = positions[i] - positions[i - 1];
+      if (gap > 1) {
+        const corridor = corridors.find((c) => c.id === cId);
+        corridorIntegrityPenalty += PENALTY.CORRIDOR_BREAK;
+        notes.push(`Corredor "${corridor?.roadName || cId}" roto (${gap - 1} tramos intercalados)`);
+      }
+    }
+  }
+
+  // 5b. Check for corridor re-entry (left a corridor and came back)
+  const visitedCorridors = new Set<string>();
+  let lastCorridor: string | null = null;
+  for (const seg of ordered) {
+    const cId = segCorridor.get(seg.id) || null;
+    if (cId && cId !== lastCorridor) {
+      if (visitedCorridors.has(cId)) {
+        corridorIntegrityPenalty += PENALTY.CORRIDOR_REENTRY;
+        const corridor = corridors.find((c) => c.id === cId);
+        notes.push(`Re-entrada en corredor "${corridor?.roadName || cId}"`);
+      }
+      visitedCorridors.add(cId);
+    }
+    lastCorridor = cId;
+  }
+
+  // --- Totals ---
+  const maneuverPenalty = uTurnPenalty + wrongEntryPenalty;
+  const totalDriveDistanceM = segmentDistanceM + transitionDistanceM;
+  const totalDriveTimeS = Math.round(
+    segmentDistanceM / SPEED.SEGMENT + transitionDistanceM / SPEED.TRANSITION,
+  );
+
+  // Final score: transition distance + all operational penalties
+  const finalScore = transitionDistanceM + corridorIntegrityPenalty + maneuverPenalty;
+
+  return {
+    transitionDistanceM,
+    segmentDistanceM,
+    totalDriveDistanceM,
+    totalDriveTimeS,
+    corridorIntegrityPenalty,
+    wrongEntryPenalty,
+    uTurnPenalty,
+    maneuverPenalty,
+    finalScore,
+    notes,
+  };
 }
+
+// ==================== Public Interfaces ====================
 
 export interface CandidateRoute {
   id: string;
   label: string;
   description: string;
   segmentIds: string[];
+  // Distance metrics
   totalDistanceM: number;
   transitionDistanceM: number;
   segmentDistanceM: number;
+  // Operational scoring
+  totalDriveTimeS: number;
+  totalDriveDistanceM: number;
+  maneuverPenalty: number;
+  corridorIntegrityPenalty: number;
+  wrongEntryPenalty: number;
+  uTurnPenalty: number;
+  finalScore: number;
+  /** Debug notes explaining penalties */
+  scoringNotes: string[];
 }
 
 export interface CandidateComparison {
@@ -60,6 +264,8 @@ export interface CandidateComparison {
   chosenId: string;
   reason: string;
 }
+
+// ==================== Route Building (existing logic preserved) ====================
 
 /**
  * Build a corridor-aware nearest-neighbor route starting from a specific corridor.
@@ -91,10 +297,8 @@ function buildRouteFromCorridor(
 
     let ordered: Segment[];
     if (ci === startCorridorIdx && reverseEntry) {
-      // Enter from end: B reversed then A
       ordered = [...[...segsB].reverse(), ...segsA];
     } else {
-      // Normal: A then B reversed
       ordered = [...segsA, ...[...segsB].reverse()];
     }
 
@@ -110,11 +314,10 @@ function buildRouteFromCorridor(
 
   // Move the start corridor to the front
   if (startCorridorIdx >= 0 && startCorridorIdx < corridors.length) {
-    const startCorridorId = corridors[startCorridorIdx].id;
     const idx = units.findIndex(
-      (u) => u.type === 'corridor' && u.segments.some((s) =>
-        corridors[startCorridorIdx].segmentIds.includes(s.id)
-      )
+      (u) =>
+        u.type === 'corridor' &&
+        u.segments.some((s) => corridors[startCorridorIdx].segmentIds.includes(s.id)),
     );
     if (idx > 0) {
       const [unit] = units.splice(idx, 1);
@@ -122,7 +325,7 @@ function buildRouteFromCorridor(
     }
   }
 
-  // Chain remaining units by nearest-neighbor
+  // Chain remaining units by nearest-neighbor (using segment endpoints, not midpoints)
   const result: Unit[] = [units[0]];
   const remaining = units.slice(1);
   let pos = segEnd(units[0].segments[units[0].segments.length - 1]);
@@ -131,8 +334,10 @@ function buildRouteFromCorridor(
     let bestIdx = 0;
     let bestDist = Infinity;
     for (let i = 0; i < remaining.length; i++) {
-      const entry = remaining[i].segments[0].coordinates[0];
-      const d = haversine(pos, entry);
+      // Check both entry points of the unit
+      const entryStart = segStart(remaining[i].segments[0]);
+      const entryEnd = segEnd(remaining[i].segments[remaining[i].segments.length - 1]);
+      const d = Math.min(haversine(pos, entryStart), haversine(pos, entryEnd));
       if (d < bestDist) {
         bestDist = d;
         bestIdx = i;
@@ -187,30 +392,43 @@ function buildNearestNeighborRoute(segments: Segment[], startPos: LatLng): Segme
   return result;
 }
 
+// ==================== Candidate Generation ====================
+
 /**
- * Compute transition-only distance (dead km between segments).
+ * Build a scored CandidateRoute from an ordered segment list.
  */
-function computeTransitionDistance(ordered: Segment[], startPos: LatLng): number {
-  if (ordered.length === 0) return 0;
-  let total = haversine(startPos, segStart(ordered[0]));
-  for (let i = 0; i < ordered.length - 1; i++) {
-    total += haversine(segEnd(ordered[i]), segStart(ordered[i + 1]));
-  }
-  return total;
-}
-
-function computeSegmentOnlyDistance(ordered: Segment[]): number {
-  let total = 0;
-  for (const seg of ordered) {
-    for (let j = 0; j < seg.coordinates.length - 1; j++) {
-      total += haversine(seg.coordinates[j], seg.coordinates[j + 1]);
-    }
-  }
-  return total;
+function buildCandidate(
+  id: string,
+  label: string,
+  description: string,
+  ordered: Segment[],
+  startPos: LatLng,
+  corridors: Corridor[],
+): CandidateRoute {
+  const scoring = scoreRoute(ordered, startPos, corridors);
+  return {
+    id,
+    label,
+    description,
+    segmentIds: ordered.map((s) => s.id),
+    totalDistanceM: scoring.totalDriveDistanceM,
+    transitionDistanceM: scoring.transitionDistanceM,
+    segmentDistanceM: scoring.segmentDistanceM,
+    totalDriveTimeS: scoring.totalDriveTimeS,
+    totalDriveDistanceM: scoring.totalDriveDistanceM,
+    maneuverPenalty: scoring.maneuverPenalty,
+    corridorIntegrityPenalty: scoring.corridorIntegrityPenalty,
+    wrongEntryPenalty: scoring.wrongEntryPenalty,
+    uTurnPenalty: scoring.uTurnPenalty,
+    finalScore: scoring.finalScore,
+    scoringNotes: scoring.notes,
+  };
 }
 
 /**
- * Generate multiple candidate routes (up to 50 segments) and pick the best.
+ * Generate multiple candidate routes (up to 50 segments) and pick the best
+ * using operational scoring (corridors > maneuver > dead km).
+ *
  * Returns ordered segment IDs and comparison data for debug.
  */
 export function generateCandidateRoutes(
@@ -224,17 +442,12 @@ export function generateCandidateRoutes(
     return {
       order: capped.map((s) => s.id),
       comparison: {
-        candidates: capped.length === 1
-          ? [{
-              id: 'single',
-              label: 'Ruta única',
-              description: 'Solo 1 tramo',
-              segmentIds: capped.map((s) => s.id),
-              totalDistanceM: 0,
-              transitionDistanceM: 0,
-              segmentDistanceM: 0,
-            }]
-          : [],
+        candidates:
+          capped.length === 1
+            ? [
+                buildCandidate('single', 'Ruta única', 'Solo 1 tramo', capped, capped[0].coordinates[0], []),
+              ]
+            : [],
         chosenId: 'single',
         reason: 'Solo hay 1 tramo',
       },
@@ -247,109 +460,104 @@ export function generateCandidateRoutes(
 
   // --- Route C: Pure nearest-neighbor (baseline) ---
   const nnRoute = buildNearestNeighborRoute(capped, base);
-  const nnSegDist = computeSegmentOnlyDistance(nnRoute);
-  const nnTransDist = computeTransitionDistance(nnRoute, base);
-  candidates.push({
-    id: 'nn',
-    label: 'Ruta C (vecino cercano)',
-    description: 'Heurística nearest-neighbor pura sin corredores',
-    segmentIds: nnRoute.map((s) => s.id),
-    totalDistanceM: nnSegDist + nnTransDist,
-    transitionDistanceM: nnTransDist,
-    segmentDistanceM: nnSegDist,
-  });
+  candidates.push(
+    buildCandidate('nn', 'Ruta C (vecino cercano)', 'Nearest-neighbor sin corredores', nnRoute, base, corridors),
+  );
 
   if (corridors.length > 0) {
     // Find the N closest corridors to start from (up to 3)
+    const segMap = new Map(capped.map((s) => [s.id, s]));
     const corridorDistances = corridors.map((c, idx) => {
-      const segMap = new Map(capped.map((s) => [s.id, s]));
-      const firstA = c.directionA[0] ? segMap.get(c.directionA[0]) : null;
-      const firstB = c.directionB[0] ? segMap.get(c.directionB[0]) : null;
       let minDist = Infinity;
-      if (firstA) minDist = Math.min(minDist, haversine(base, segStart(firstA)));
-      if (firstB) minDist = Math.min(minDist, haversine(base, segStart(firstB)));
-      // Also check ends
-      const lastA = c.directionA[c.directionA.length - 1] ? segMap.get(c.directionA[c.directionA.length - 1]) : null;
-      const lastB = c.directionB[c.directionB.length - 1] ? segMap.get(c.directionB[c.directionB.length - 1]) : null;
-      if (lastA) minDist = Math.min(minDist, haversine(base, segEnd(lastA)));
-      if (lastB) minDist = Math.min(minDist, haversine(base, segEnd(lastB)));
+      for (const id of [...c.directionA, ...c.directionB]) {
+        const seg = segMap.get(id);
+        if (seg) {
+          minDist = Math.min(minDist, haversine(base, segStart(seg)), haversine(base, segEnd(seg)));
+        }
+      }
       return { idx, dist: minDist };
     });
     corridorDistances.sort((a, b) => a.dist - b.dist);
 
-    // --- Route A: Start from closest corridor, normal entry ---
+    // --- Route A: Closest corridor, normal entry ---
     const closestIdx = corridorDistances[0].idx;
     const routeA = buildRouteFromCorridor(capped, corridors, closestIdx, base, false);
-    const routeASegDist = computeSegmentOnlyDistance(routeA);
-    const routeATransDist = computeTransitionDistance(routeA, base);
-    candidates.push({
-      id: 'corridor_closest',
-      label: 'Ruta A (corredor cercano)',
-      description: `Entra por corredor "${corridors[closestIdx].roadName}" extremo normal`,
-      segmentIds: routeA.map((s) => s.id),
-      totalDistanceM: routeASegDist + routeATransDist,
-      transitionDistanceM: routeATransDist,
-      segmentDistanceM: routeASegDist,
-    });
+    candidates.push(
+      buildCandidate(
+        'corridor_closest',
+        'Ruta A (corredor cercano)',
+        `Entra por "${corridors[closestIdx].roadName}" extremo normal`,
+        routeA,
+        base,
+        corridors,
+      ),
+    );
 
     // --- Route A-rev: Same corridor, reversed entry ---
     const routeARev = buildRouteFromCorridor(capped, corridors, closestIdx, base, true);
-    const routeARevSegDist = computeSegmentOnlyDistance(routeARev);
-    const routeARevTransDist = computeTransitionDistance(routeARev, base);
-    candidates.push({
-      id: 'corridor_closest_rev',
-      label: 'Ruta A-rev (corredor cercano, reverso)',
-      description: `Entra por corredor "${corridors[closestIdx].roadName}" extremo opuesto`,
-      segmentIds: routeARev.map((s) => s.id),
-      totalDistanceM: routeARevSegDist + routeARevTransDist,
-      transitionDistanceM: routeARevTransDist,
-      segmentDistanceM: routeARevSegDist,
-    });
+    candidates.push(
+      buildCandidate(
+        'corridor_closest_rev',
+        'Ruta A-rev (reverso)',
+        `Entra por "${corridors[closestIdx].roadName}" extremo opuesto`,
+        routeARev,
+        base,
+        corridors,
+      ),
+    );
 
-    // --- Route B: Second closest corridor (if exists) ---
+    // --- Route B: Second closest corridor ---
     if (corridorDistances.length >= 2) {
       const secondIdx = corridorDistances[1].idx;
       const routeB = buildRouteFromCorridor(capped, corridors, secondIdx, base, false);
-      const routeBSegDist = computeSegmentOnlyDistance(routeB);
-      const routeBTransDist = computeTransitionDistance(routeB, base);
-      candidates.push({
-        id: 'corridor_second',
-        label: 'Ruta B (2º corredor)',
-        description: `Entra por corredor "${corridors[secondIdx].roadName}"`,
-        segmentIds: routeB.map((s) => s.id),
-        totalDistanceM: routeBSegDist + routeBTransDist,
-        transitionDistanceM: routeBTransDist,
-        segmentDistanceM: routeBSegDist,
-      });
+      candidates.push(
+        buildCandidate(
+          'corridor_second',
+          'Ruta B (2º corredor)',
+          `Entra por "${corridors[secondIdx].roadName}"`,
+          routeB,
+          base,
+          corridors,
+        ),
+      );
     }
 
-    // --- Route D: Original corridor ordering (orderWithCorridors) ---
+    // --- Route D: Original corridor ordering ---
     const corridorOrder = orderWithCorridors(capped, corridors, base);
-    const corridorSegDist = computeSegmentOnlyDistance(corridorOrder);
-    const corridorTransDist = computeTransitionDistance(corridorOrder, base);
-    candidates.push({
-      id: 'corridor_original',
-      label: 'Ruta D (corredor original)',
-      description: 'Orden original por corredores (orderWithCorridors)',
-      segmentIds: corridorOrder.map((s) => s.id),
-      totalDistanceM: corridorSegDist + corridorTransDist,
-      transitionDistanceM: corridorTransDist,
-      segmentDistanceM: corridorSegDist,
-    });
+    candidates.push(
+      buildCandidate(
+        'corridor_original',
+        'Ruta D (corredor original)',
+        'Orden original por corredores',
+        corridorOrder,
+        base,
+        corridors,
+      ),
+    );
   }
 
-  // Pick best by total distance
-  candidates.sort((a, b) => a.totalDistanceM - b.totalDistanceM);
+  // *** SORT BY FINAL SCORE (operational), NOT raw distance ***
+  candidates.sort((a, b) => a.finalScore - b.finalScore);
   const best = candidates[0];
+
+  // Build explanation
+  const worst = candidates[candidates.length - 1];
+  const saving = worst ? ((worst.finalScore - best.finalScore) / 1000).toFixed(1) : '0';
+  const reason =
+    candidates.length > 1
+      ? `${best.label}: score ${(best.finalScore / 1000).toFixed(1)} km-eq ` +
+        `(${(best.transitionDistanceM / 1000).toFixed(1)} km muertos` +
+        `${best.corridorIntegrityPenalty > 0 ? ` + ${(best.corridorIntegrityPenalty / 1000).toFixed(1)} km pen.corredor` : ''}` +
+        `${best.maneuverPenalty > 0 ? ` + ${(best.maneuverPenalty / 1000).toFixed(1)} km pen.maniobra` : ''}` +
+        `) — ${saving} km-eq mejor que la peor`
+      : 'Solo hay una ruta posible';
 
   return {
     order: best.segmentIds,
     comparison: {
       candidates,
       chosenId: best.id,
-      reason: candidates.length > 1
-        ? `${best.label}: ${(best.totalDistanceM / 1000).toFixed(1)} km (${(best.transitionDistanceM / 1000).toFixed(1)} km transición) — ${((candidates[candidates.length - 1].totalDistanceM - best.totalDistanceM) / 1000).toFixed(1)} km menos que la peor`
-        : 'Solo hay una ruta posible',
+      reason,
     },
   };
 }
