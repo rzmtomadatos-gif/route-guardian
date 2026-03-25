@@ -628,6 +628,30 @@ export function useRouteState() {
     });
   }, [setState]);
 
+  /** Apply a specific candidate route order as the active operative route */
+  const applyRouteOrder = useCallback((segmentIds: string[], hiddenLayers?: Set<string>) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const hidden = hiddenLayers || new Set<string>();
+      const isVisible = (seg: Segment) => !seg.layer || !hidden.has(seg.layer);
+      const isPending = (seg: Segment) =>
+        (seg.status === 'pendiente' || (seg.status === 'posible_repetir' && seg.needsRepeat));
+
+      // Keep non-pending and hidden segments in their original position
+      const rest = s.route.segments.filter((seg) => !isVisible(seg) || !isPending(seg));
+      const visibleNonRecordable = s.route.segments.filter(
+        (seg) => isVisible(seg) && isPending(seg) && seg.nonRecordable,
+      );
+
+      const newOrder = [
+        ...rest.map((seg) => seg.id),
+        ...segmentIds,
+        ...visibleNonRecordable.map((seg) => seg.id),
+      ];
+      return { ...s, route: { ...s.route, optimizedOrder: newOrder } };
+    });
+  }, [setState]);
+
   const resetSegment = useCallback((segmentId: string) => {
     setState((s) => {
       if (!s.route) return s;
@@ -1119,5 +1143,6 @@ export function useRouteState() {
     updateRouteContext,
     applyRetroactiveIds,
     setAcquisitionMode,
+    applyRouteOrder,
   };
 }
