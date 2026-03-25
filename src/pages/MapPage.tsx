@@ -154,13 +154,14 @@ export default function MapPage({
 
   const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
   const blockVersionRef = useRef(0);
+  const [appliedRouteId, setAppliedRouteId] = useState<string | null>(null);
 
   const recalcBlock = useCallback(() => {
     if (!state.route) {setActiveRouteBlock([]);return;}
-    const block = computeRouteBlock(state.route.segments, geo.position, hiddenLayers, ROUTE_BLOCK_SIZE);
+    const block = computeRouteBlock(state.route.segments, state.route.optimizedOrder, hiddenLayers, ROUTE_BLOCK_SIZE);
     setActiveRouteBlock(block);
     blockVersionRef.current += 1;
-  }, [state.route, geo.position, hiddenLayers]);
+  }, [state.route, hiddenLayers]);
 
   // Recalc block when segments/layers change (completion, incident, layer toggle)
   const blockDepsFingerprint = useMemo(() => {
