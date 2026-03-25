@@ -54,6 +54,7 @@ interface Props {
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
+  onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
 }
 
 export default function MapPage({
