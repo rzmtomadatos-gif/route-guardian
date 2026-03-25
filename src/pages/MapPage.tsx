@@ -82,6 +82,7 @@ export default function MapPage({
   onSetWorkDay,
   onReverseSegment,
   onSetAcquisitionMode,
+  onApplyRouteOrder,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
