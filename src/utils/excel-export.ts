@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Route, Segment, Incident, F5Event } from '@/types/route';
+import type { PersistentEvent } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 
 const STATUS_LABELS: Record<string, string> = {
