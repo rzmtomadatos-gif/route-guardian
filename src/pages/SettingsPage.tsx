@@ -1,22 +1,25 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
+import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { toast } from 'sonner';
-import type { Route } from '@/types/route';
+import type { Route, AppState } from '@/types/route';
 
 interface Props {
   onClear: () => void;
   hasRoute: boolean;
   route: Route | null;
+  state: AppState;
   onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
   onApplyRetroactiveIds: (code: string, projectName: string) => void;
+  onRestoreState: (state: AppState) => void;
 }
 
-export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteContext, onApplyRetroactiveIds }: Props) {
+export default function SettingsPage({ onClear, hasRoute, route, state, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -26,6 +29,30 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleExportCampaign = async () => {
+    try {
+      await exportCampaign(state);
+      toast.success('Campaña exportada correctamente.');
+    } catch (e: any) {
+      toast.error(`Error exportando campaña: ${e.message || e}`);
+    }
+  };
+
+  const handleImportCampaign = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const imported = await importCampaign(file);
+      onRestoreState(imported);
+      toast.success(`Campaña importada: ${imported.route?.name || 'sin nombre'}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Error importando campaña');
+    }
+    // Reset input
+    if (importRef.current) importRef.current.value = '';
+  };
 
   const missingIdCount = useMemo(() => {
     if (!route) return 0;
@@ -293,6 +320,43 @@ export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteCo
               Aplicación de auscultación vial para optimización y guía de rutas de grabación.
             </p>
             <p className="text-xs text-muted-foreground">Versión 1.1.0</p>
+          </div>
+        </div>
+
+        {/* Campaign export/import */}
+        <div className="space-y-3">
+          <span className="text-sm font-medium text-muted-foreground">Campaña</span>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Exporta la campaña completa (estado + log de eventos) como JSON para transferir a otro dispositivo o como respaldo.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleExportCampaign}
+                disabled={!hasRoute}
+                className="flex-1"
+                size="sm"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Exportar campaña
+              </Button>
+              <Button
+                onClick={() => importRef.current?.click()}
+                variant="outline"
+                className="flex-1"
+                size="sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Importar campaña
+              </Button>
+              <input
+                ref={importRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportCampaign}
+              />
+            </div>
           </div>
         </div>
 

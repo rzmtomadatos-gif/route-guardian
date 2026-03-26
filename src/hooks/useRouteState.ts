@@ -1100,6 +1100,11 @@ export function useRouteState() {
     setState((s) => ({ ...s, acquisitionMode: mode }));
   }, [setState]);
 
+  /** Restore full state from async persistence (IndexedDB) */
+  const restoreState = useCallback((restored: AppState) => {
+    setStateRaw(restored);
+  }, []);
+
   return {
     state,
     isDirty,
@@ -1144,5 +1149,6 @@ export function useRouteState() {
     applyRetroactiveIds,
     setAcquisitionMode,
     applyRouteOrder,
+    restoreState,
   };
 }

@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Route, Segment, Incident, F5Event } from '@/types/route';
+import type { PersistentEvent } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -125,7 +126,7 @@ function computeFinalStatus(seg: Segment): string {
   return 'Pendiente';
 }
 
-export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[]) {
+export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[], persistentEvents?: PersistentEvent[]) {
   const wb = XLSX.utils.book_new();
 
   const exportSegments = selectedIds && selectedIds.size > 0
@@ -301,6 +302,25 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     }));
     ws4['!cols'] = colWidths4;
     XLSX.utils.book_append_sheet(wb, ws4, 'Eventos F5');
+  }
+
+  // Sheet 5: Persistent Event Log
+  const allEvents = persistentEvents || [];
+  if (allEvents.length > 0) {
+    const evtData = allEvents.map((evt) => ({
+      'Timestamp': evt.timestamp,
+      'Tipo evento': evt.eventType,
+      'Día trabajo': evt.workDay ?? '',
+      'Track': evt.trackNumber ?? '',
+      'Tramo ID': evt.segmentId ?? '',
+      'Payload': evt.payload ? JSON.stringify(evt.payload) : '',
+    }));
+    const ws5 = XLSX.utils.json_to_sheet(evtData);
+    const colWidths5 = Object.keys(evtData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 20),
+    }));
+    ws5['!cols'] = colWidths5;
+    XLSX.utils.book_append_sheet(wb, ws5, 'Event Log');
   }
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useRouteState } from "@/hooks/useRouteState";
+import { migrateAndLoad } from "@/utils/persistence";
 import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
@@ -18,6 +19,18 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const routeState = useRouteState();
+
+  // Async IndexedDB restoration on mount — overwrites sync localStorage init
+  useEffect(() => {
+    migrateAndLoad()
+      .then((restored) => {
+        if (restored.route) {
+          routeState.restoreState(restored);
+        }
+      })
+      .catch((e) => console.error('Persistence restoration failed:', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const {
     state,
     isDirty,
@@ -62,6 +75,7 @@ function AppRoutes() {
     applyRetroactiveIds,
     setAcquisitionMode,
     applyRouteOrder,
+    restoreState,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -172,8 +186,10 @@ function AppRoutes() {
               onClear={clearRoute}
               hasRoute={!!state.route}
               route={state.route}
+              state={state}
               onUpdateRouteContext={updateRouteContext}
               onApplyRetroactiveIds={applyRetroactiveIds}
+              onRestoreState={restoreState}
             />
           }
         />
