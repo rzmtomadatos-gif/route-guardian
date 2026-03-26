@@ -29,6 +29,30 @@ export default function SettingsPage({ onClear, hasRoute, route, state, onUpdate
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleExportCampaign = async () => {
+    try {
+      await exportCampaign(state);
+      toast.success('Campaña exportada correctamente.');
+    } catch (e: any) {
+      toast.error(`Error exportando campaña: ${e.message || e}`);
+    }
+  };
+
+  const handleImportCampaign = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const imported = await importCampaign(file);
+      onRestoreState(imported);
+      toast.success(`Campaña importada: ${imported.route?.name || 'sin nombre'}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Error importando campaña');
+    }
+    // Reset input
+    if (importRef.current) importRef.current.value = '';
+  };
 
   const missingIdCount = useMemo(() => {
     if (!route) return 0;
