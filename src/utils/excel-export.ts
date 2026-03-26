@@ -126,7 +126,7 @@ function computeFinalStatus(seg: Segment): string {
   return 'Pendiente';
 }
 
-export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[]) {
+export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[], persistentEvents?: PersistentEvent[]) {
   const wb = XLSX.utils.book_new();
 
   const exportSegments = selectedIds && selectedIds.size > 0
