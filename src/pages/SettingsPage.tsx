@@ -13,8 +13,10 @@ interface Props {
   onClear: () => void;
   hasRoute: boolean;
   route: Route | null;
+  state: AppState;
   onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
   onApplyRetroactiveIds: (code: string, projectName: string) => void;
+  onRestoreState: (state: AppState) => void;
 }
 
 export default function SettingsPage({ onClear, hasRoute, route, onUpdateRouteContext, onApplyRetroactiveIds }: Props) {
