@@ -186,8 +186,10 @@ function AppRoutes() {
               onClear={clearRoute}
               hasRoute={!!state.route}
               route={state.route}
+              state={state}
               onUpdateRouteContext={updateRouteContext}
               onApplyRetroactiveIds={applyRetroactiveIds}
+              onRestoreState={restoreState}
             />
           }
         />
