@@ -242,13 +242,21 @@ export default function SegmentsPage({
       setExportErrors(errors);
       setShowExportAlert(true);
     } else {
-      exportRouteToExcel(route, incidents, selectedIds);
+      getAllEvents().then((events) => {
+        exportRouteToExcel(route, incidents, selectedIds, undefined, events);
+      }).catch(() => {
+        exportRouteToExcel(route, incidents, selectedIds);
+      });
     }
   };
 
   const handleExportForceAutofix = () => {
     setShowExportAlert(false);
-    exportRouteToExcel(route, incidents, selectedIds);
+    getAllEvents().then((events) => {
+      exportRouteToExcel(route, incidents, selectedIds, undefined, events);
+    }).catch(() => {
+      exportRouteToExcel(route, incidents, selectedIds);
+    });
   };
 
   const toggleSelect = (id: string) => {
