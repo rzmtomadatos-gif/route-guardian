@@ -19,6 +19,18 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const routeState = useRouteState();
+
+  // Async IndexedDB restoration on mount — overwrites sync localStorage init
+  useEffect(() => {
+    migrateAndLoad()
+      .then((restored) => {
+        if (restored.route) {
+          routeState.restoreState(restored);
+        }
+      })
+      .catch((e) => console.error('Persistence restoration failed:', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const {
     state,
     isDirty,

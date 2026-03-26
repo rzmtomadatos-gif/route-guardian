@@ -1,4 +1,11 @@
-import type { AppState, Route, Incident } from '@/types/route';
+/**
+ * Storage layer — now backed by IndexedDB via persistence module.
+ * localStorage is kept ONLY as synchronous fallback for initial render
+ * (React useState needs synchronous init). Async persistence is primary.
+ */
+
+import type { AppState } from '@/types/route';
+import { saveStateToDB } from '@/utils/persistence';
 
 const STORAGE_KEY = 'vialroute_state';
 
@@ -7,20 +14,26 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 function debouncedWrite(state: AppState): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
+    // Write to IndexedDB (primary)
+    saveStateToDB(state).catch((e) => console.error('IDB save error:', e));
+    // Write to localStorage (sync fallback for next cold start)
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
-      console.error('Error saving state:', e);
+      console.error('localStorage save error:', e);
     }
   }, 400);
 }
 
 function immediateWrite(state: AppState): void {
   if (debounceTimer) clearTimeout(debounceTimer);
+  // Write to IndexedDB (primary)
+  saveStateToDB(state).catch((e) => console.error('IDB save error:', e));
+  // Write to localStorage (sync fallback)
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
-    console.error('Error saving state:', e);
+    console.error('localStorage save error:', e);
   }
 }
 
@@ -38,12 +51,15 @@ export function saveState(state: Partial<AppState>, immediate = false): void {
   }
 }
 
+/**
+ * Synchronous load from localStorage — used ONLY for React useState init.
+ * The async IndexedDB load happens in App via migrateAndLoad().
+ */
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Ensure trackSession exists (migration)
       if (!('trackSession' in parsed)) parsed.trackSession = null;
       if (!('blockEndPrompt' in parsed)) parsed.blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
       if (!('workDay' in parsed)) parsed.workDay = 1;
@@ -69,15 +85,20 @@ export function loadState(): AppState {
   };
 }
 
-export function saveRoute(route: Route): void {
+export function saveRoute(route: import('@/types/route').Route): void {
   saveState({ route }, true);
 }
 
-export function saveIncidents(incidents: Incident[]): void {
+export function saveIncidents(incidents: import('@/types/route').Incident[]): void {
   saveState({ incidents }, true);
 }
 
 export function clearAll(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   localStorage.removeItem(STORAGE_KEY);
+  // Also clear IndexedDB
+  import('@/utils/persistence').then(({ clearStateDB, clearEventsDB }) => {
+    clearStateDB().catch(console.error);
+    clearEventsDB().catch(console.error);
+  });
 }
