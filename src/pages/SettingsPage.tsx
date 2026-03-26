@@ -323,6 +323,43 @@ export default function SettingsPage({ onClear, hasRoute, route, state, onUpdate
           </div>
         </div>
 
+        {/* Campaign export/import */}
+        <div className="space-y-3">
+          <span className="text-sm font-medium text-muted-foreground">Campaña</span>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Exporta la campaña completa (estado + log de eventos) como JSON para transferir a otro dispositivo o como respaldo.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleExportCampaign}
+                disabled={!hasRoute}
+                className="flex-1"
+                size="sm"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Exportar campaña
+              </Button>
+              <Button
+                onClick={() => importRef.current?.click()}
+                variant="outline"
+                className="flex-1"
+                size="sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Importar campaña
+              </Button>
+              <input
+                ref={importRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportCampaign}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Data */}
         <div className="space-y-3">
           <span className="text-sm font-medium text-muted-foreground">Datos</span>
