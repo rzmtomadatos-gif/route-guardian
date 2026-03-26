@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload } from 'lucide-react';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
+import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { toast } from 'sonner';
-import type { Route } from '@/types/route';
+import type { Route, AppState } from '@/types/route';
 
 interface Props {
   onClear: () => void;
