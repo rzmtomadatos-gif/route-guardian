@@ -283,7 +283,11 @@ export async function getEventCount(): Promise<number> {
   return result[0].values[0][0] as number;
 }
 
-/** Wipe the entire database (state + events + meta). Used by clearAll. */
+/**
+ * Wipe the entire database (state + events + meta). Used by clearAll.
+ * This is AWAITABLE — callers must await to guarantee cleanup before
+ * navigating or changing state.
+ */
 export async function destroyDatabase(): Promise<void> {
   if (db) {
     db.close();
