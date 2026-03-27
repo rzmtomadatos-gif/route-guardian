@@ -1,14 +1,15 @@
 /**
- * One-time migration from localStorage to IndexedDB.
+ * One-time migration from localStorage to SQLite.
  * Safe: if migration fails, localStorage is NOT deleted.
+ * 
+ * After successful migration, localStorage is never read or written again
+ * for app state purposes.
  */
 
 import type { AppState } from '@/types/route';
-import { saveStateToDB, loadStateFromDB } from './db';
+import { initDatabase, saveStateToDB, loadStateFromDB } from './db';
 import { logEvent } from './event-log';
-
-const LEGACY_KEY = 'vialroute_state';
-const MIGRATION_DONE_KEY = 'vialroute_migration_idb_done';
+import { LEGACY_STORAGE_KEY, LEGACY_MIGRATION_FLAG } from './types';
 
 function parseAppStateDefaults(parsed: any): AppState {
   if (!('trackSession' in parsed)) parsed.trackSession = null;
@@ -19,58 +20,63 @@ function parseAppStateDefaults(parsed: any): AppState {
   return parsed as AppState;
 }
 
+const DEFAULT_STATE: AppState = {
+  route: null,
+  incidents: [],
+  activeSegmentId: null,
+  navigationActive: false,
+  currentPosition: null,
+  base: null,
+  rstMode: false,
+  rstGroupSize: 3,
+  trackSession: null,
+  blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
+  workDay: 1,
+  acquisitionMode: 'RST',
+};
+
 /**
- * Attempt migration from localStorage → IndexedDB.
- * Returns the loaded AppState (from IDB or legacy) or default.
+ * Initialize SQLite, attempt migration from localStorage if needed,
+ * and return the loaded AppState.
+ * 
+ * This is the ONLY entry point for app startup persistence.
+ * Returns the state from SQLite (single source of truth).
  */
 export async function migrateAndLoad(): Promise<AppState> {
-  const defaultState: AppState = {
-    route: null,
-    incidents: [],
-    activeSegmentId: null,
-    navigationActive: false,
-    currentPosition: null,
-    base: null,
-    rstMode: false,
-    rstGroupSize: 3,
-    trackSession: null,
-    blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
-    workDay: 1,
-    acquisitionMode: 'RST',
-  };
+  // 1. Initialize SQLite database
+  await initDatabase();
 
-  // 1. Try IndexedDB first
+  // 2. Try loading existing state from SQLite
   try {
     const existing = await loadStateFromDB();
     if (existing) {
       return parseAppStateDefaults(existing);
     }
   } catch (e) {
-    console.error('Failed to load from IndexedDB:', e);
+    console.error('Failed to load from SQLite:', e);
   }
 
-  // 2. Check migration flag
+  // 3. Check if migration was already done (no data in SQLite = clean state)
   try {
-    if (localStorage.getItem(MIGRATION_DONE_KEY) === 'true') {
-      // Migration was done but IDB is empty → return default
-      return defaultState;
+    if (localStorage.getItem(LEGACY_MIGRATION_FLAG) === 'true') {
+      return DEFAULT_STATE;
     }
   } catch { /* ignore */ }
 
-  // 3. Attempt legacy migration
+  // 4. Attempt legacy migration from localStorage → SQLite
   try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return defaultState;
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return DEFAULT_STATE;
 
     const parsed = JSON.parse(raw);
     const state = parseAppStateDefaults(parsed);
 
-    // Persist to IndexedDB
+    // Write to SQLite
     await saveStateToDB(state);
 
-    // Mark migration done
+    // Mark migration done (this is the LAST write to localStorage, ever)
     try {
-      localStorage.setItem(MIGRATION_DONE_KEY, 'true');
+      localStorage.setItem(LEGACY_MIGRATION_FLAG, 'true');
     } catch { /* non-critical */ }
 
     // Log migration event
@@ -83,15 +89,15 @@ export async function migrateAndLoad(): Promise<AppState> {
       },
     });
 
-    console.info('Migration from localStorage to IndexedDB complete.');
+    console.info('Migration from localStorage to SQLite complete.');
     return state;
   } catch (e) {
     console.error('Migration from localStorage failed (legacy data preserved):', e);
-    // Fallback: try to read localStorage directly for this session
+    // Last resort: try to parse localStorage for this session only
     try {
-      const raw = localStorage.getItem(LEGACY_KEY);
+      const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (raw) return parseAppStateDefaults(JSON.parse(raw));
     } catch { /* ignore */ }
-    return defaultState;
+    return DEFAULT_STATE;
   }
 }
