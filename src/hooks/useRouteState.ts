@@ -17,7 +17,7 @@ const BLOCK_INVALIDATING_CATEGORIES = new Set<IncidentCategory>([
 ]);
 
 export function useRouteState() {
-  const [state, setStateRaw] = useState<AppState>(loadState);
+  const [state, setStateRaw] = useState<AppState>(getDefaultState);
   
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
