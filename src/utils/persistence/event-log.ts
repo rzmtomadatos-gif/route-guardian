@@ -1,6 +1,6 @@
 /**
  * Centralized event logging — single entry point for all operational events.
- * Append-only, persistent via IndexedDB.
+ * Append-only, persistent via SQLite.
  */
 
 import { appendEvent } from './db';

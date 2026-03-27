@@ -1,137 +1,272 @@
 /**
- * IndexedDB persistence layer for VialRoute.
- * Works in browser and Capacitor WebView.
- * Designed so the backing store can be swapped to native SQLite later.
+ * SQLite persistence layer for VialRoute.
+ * Uses sql.js (WASM-based SQLite) as the real database engine.
+ * The database binary is persisted to IndexedDB as an opaque blob.
+ * 
+ * This is the SINGLE SOURCE OF TRUTH for app state persistence.
+ * localStorage is NOT used for reads or writes — only as a migration source.
  */
 
+import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 import type { AppState } from '@/types/route';
 import {
   DB_NAME,
-  DB_VERSION,
-  STORE_STATE,
-  STORE_EVENTS,
-  STATE_KEY,
+  SCHEMA_VERSION,
   type PersistentEvent,
 } from './types';
 
-let dbInstance: IDBDatabase | null = null;
-let dbReady: Promise<IDBDatabase> | null = null;
+// ── Constants ───────────────────────────────────────────────────
+const IDB_STORE = 'vialroute_sqlite';
+const IDB_KEY = 'db_binary';
 
-function openDb(): Promise<IDBDatabase> {
-  if (dbInstance) return Promise.resolve(dbInstance);
-  if (dbReady) return dbReady;
+// ── Module state ────────────────────────────────────────────────
+let db: SqlJsDatabase | null = null;
+let initPromise: Promise<SqlJsDatabase> | null = null;
 
-  dbReady = new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+// ── IndexedDB binary storage (opaque backing store) ─────────────
 
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_STORE, 1);
     req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_STATE)) {
-        db.createObjectStore(STORE_STATE);
-      }
-      if (!db.objectStoreNames.contains(STORE_EVENTS)) {
-        const evtStore = db.createObjectStore(STORE_EVENTS, { keyPath: 'eventId' });
-        evtStore.createIndex('by_timestamp', 'timestamp', { unique: false });
-        evtStore.createIndex('by_type', 'eventType', { unique: false });
+      const idb = req.result;
+      if (!idb.objectStoreNames.contains('blobs')) {
+        idb.createObjectStore('blobs');
       }
     };
-
-    req.onsuccess = () => {
-      dbInstance = req.result;
-      resolve(dbInstance);
-    };
-
-    req.onerror = () => {
-      console.error('IndexedDB open failed:', req.error);
-      reject(req.error);
-    };
-  });
-
-  return dbReady;
-}
-
-// ── State persistence ───────────────────────────────────────────
-
-export async function saveStateToDB(state: AppState): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_STATE, 'readwrite');
-    tx.objectStore(STORE_STATE).put(state, STATE_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
 }
 
-export async function loadStateFromDB(): Promise<AppState | null> {
-  const db = await openDb();
+async function loadDbBinary(): Promise<Uint8Array | null> {
+  const idb = await openIDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_STATE, 'readonly');
-    const req = tx.objectStore(STORE_STATE).get(STATE_KEY);
+    const tx = idb.transaction('blobs', 'readonly');
+    const req = tx.objectStore('blobs').get(IDB_KEY);
     req.onsuccess = () => resolve(req.result ?? null);
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function clearStateDB(): Promise<void> {
-  const db = await openDb();
+async function saveDbBinary(data: Uint8Array): Promise<void> {
+  const idb = await openIDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_STATE, 'readwrite');
-    tx.objectStore(STORE_STATE).clear();
+    const tx = idb.transaction('blobs', 'readwrite');
+    tx.objectStore('blobs').put(data, IDB_KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+async function clearDbBinary(): Promise<void> {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction('blobs', 'readwrite');
+    tx.objectStore('blobs').clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ── Schema setup ────────────────────────────────────────────────
+
+function setupSchema(database: SqlJsDatabase): void {
+  database.run(`
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS event_log (
+      event_id TEXT PRIMARY KEY,
+      timestamp TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      work_day INTEGER,
+      track_number INTEGER,
+      segment_id TEXT,
+      payload TEXT
+    );
+  `);
+
+  database.run(`
+    CREATE INDEX IF NOT EXISTS idx_event_timestamp ON event_log(timestamp);
+  `);
+  database.run(`
+    CREATE INDEX IF NOT EXISTS idx_event_type ON event_log(event_type);
+  `);
+
+  // Store schema version
+  database.run(
+    `INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?);`,
+    [String(SCHEMA_VERSION)]
+  );
+}
+
+// ── Persistence helper: flush to IndexedDB ──────────────────────
+
+async function persist(): Promise<void> {
+  if (!db) return;
+  const data = db.export();
+  const buffer = new Uint8Array(data);
+  await saveDbBinary(buffer);
+}
+
+// ── Init ────────────────────────────────────────────────────────
+
+export async function initDatabase(): Promise<SqlJsDatabase> {
+  if (db) return db;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+    });
+
+    const existing = await loadDbBinary();
+    if (existing) {
+      db = new SQL.Database(existing);
+      // Ensure schema is up to date (safe: CREATE IF NOT EXISTS)
+      setupSchema(db);
+    } else {
+      db = new SQL.Database();
+      setupSchema(db);
+      await persist();
+    }
+
+    return db;
+  })();
+
+  return initPromise;
+}
+
+/** Get the initialized database. Throws if not yet initialized. */
+function getDb(): SqlJsDatabase {
+  if (!db) throw new Error('SQLite database not initialized. Call initDatabase() first.');
+  return db;
+}
+
+// ── State persistence ───────────────────────────────────────────
+
+export async function saveStateToDB(state: AppState): Promise<void> {
+  const database = getDb();
+  const json = JSON.stringify(state);
+  const now = new Date().toISOString();
+  database.run(
+    `INSERT OR REPLACE INTO app_state (key, data, updated_at) VALUES ('current', ?, ?);`,
+    [json, now]
+  );
+  await persist();
+}
+
+export async function loadStateFromDB(): Promise<AppState | null> {
+  const database = getDb();
+  const result = database.exec(`SELECT data FROM app_state WHERE key = 'current';`);
+  if (result.length === 0 || result[0].values.length === 0) return null;
+  const json = result[0].values[0][0] as string;
+  try {
+    return JSON.parse(json);
+  } catch {
+    console.error('Failed to parse state from SQLite');
+    return null;
+  }
+}
+
+export async function clearStateDB(): Promise<void> {
+  const database = getDb();
+  database.run(`DELETE FROM app_state;`);
+  await persist();
 }
 
 // ── Event log ───────────────────────────────────────────────────
 
 export async function appendEvent(evt: PersistentEvent): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_EVENTS, 'readwrite');
-    tx.objectStore(STORE_EVENTS).add(evt);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const database = getDb();
+  database.run(
+    `INSERT INTO event_log (event_id, timestamp, event_type, work_day, track_number, segment_id, payload)
+     VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    [
+      evt.eventId,
+      evt.timestamp,
+      evt.eventType,
+      evt.workDay ?? null,
+      evt.trackNumber ?? null,
+      evt.segmentId ?? null,
+      evt.payload ? JSON.stringify(evt.payload) : null,
+    ]
+  );
+  await persist();
 }
 
 export async function appendEvents(events: PersistentEvent[]): Promise<void> {
   if (events.length === 0) return;
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_EVENTS, 'readwrite');
-    const store = tx.objectStore(STORE_EVENTS);
-    events.forEach((e) => store.add(e));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const database = getDb();
+  const stmt = database.prepare(
+    `INSERT INTO event_log (event_id, timestamp, event_type, work_day, track_number, segment_id, payload)
+     VALUES (?, ?, ?, ?, ?, ?, ?);`
+  );
+  for (const evt of events) {
+    stmt.run([
+      evt.eventId,
+      evt.timestamp,
+      evt.eventType,
+      evt.workDay ?? null,
+      evt.trackNumber ?? null,
+      evt.segmentId ?? null,
+      evt.payload ? JSON.stringify(evt.payload) : null,
+    ]);
+  }
+  stmt.free();
+  await persist();
 }
 
 export async function getAllEvents(): Promise<PersistentEvent[]> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_EVENTS, 'readonly');
-    const req = tx.objectStore(STORE_EVENTS).index('by_timestamp').getAll();
-    req.onsuccess = () => resolve(req.result ?? []);
-    req.onerror = () => reject(req.error);
-  });
+  const database = getDb();
+  const result = database.exec(
+    `SELECT event_id, timestamp, event_type, work_day, track_number, segment_id, payload
+     FROM event_log ORDER BY timestamp ASC;`
+  );
+  if (result.length === 0) return [];
+  return result[0].values.map((row) => ({
+    eventId: row[0] as string,
+    timestamp: row[1] as string,
+    eventType: row[2] as string,
+    workDay: row[3] as number | undefined,
+    trackNumber: row[4] as number | undefined,
+    segmentId: row[5] as string | undefined,
+    payload: row[6] ? JSON.parse(row[6] as string) : undefined,
+  })) as PersistentEvent[];
 }
 
 export async function clearEventsDB(): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_EVENTS, 'readwrite');
-    tx.objectStore(STORE_EVENTS).clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const database = getDb();
+  database.run(`DELETE FROM event_log;`);
+  await persist();
 }
 
 export async function getEventCount(): Promise<number> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_EVENTS, 'readonly');
-    const req = tx.objectStore(STORE_EVENTS).count();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  const database = getDb();
+  const result = database.exec(`SELECT COUNT(*) FROM event_log;`);
+  if (result.length === 0) return 0;
+  return result[0].values[0][0] as number;
+}
+
+/** Wipe the entire database (state + events + meta). Used by clearAll. */
+export async function destroyDatabase(): Promise<void> {
+  if (db) {
+    db.close();
+    db = null;
+    initPromise = null;
+  }
+  await clearDbBinary();
 }

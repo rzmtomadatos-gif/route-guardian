@@ -1,13 +1,14 @@
 /**
- * Persistence layer types — Phase 1
+ * Persistence layer types — SQLite-backed.
  * Schema-versioned for future migrations.
  */
 
 export const DB_NAME = 'vialroute_db';
-export const DB_VERSION = 1;
-export const STORE_STATE = 'app_state';
-export const STORE_EVENTS = 'event_log';
-export const STATE_KEY = 'current'; // single-row key for AppState
+export const SCHEMA_VERSION = 1;
+
+// Legacy constants kept for migration reference only
+export const LEGACY_STORAGE_KEY = 'vialroute_state';
+export const LEGACY_MIGRATION_FLAG = 'vialroute_migration_sqlite_done';
 
 export type EventType =
   | 'APP_STATE_SAVED'

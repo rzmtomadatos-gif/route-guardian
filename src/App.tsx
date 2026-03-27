@@ -19,18 +19,22 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const routeState = useRouteState();
+  const [dbReady, setDbReady] = useState(false);
 
-  // Async IndexedDB restoration on mount — overwrites sync localStorage init
+  // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
-        if (restored.route) {
-          routeState.restoreState(restored);
-        }
+        routeState.restoreState(restored);
+        setDbReady(true);
       })
-      .catch((e) => console.error('Persistence restoration failed:', e));
+      .catch((e) => {
+        console.error('Persistence restoration failed:', e);
+        setDbReady(true); // Allow app to render with defaults
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const {
     state,
     isDirty,
@@ -93,6 +97,18 @@ function AppRoutes() {
       state.route.segments.forEach((s) => { if (s.layer) allLayers.add(s.layer); });
       if (allLayers.size > 0) setHiddenLayers(allLayers);
     }
+  }
+
+  // Show loading until SQLite is ready — no ambiguous initial state
+  if (!dbReady) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">Cargando datos...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
