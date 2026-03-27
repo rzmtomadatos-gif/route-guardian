@@ -65,8 +65,9 @@ export function getDefaultState(): AppState {
 
 /**
  * Wipe all persisted data (SQLite database).
+ * MUST be awaited — not fire-and-forget.
  */
-export function clearAll(): void {
+export async function clearAll(): Promise<void> {
   if (debounceTimer) clearTimeout(debounceTimer);
-  destroyDatabase().catch(console.error);
+  await destroyDatabase();
 }

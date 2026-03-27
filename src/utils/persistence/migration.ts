@@ -93,7 +93,9 @@ export async function migrateAndLoad(): Promise<AppState> {
     return state;
   } catch (e) {
     console.error('Migration from localStorage failed (legacy data preserved):', e);
-    // Last resort: try to parse localStorage for this session only
+    // READ-ONLY fallback: parse localStorage for THIS session only.
+    // This does NOT write to localStorage. If the user closes and reopens,
+    // migration will be retried. This is acceptable as a safety net.
     try {
       const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (raw) return parseAppStateDefaults(JSON.parse(raw));
