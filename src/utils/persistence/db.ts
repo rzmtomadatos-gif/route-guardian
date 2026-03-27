@@ -150,8 +150,9 @@ export async function initDatabase(): Promise<SqlJsDatabase> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    // Load WASM binary from local public/ — NO external CDN dependency.
     const SQL = await initSqlJs({
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+      locateFile: (file: string) => `/${file}`,
     });
 
     const existing = await loadDbBinary();
