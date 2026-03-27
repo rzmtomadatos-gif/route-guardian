@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt } from '@/types/route';
-import { loadState, saveState } from '@/utils/storage';
+import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 
