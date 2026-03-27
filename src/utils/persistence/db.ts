@@ -1,8 +1,29 @@
 /**
  * SQLite persistence layer for VialRoute.
- * Uses sql.js (WASM-based SQLite) as the real database engine.
- * The database binary is persisted to IndexedDB as an opaque blob.
  * 
+ * ARCHITECTURE NOTE (Phase 1):
+ * This is NOT native SQLite via Capacitor. It uses sql.js, a WebAssembly
+ * build of SQLite that runs entirely in the browser. The database binary
+ * is persisted as an opaque blob in IndexedDB (the browser's only API
+ * for large binary storage). IndexedDB is used ONLY as a filesystem
+ * substitute to store the .db bytes — all queries run through sql.js.
+ * 
+ * KNOWN LIMITATION — persist() cost:
+ * Every call to persist() exports the ENTIRE database binary and rewrites
+ * it to IndexedDB. For Phase 1 this is acceptable because the database is
+ * small (state JSON + event log). However, once track points (GPS every
+ * 10 m) are added in a future phase, the binary will grow significantly
+ * and persist() will need to be replaced with incremental/delta writes
+ * or a migration to Capacitor's native SQLite plugin
+ * (@capacitor-community/sqlite) which writes directly to the device
+ * filesystem without the export/reimport overhead.
+ * 
+ * MIGRATION PATH to native SQLite (future):
+ * 1. Replace sql.js with @capacitor-community/sqlite
+ * 2. On first run, detect the IndexedDB blob and import it into native DB
+ * 3. Remove IndexedDB blob after successful migration
+ * 4. persist() becomes a no-op (native plugin writes to disk directly)
+ *
  * This is the SINGLE SOURCE OF TRUTH for app state persistence.
  * localStorage is NOT used for reads or writes — only as a migration source.
  */
