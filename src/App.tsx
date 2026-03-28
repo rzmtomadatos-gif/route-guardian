@@ -122,6 +122,11 @@ function AppRoutes() {
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
     >
+      {persistenceDegraded && (
+        <div className="bg-yellow-900/80 text-yellow-200 text-xs text-center py-1.5 px-3 border-b border-yellow-700">
+          ⚠ Modo contingencia: persistencia no disponible. Los cambios no se guardarán hasta reconectar.
+        </div>
+      )}
       <Routes>
         <Route
           path="/"
