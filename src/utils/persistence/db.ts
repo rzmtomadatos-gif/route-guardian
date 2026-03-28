@@ -180,8 +180,8 @@ export async function initDatabase(): Promise<SqlJsDatabase | null> {
     try {
       // Load WASM binary from local public/ — NO external CDN dependency.
       // Wrapped in timeout to prevent indefinite hang when offline without cache.
-      const sqlPromise = initSqlJs({ locateFile: (file: string) => `/${file}` });
-      const SQL = await withTimeout(sqlPromise, INIT_TIMEOUT_MS, 'sql.js WASM init');
+      const SQL: any = await withTimeout(
+        initSqlJs({ locateFile: (file: string) => `/${file}` }), INIT_TIMEOUT_MS, 'sql.js WASM init');
 
       const existing = await loadDbBinary();
       if (existing) {
