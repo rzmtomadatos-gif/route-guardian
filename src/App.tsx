@@ -20,16 +20,19 @@ const queryClient = new QueryClient();
 function AppRoutes() {
   const routeState = useRouteState();
   const [dbReady, setDbReady] = useState(false);
+  const [persistenceDegraded, setPersistenceDegraded] = useState(false);
 
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
         routeState.restoreState(restored);
+        if (didStartDegraded()) setPersistenceDegraded(true);
         setDbReady(true);
       })
       .catch((e) => {
         console.error('Persistence restoration failed:', e);
+        setPersistenceDegraded(true);
         setDbReady(true); // Allow app to render with defaults
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
