@@ -8,6 +8,13 @@
  * for large binary storage). IndexedDB is used ONLY as a filesystem
  * substitute to store the .db bytes — all queries run through sql.js.
  * 
+ * OFFLINE RESILIENCE:
+ * If the WASM binary cannot be loaded (e.g. offline first load without
+ * service worker cache), the module falls back to an in-memory-only mode
+ * where persistence calls are no-ops. The app renders with defaults and
+ * the user sees a warning. On next load with connectivity, full SQLite
+ * initializes and picks up any IndexedDB-persisted data.
+ * 
  * KNOWN LIMITATION — persist() cost:
  * Every call to persist() exports the ENTIRE database binary and rewrites
  * it to IndexedDB. For Phase 1 this is acceptable because the database is
@@ -39,10 +46,18 @@ import {
 // ── Constants ───────────────────────────────────────────────────
 const IDB_STORE = 'vialroute_sqlite';
 const IDB_KEY = 'db_binary';
+const INIT_TIMEOUT_MS = 8000; // Max time to wait for WASM init
 
 // ── Module state ────────────────────────────────────────────────
 let db: SqlJsDatabase | null = null;
-let initPromise: Promise<SqlJsDatabase> | null = null;
+let initPromise: Promise<SqlJsDatabase | null> | null = null;
+/** True when SQLite could not be initialized (offline / WASM failure) */
+let degradedMode = false;
+
+/** Returns true if SQLite is NOT available (WASM failed to load) */
+export function isDegraded(): boolean {
+  return degradedMode;
+}
 
 // ── IndexedDB binary storage (opaque backing store) ─────────────
 
@@ -143,38 +158,61 @@ async function persist(): Promise<void> {
   await saveDbBinary(buffer);
 }
 
+// ── Timeout utility ─────────────────────────────────────────────
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout: ${label} (${ms}ms)`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 // ── Init ────────────────────────────────────────────────────────
 
-export async function initDatabase(): Promise<SqlJsDatabase> {
+export async function initDatabase(): Promise<SqlJsDatabase | null> {
   if (db) return db;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    // Load WASM binary from local public/ — NO external CDN dependency.
-    const SQL = await initSqlJs({
-      locateFile: (file: string) => `/${file}`,
-    });
+    try {
+      // Load WASM binary from local public/ — NO external CDN dependency.
+      // Wrapped in timeout to prevent indefinite hang when offline without cache.
+      const SQL = await withTimeout(
+        initSqlJs({ locateFile: (file: string) => `/${file}` }),
+        INIT_TIMEOUT_MS,
+        'sql.js WASM init',
+      );
 
-    const existing = await loadDbBinary();
-    if (existing) {
-      db = new SQL.Database(existing);
-      // Ensure schema is up to date (safe: CREATE IF NOT EXISTS)
-      setupSchema(db);
-    } else {
-      db = new SQL.Database();
-      setupSchema(db);
-      await persist();
+      const existing = await loadDbBinary();
+      if (existing) {
+        db = new SQL.Database(existing);
+        // Ensure schema is up to date (safe: CREATE IF NOT EXISTS)
+        setupSchema(db);
+      } else {
+        db = new SQL.Database();
+        setupSchema(db);
+        await persist();
+      }
+
+      degradedMode = false;
+      return db;
+    } catch (e) {
+      console.error('SQLite initialization failed — entering degraded mode:', e);
+      degradedMode = true;
+      db = null;
+      return null;
     }
-
-    return db;
   })();
 
   return initPromise;
 }
 
-/** Get the initialized database. Throws if not yet initialized. */
-function getDb(): SqlJsDatabase {
-  if (!db) throw new Error('SQLite database not initialized. Call initDatabase() first.');
+/** Get the initialized database, or null if degraded. */
+function getDb(): SqlJsDatabase | null {
+  if (degradedMode) return null;
   return db;
 }
 
@@ -182,6 +220,7 @@ function getDb(): SqlJsDatabase {
 
 export async function saveStateToDB(state: AppState): Promise<void> {
   const database = getDb();
+  if (!database) return; // degraded mode — skip silently
   const json = JSON.stringify(state);
   const now = new Date().toISOString();
   database.run(
@@ -193,6 +232,7 @@ export async function saveStateToDB(state: AppState): Promise<void> {
 
 export async function loadStateFromDB(): Promise<AppState | null> {
   const database = getDb();
+  if (!database) return null; // degraded mode
   const result = database.exec(`SELECT data FROM app_state WHERE key = 'current';`);
   if (result.length === 0 || result[0].values.length === 0) return null;
   const json = result[0].values[0][0] as string;
@@ -206,6 +246,7 @@ export async function loadStateFromDB(): Promise<AppState | null> {
 
 export async function clearStateDB(): Promise<void> {
   const database = getDb();
+  if (!database) return;
   database.run(`DELETE FROM app_state;`);
   await persist();
 }
@@ -214,6 +255,7 @@ export async function clearStateDB(): Promise<void> {
 
 export async function appendEvent(evt: PersistentEvent): Promise<void> {
   const database = getDb();
+  if (!database) return; // degraded mode — event is lost (acceptable for Phase 1)
   database.run(
     `INSERT INTO event_log (event_id, timestamp, event_type, work_day, track_number, segment_id, payload)
      VALUES (?, ?, ?, ?, ?, ?, ?);`,
@@ -233,6 +275,7 @@ export async function appendEvent(evt: PersistentEvent): Promise<void> {
 export async function appendEvents(events: PersistentEvent[]): Promise<void> {
   if (events.length === 0) return;
   const database = getDb();
+  if (!database) return;
   const stmt = database.prepare(
     `INSERT INTO event_log (event_id, timestamp, event_type, work_day, track_number, segment_id, payload)
      VALUES (?, ?, ?, ?, ?, ?, ?);`
@@ -254,6 +297,7 @@ export async function appendEvents(events: PersistentEvent[]): Promise<void> {
 
 export async function getAllEvents(): Promise<PersistentEvent[]> {
   const database = getDb();
+  if (!database) return [];
   const result = database.exec(
     `SELECT event_id, timestamp, event_type, work_day, track_number, segment_id, payload
      FROM event_log ORDER BY timestamp ASC;`
@@ -272,12 +316,14 @@ export async function getAllEvents(): Promise<PersistentEvent[]> {
 
 export async function clearEventsDB(): Promise<void> {
   const database = getDb();
+  if (!database) return;
   database.run(`DELETE FROM event_log;`);
   await persist();
 }
 
 export async function getEventCount(): Promise<number> {
   const database = getDb();
+  if (!database) return 0;
   const result = database.exec(`SELECT COUNT(*) FROM event_log;`);
   if (result.length === 0) return 0;
   return result[0].values[0][0] as number;
@@ -294,5 +340,6 @@ export async function destroyDatabase(): Promise<void> {
     db = null;
     initPromise = null;
   }
+  degradedMode = false;
   await clearDbBinary();
 }
