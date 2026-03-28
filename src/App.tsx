@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useRouteState } from "@/hooks/useRouteState";
-import { migrateAndLoad } from "@/utils/persistence";
+import { migrateAndLoad, didStartDegraded } from "@/utils/persistence";
 import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
@@ -20,16 +20,19 @@ const queryClient = new QueryClient();
 function AppRoutes() {
   const routeState = useRouteState();
   const [dbReady, setDbReady] = useState(false);
+  const [persistenceDegraded, setPersistenceDegraded] = useState(false);
 
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
         routeState.restoreState(restored);
+        if (didStartDegraded()) setPersistenceDegraded(true);
         setDbReady(true);
       })
       .catch((e) => {
         console.error('Persistence restoration failed:', e);
+        setPersistenceDegraded(true);
         setDbReady(true); // Allow app to render with defaults
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +122,11 @@ function AppRoutes() {
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
     >
+      {persistenceDegraded && (
+        <div className="bg-yellow-900/80 text-yellow-200 text-xs text-center py-1.5 px-3 border-b border-yellow-700">
+          ⚠ Modo contingencia: persistencia no disponible. Los cambios no se guardarán hasta reconectar.
+        </div>
+      )}
       <Routes>
         <Route
           path="/"

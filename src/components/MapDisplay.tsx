@@ -90,9 +90,27 @@ export function MapDisplay({
       attributionControl: false,
     }).setView([40.4168, -3.7038], 6);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
+      errorTileUrl: '', // prevent broken image icons
     }).addTo(map);
+
+    // Detect tile load failures (offline) and show indicator
+    let tileErrors = 0;
+    tileLayer.on('tileerror', () => {
+      tileErrors++;
+      if (tileErrors >= 3 && containerRef.current) {
+        const existing = containerRef.current.querySelector('.offline-badge');
+        if (!existing) {
+          const badge = document.createElement('div');
+          badge.className = 'offline-badge';
+          badge.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(120,80,0,0.85);color:#fbbf24;padding:4px 12px;border-radius:6px;font-size:11px;pointer-events:none;';
+          badge.textContent = '⚠ Cartografía no disponible sin conexión';
+          containerRef.current.style.position = 'relative';
+          containerRef.current.appendChild(badge);
+        }
+      }
+    });
 
     segmentLayerRef.current = L.layerGroup().addTo(map);
     arrowLayerRef.current = L.layerGroup().addTo(map);
