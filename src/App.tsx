@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useRouteState } from "@/hooks/useRouteState";
-import { migrateAndLoad } from "@/utils/persistence";
+import { migrateAndLoad, didStartDegraded } from "@/utils/persistence";
 import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
