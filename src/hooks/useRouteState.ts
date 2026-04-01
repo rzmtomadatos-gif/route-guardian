@@ -154,6 +154,7 @@ export function useRouteState() {
       });
       return { ...s, activeSegmentId: remaining[0] || null };
     });
+    logEvent('SEGMENT_SKIPPED', { segmentId });
   }, [setState]);
 
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
