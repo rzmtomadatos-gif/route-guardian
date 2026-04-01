@@ -1077,6 +1077,7 @@ export function useRouteState() {
         blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
       };
     }, true);
+    logEvent('WORK_DAY_CHANGED', { workDay: day });
   }, [setState]);
 
   /** Update route context fields (operator, vehicle, weather) */
