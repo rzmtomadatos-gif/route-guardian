@@ -17,23 +17,22 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+type DbStatus = 'starting' | 'ready' | 'degraded';
+
 function AppRoutes() {
   const routeState = useRouteState();
-  const [dbReady, setDbReady] = useState(false);
-  const [persistenceDegraded, setPersistenceDegraded] = useState(false);
+  const [dbStatus, setDbStatus] = useState<DbStatus>('starting');
 
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
         routeState.restoreState(restored);
-        if (didStartDegraded()) setPersistenceDegraded(true);
-        setDbReady(true);
+        setDbStatus(didStartDegraded() ? 'degraded' : 'ready');
       })
       .catch((e) => {
         console.error('Persistence restoration failed:', e);
-        setPersistenceDegraded(true);
-        setDbReady(true); // Allow app to render with defaults
+        setDbStatus('degraded');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -100,18 +99,6 @@ function AppRoutes() {
       state.route.segments.forEach((s) => { if (s.layer) allLayers.add(s.layer); });
       if (allLayers.size > 0) setHiddenLayers(allLayers);
     }
-  }
-
-  // Show loading until SQLite is ready — no ambiguous initial state
-  if (!dbReady) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Cargando datos...</p>
-        </div>
-      </div>
-    );
   }
 
   return (
