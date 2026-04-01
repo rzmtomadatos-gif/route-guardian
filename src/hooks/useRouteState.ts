@@ -359,6 +359,7 @@ export function useRouteState() {
         blockEndPrompt,
       };
     }, true);
+    logEvent('SEGMENT_COMPLETED', { segmentId });
   }, [setState]);
 
   /** Finalize the current track session (close early) */
