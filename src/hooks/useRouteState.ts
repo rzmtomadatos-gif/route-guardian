@@ -61,6 +61,15 @@ export function useRouteState() {
       trackSession: null,
     }));
 
+    logEvent('ROUTE_LOADED', {
+      payload: {
+        routeId: route.id,
+        routeName: route.name,
+        segmentCount: route.segments.length,
+        layerCount: route.availableLayers?.length ?? 0,
+      },
+    });
+
     try {
       const endpoints = route.segments.map((seg) => ({
         id: seg.id,
