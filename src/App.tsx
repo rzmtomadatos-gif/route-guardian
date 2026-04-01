@@ -109,8 +109,14 @@ function AppRoutes() {
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
     >
-      {persistenceDegraded && (
-        <div className="bg-yellow-900/80 text-yellow-200 text-xs text-center py-1.5 px-3 border-b border-yellow-700">
+      {dbStatus === 'starting' && (
+        <div className="flex items-center gap-2 justify-center py-2 bg-muted/50 border-b border-border">
+          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-muted-foreground">Iniciando persistencia...</span>
+        </div>
+      )}
+      {dbStatus === 'degraded' && (
+        <div className="bg-destructive/10 text-destructive text-xs text-center py-1.5 px-3 border-b border-destructive/20">
           ⚠ Modo contingencia: persistencia no disponible. Los cambios no se guardarán hasta reconectar.
         </div>
       )}
