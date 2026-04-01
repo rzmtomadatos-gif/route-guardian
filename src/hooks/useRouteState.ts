@@ -3,6 +3,7 @@ import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpa
 import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
+import { logEvent } from '@/utils/persistence';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
 
@@ -60,6 +61,15 @@ export function useRouteState() {
       trackSession: null,
     }));
 
+    logEvent('ROUTE_LOADED', {
+      payload: {
+        routeId: route.id,
+        routeName: route.name,
+        segmentCount: route.segments.length,
+        layerCount: route.availableLayers?.length ?? 0,
+      },
+    });
+
     try {
       const endpoints = route.segments.map((seg) => ({
         id: seg.id,
@@ -99,6 +109,7 @@ export function useRouteState() {
             : null,
       };
     });
+    logEvent('NAV_STARTED', { payload: { mode: 'navigation' } });
   }, [setState]);
 
   const stopNavigation = useCallback(() => {
@@ -110,6 +121,7 @@ export function useRouteState() {
         ? { ...s.trackSession, trackStartTime: null }
         : null,
     }));
+    logEvent('NAV_STOPPED');
   }, [setState]);
 
   /** Allocate the next track number based on mode. Resets per workDay. */
@@ -142,6 +154,7 @@ export function useRouteState() {
       });
       return { ...s, activeSegmentId: remaining[0] || null };
     });
+    logEvent('SEGMENT_SKIPPED', { segmentId });
   }, [setState]);
 
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
@@ -257,6 +270,7 @@ export function useRouteState() {
 
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId, trackSession };
     }, true);
+    logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
@@ -345,6 +359,7 @@ export function useRouteState() {
         blockEndPrompt,
       };
     }, true);
+    logEvent('SEGMENT_COMPLETED', { segmentId });
   }, [setState]);
 
   /** Finalize the current track session (close early) */
@@ -375,6 +390,7 @@ export function useRouteState() {
         blockEndPrompt: { isOpen: true, trackNumber: trackNum, reason: 'manual' },
       };
     }, true);
+    logEvent('TRACK_CLOSED', { payload: { reason: 'manual' } });
   }, [setState]);
 
   /** Mark segment as posible_repetir (called when adding an incident) */
@@ -444,6 +460,7 @@ export function useRouteState() {
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
+    logEvent('SEGMENT_REPEATED', { segmentId });
   }, [setState]);
 
   const addIncident = useCallback((segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => {
@@ -598,6 +615,7 @@ export function useRouteState() {
         trackSession,
       };
     }, true);
+    logEvent('INCIDENT_RECORDED', { segmentId, payload: { category, impact, note: note || '' } });
   }, [setState]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null, hiddenLayers?: Set<string>) => {
@@ -680,6 +698,7 @@ export function useRouteState() {
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
+    logEvent('SEGMENT_RESET', { segmentId });
   }, [setState]);
 
   /** Close the block-end prompt, allowing actions to resume */
@@ -1058,6 +1077,7 @@ export function useRouteState() {
         blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
       };
     }, true);
+    logEvent('WORK_DAY_CHANGED', { workDay: day });
   }, [setState]);
 
   /** Update route context fields (operator, vehicle, weather) */
