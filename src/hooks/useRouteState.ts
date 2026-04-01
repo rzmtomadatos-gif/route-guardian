@@ -269,6 +269,7 @@ export function useRouteState() {
 
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId, trackSession };
     }, true);
+    logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
