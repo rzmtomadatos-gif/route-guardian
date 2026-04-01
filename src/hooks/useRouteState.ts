@@ -615,6 +615,7 @@ export function useRouteState() {
         trackSession,
       };
     }, true);
+    logEvent('INCIDENT_RECORDED', { segmentId, payload: { category, impact, note: note || '' } });
   }, [setState]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null, hiddenLayers?: Set<string>) => {
