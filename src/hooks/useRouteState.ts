@@ -270,6 +270,18 @@ export function useRouteState() {
 
       return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId, trackSession };
     }, true);
+    // Emit TRACK_OPENED when a new track session was just created
+    // We read the state after mutation to check if a new session started
+    setStateRaw((current) => {
+      if (current.trackSession && current.trackSession.segmentIds.length === 1 && current.trackSession.segmentIds[0] === segmentId) {
+        logEvent('TRACK_OPENED', {
+          workDay: current.workDay,
+          trackNumber: current.trackSession.trackNumber,
+          payload: { capacity: current.trackSession.capacity },
+        });
+      }
+      return current; // no mutation, just reading
+    });
     logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
   }, [setState]);
 
@@ -360,6 +372,20 @@ export function useRouteState() {
       };
     }, true);
     logEvent('SEGMENT_COMPLETED', { segmentId });
+    // Emit TRACK_CLOSED if auto-close happened (capacity reached)
+    setStateRaw((current) => {
+      if (current.trackSession && !current.trackSession.active && current.trackSession.endedAt) {
+        // Only emit if the prompt is open (signals just-closed track)
+        if (current.blockEndPrompt.isOpen) {
+          logEvent('TRACK_CLOSED', {
+            workDay: current.workDay,
+            trackNumber: current.trackSession.trackNumber,
+            payload: { reason: current.blockEndPrompt.reason },
+          });
+        }
+      }
+      return current;
+    });
   }, [setState]);
 
   /** Finalize the current track session (close early) */

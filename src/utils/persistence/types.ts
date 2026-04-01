@@ -30,6 +30,7 @@ export type EventType =
   | 'HW_CONFIRM_F7'
   | 'HW_CONFIRM_F9'
   | 'NAV_STATE_CHANGED'
+  | 'TRACK_OPENED'
   | 'MIGRATION_FROM_LOCALSTORAGE';
 
 export interface PersistentEvent {
