@@ -372,6 +372,20 @@ export function useRouteState() {
       };
     }, true);
     logEvent('SEGMENT_COMPLETED', { segmentId });
+    // Emit TRACK_CLOSED if auto-close happened (capacity reached)
+    setStateRaw((current) => {
+      if (current.trackSession && !current.trackSession.active && current.trackSession.endedAt) {
+        // Only emit if the prompt is open (signals just-closed track)
+        if (current.blockEndPrompt.isOpen) {
+          logEvent('TRACK_CLOSED', {
+            workDay: current.workDay,
+            trackNumber: current.trackSession.trackNumber,
+            payload: { reason: current.blockEndPrompt.reason },
+          });
+        }
+      }
+      return current;
+    });
   }, [setState]);
 
   /** Finalize the current track session (close early) */
