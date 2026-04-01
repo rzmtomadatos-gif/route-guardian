@@ -460,6 +460,7 @@ export function useRouteState() {
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
+    logEvent('SEGMENT_REPEATED', { segmentId });
   }, [setState]);
 
   const addIncident = useCallback((segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => {
