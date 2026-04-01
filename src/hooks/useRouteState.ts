@@ -698,6 +698,7 @@ export function useRouteState() {
       });
       return { ...s, route: { ...s.route, segments } };
     }, true);
+    logEvent('SEGMENT_RESET', { segmentId });
   }, [setState]);
 
   /** Close the block-end prompt, allowing actions to resume */
