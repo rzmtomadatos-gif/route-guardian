@@ -3,6 +3,7 @@ import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpa
 import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
+import { logEvent } from '@/utils/persistence';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
 
