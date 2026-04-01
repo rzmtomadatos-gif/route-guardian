@@ -121,6 +121,7 @@ export function useRouteState() {
         ? { ...s.trackSession, trackStartTime: null }
         : null,
     }));
+    logEvent('NAV_STOPPED');
   }, [setState]);
 
   /** Allocate the next track number based on mode. Resets per workDay. */
