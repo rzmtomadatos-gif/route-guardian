@@ -390,6 +390,7 @@ export function useRouteState() {
         blockEndPrompt: { isOpen: true, trackNumber: trackNum, reason: 'manual' },
       };
     }, true);
+    logEvent('TRACK_CLOSED', { payload: { reason: 'manual' } });
   }, [setState]);
 
   /** Mark segment as posible_repetir (called when adding an incident) */
