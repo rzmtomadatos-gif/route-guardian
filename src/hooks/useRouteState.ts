@@ -109,6 +109,7 @@ export function useRouteState() {
             : null,
       };
     });
+    logEvent('NAV_STARTED', { payload: { mode: 'navigation' } });
   }, [setState]);
 
   const stopNavigation = useCallback(() => {
