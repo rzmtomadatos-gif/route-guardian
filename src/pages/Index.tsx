@@ -213,6 +213,20 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           </div>
         )}
 
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground">o</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          variant="outline"
+          className="w-full"
+        >
+          <Route className="w-4 h-4 mr-2" />
+          Crear KML vacío
+        </Button>
 
         {hasRoute && (
           <Button
