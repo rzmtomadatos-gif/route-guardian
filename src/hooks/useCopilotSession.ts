@@ -59,6 +59,7 @@ export function useCopilotOperator() {
               ...prev,
               ...raw,
               queue: Array.isArray(raw.queue) ? raw.queue : JSON.parse(raw.queue || '[]'),
+              token: prev.token,
             };
           });
         }
