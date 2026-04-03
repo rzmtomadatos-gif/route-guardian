@@ -36,11 +36,12 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // We provide our own public/manifest.json
       workbox: {
         globPatterns: [
-          "**/*.{js,css,html,ico,png,svg,woff,woff2,wasm}",
+          "**/*.{js,css,html,ico,png,svg,woff,woff2}",
         ],
-        // Precache the WASM binary explicitly in case globPatterns misses it
+        // Precache WASM separately — must NOT also appear in globPatterns
+        // (duplicate entries cause workbox SW installation to fail silently)
         additionalManifestEntries: [
-          { url: "/sql-wasm.wasm", revision: "1" },
+          { url: "/sql-wasm.wasm", revision: "2" },
         ],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/~oauth/],
