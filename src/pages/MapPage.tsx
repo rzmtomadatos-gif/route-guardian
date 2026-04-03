@@ -1000,7 +1000,7 @@ export default function MapPage({
 
   return (
     <div className="flex flex-col h-full relative">
-      <div className="flex-1">
+      <div className="flex-1 relative z-0">
         <GoogleMapDisplay
           segments={visibleSegments}
           activeSegmentId={state.activeSegmentId}
