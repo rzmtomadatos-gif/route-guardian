@@ -55,6 +55,13 @@ export function getExtractCommand(region: RegionExtract): string {
 
 export type OfflineMapMode = 'auto' | 'offline';
 
+const IDB_STORE_NAME = 'vialroute_tiles';
+export const ACTIVE_OFFLINE_MAP_KEY = 'vialroute_active_offline_map';
+export const OFFLINE_MAP_MODE_KEY = 'vialroute_offline_map_mode';
+
+/** Custom event name for same-tab offline map changes */
+export const OFFLINE_MAP_CHANGED_EVENT = 'vialroute:offline-map-changed';
+
 function readStorage(key: string): string | null {
   try {
     return localStorage.getItem(key);
