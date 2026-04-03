@@ -985,14 +985,17 @@ export default function MapPage({
 
   if (!route) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6">
-        <p className="text-muted-foreground mb-4">No hay ruta cargada</p>
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-3">
+        <p className="text-muted-foreground mb-2">No hay ruta cargada</p>
         <Button onClick={() => navigate('/')} className="driving-button bg-primary text-primary-foreground">
           <Upload className="w-5 h-5 mr-2" />
           Cargar archivo
         </Button>
+        <Button onClick={() => navigate('/?create=true')} variant="outline">
+          <Plus className="w-5 h-5 mr-2" />
+          Crear KML nuevo
+        </Button>
       </div>);
-
   }
 
   return (

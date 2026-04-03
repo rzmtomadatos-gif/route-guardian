@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileUp, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseKMLFile, applyNamingField, applyProjectCode } from '@/utils/kml-parser';
@@ -36,7 +36,16 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   const [pendingRouteForCode, setPendingRouteForCode] = useState<RouteType | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreateDialog(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const processFile = useCallback(
     async (file: File) => {
@@ -126,6 +135,25 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
     [pendingRouteForCode, onRouteLoaded, navigate]
   );
 
+  const handleCreateEmpty = useCallback(
+    (code: string, projectName: string) => {
+      const emptyRoute: RouteType = {
+        id: crypto.randomUUID(),
+        name: projectName || code,
+        loadedAt: new Date().toISOString(),
+        fileName: `${code}.kml`,
+        projectCode: code,
+        projectName: projectName || code,
+        segments: [],
+        optimizedOrder: [],
+      };
+      setShowCreateDialog(false);
+      onRouteLoaded(emptyRoute);
+      navigate('/map');
+    },
+    [onRouteLoaded, navigate]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -193,6 +221,20 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           </div>
         )}
 
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground">o</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          variant="outline"
+          className="w-full"
+        >
+          <Route className="w-4 h-4 mr-2" />
+          Crear KML vacío
+        </Button>
 
         {hasRoute && (
           <Button
@@ -218,6 +260,13 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
         <ProjectCodeDialog
           open
           onConfirm={handleProjectCode}
+        />
+      )}
+
+      {showCreateDialog && (
+        <ProjectCodeDialog
+          open
+          onConfirm={handleCreateEmpty}
         />
       )}
 
