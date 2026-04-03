@@ -114,13 +114,27 @@ export function MapDisplay({
     return ids;
   }, [activeSegmentId, arrowSegmentIds]);
 
-  /** Apply or remove offline map layer */
+  /**
+   * Apply or remove offline map layer.
+   * @param forceOffline true = switch to offline, false = switch to online, undefined = auto-detect
+   */
   const syncOfflineMap = useCallback(async (map: L.Map, forceOffline?: boolean) => {
-    const activeMapId = getActiveOfflineMapId();
-    const wantOffline = forceOffline ?? shouldUseOfflineMap(isOnline);
+    const currentOnline = navigator.onLine; // always read fresh, avoid stale closure
+    let targetMapId = getActiveOfflineMapId();
+    const wantOffline = forceOffline ?? shouldUseOfflineMap(currentOnline);
+
+    // If going offline with no active map, auto-select first available source
+    if (wantOffline && !targetMapId) {
+      const sources = await listOfflineTileSources();
+      if (sources.length > 0) {
+        targetMapId = sources[0].id;
+        // Persist selection so it sticks across reopens
+        (await import('@/utils/offline-tiles')).setActiveOfflineMapId(targetMapId);
+      }
+    }
 
     // --- Deactivate offline layer ---
-    if (!activeMapId || !wantOffline) {
+    if (!targetMapId || !wantOffline) {
       if (offlineLayerRef.current) {
         offlineLayerRef.current.remove();
         offlineLayerRef.current = null;
@@ -140,13 +154,13 @@ export function MapDisplay({
 
     // --- Activate offline layer ---
     const sources = await listOfflineTileSources();
-    const source = sources.find((s) => s.id === activeMapId);
+    const source = sources.find((s) => s.id === targetMapId);
     if (!source) {
-      setNoTilesWarning(!isOnline);
+      setNoTilesWarning(!currentOnline);
       return;
     }
 
-    const data = await getOfflineTileData(activeMapId);
+    const data = await getOfflineTileData(targetMapId);
     if (!data) return;
 
     // Clean up previous offline layer
@@ -172,7 +186,7 @@ export function MapDisplay({
       setOfflineMapActive(true);
       setNoTilesWarning(false);
     }
-  }, [isOnline]);
+  }, []);
 
   // ─── Auto-switch on connectivity changes ───
   useEffect(() => {
