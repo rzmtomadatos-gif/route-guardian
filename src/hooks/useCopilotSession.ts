@@ -161,17 +161,15 @@ export function useCopilotDriver(token: string | null) {
     if (!token) { setLoading(false); return; }
 
     supabase
-      .from('copilot_sessions')
-      .select('*')
-      .eq('token', token)
-      .single()
+      .rpc('read_copilot_session_by_token', { p_token: token })
       .then(({ data, error: err }) => {
         if (err || !data) {
           setError('Sesión no encontrada');
           setLoading(false);
           return;
         }
-        setSession(parseSession(data));
+        const raw = typeof data === 'string' ? JSON.parse(data) : data;
+        setSession(parseSession(raw));
         setLoading(false);
 
         const channel = supabase
