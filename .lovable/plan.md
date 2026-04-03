@@ -1,50 +1,56 @@
 
 
-# Soporte de capas (Folders) en archivos KML/KMZ
+## Diagnóstico
 
-## Problema actual
-El parser usa `kml()` de `@tmcw/togeojson`, que aplana todas las capas del KML en una lista plana de features. Si el archivo tiene varias carpetas/capas (ej: "Troncos", "Ramales", "Rotondas"), se pierden y todos los tramos se mezclan sin distincion.
+La app muestra una pantalla completamente en blanco porque **`sql.js` v1.11.0 no proporciona un export default ESM**, pero el código en `src/utils/persistence/db.ts` lo importa como si lo tuviera:
 
-## Solucion
-Usar `kmlWithFolders()` de la misma libreria, que devuelve un arbol con la estructura de carpetas del KML. Cada segmento se asociara a su capa de origen, permitiendo filtrar y agrupar por capa.
-
-## Cambios previstos
-
-### 1. Tipo `Segment` - nuevo campo `layer`
-Anadir un campo `layer` (string opcional) al tipo `Segment` en `src/types/route.ts` para almacenar el nombre de la carpeta/capa de origen.
-
-### 2. Parser KML - usar `kmlWithFolders`
-Modificar `src/utils/kml-parser.ts`:
-- Importar `kmlWithFolders` en lugar de `kml`
-- Recorrer recursivamente el arbol de carpetas (Root -> Folder -> children)
-- Asignar el nombre de la carpeta padre como `layer` a cada segmento
-- Mantener la misma logica de extraccion de metadatos y coordenadas
-
-### 3. Vista de tramos - filtro por capa
-Modificar `src/pages/SegmentsPage.tsx`:
-- Extraer las capas unicas de los segmentos cargados
-- Anadir un selector/filtro de capa junto a los filtros existentes (estado, busqueda)
-- Mostrar la capa de cada segmento como etiqueta visual en la lista
-
----
-
-## Detalles tecnicos
-
-La funcion `kmlWithFolders()` devuelve esta estructura:
-
-```text
-Root
- +-- children[]
-      +-- Folder { type: "folder", meta: { name: "Capa 1" }, children: [...] }
-      |    +-- Feature (GeoJSON)
-      |    +-- Folder (subcapa anidada)
-      +-- Feature (sin carpeta)
+```
+import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
 ```
 
-La funcion recursiva recorrera el arbol pasando el nombre de la carpeta actual como parametro `layer`. Los features que no esten dentro de ninguna carpeta tendran `layer` sin definir.
+El error exacto en consola es:
+> `SyntaxError: The requested module '/node_modules/sql.js/dist/sql-wasm.js' does not provide an export named 'default'`
 
-**Archivos a modificar:**
-- `src/types/route.ts` - anadir campo `layer?: string` a `Segment`
-- `src/utils/kml-parser.ts` - cambiar a `kmlWithFolders`, recorrer arbol recursivo
-- `src/pages/SegmentsPage.tsx` - filtro y etiqueta de capa
+Esto mata la carga de `db.ts` → `persistence/index.ts` → `App.tsx` → **nada se renderiza**.
+
+## Plan de corrección
+
+### Paso 1: Corregir el import de sql.js en `src/utils/persistence/db.ts`
+
+Cambiar la línea 38 de:
+```typescript
+import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
+```
+
+A un import compatible con el formato CommonJS de sql.js:
+```typescript
+import initSqlJsModule from 'sql.js';
+const initSqlJs = initSqlJsModule as unknown as typeof import('sql.js').default;
+```
+
+O más simple y robusto, usar un dynamic import con fallback:
+```typescript
+// sql.js exports CJS, not ESM default — handle both cases
+import * as sqlJsModule from 'sql.js';
+const initSqlJs: any = (sqlJsModule as any).default ?? sqlJsModule;
+```
+
+Y para el tipo `Database`, importarlo solo como type:
+```typescript
+import type { Database as SqlJsDatabase } from 'sql.js';
+```
+
+### Paso 2: Verificar que la app renderiza
+
+Tras el cambio, comprobar que `/map` y `/` cargan correctamente sin errores en consola.
+
+## Archivos a modificar
+
+- `src/utils/persistence/db.ts` — línea 38: corregir import de sql.js
+
+## Impacto
+
+- Cero impacto en lógica de negocio
+- Restaura el renderizado completo de la app
+- Mantiene toda la funcionalidad de persistencia SQLite existente
 
