@@ -19,14 +19,48 @@ export interface OfflineTileSource {
   storage: 'indexeddb' | 'filesystem';
 }
 
+/** Max file size for IndexedDB storage (2 GB) */
+export const MAX_TILE_FILE_SIZE = 2 * 1024 * 1024 * 1024;
+
+/** Regional extract catalog with bounding boxes for CLI extraction */
+export interface RegionExtract {
+  id: string;
+  name: string;
+  /** Approximate size at maxzoom 15 */
+  approxSize: string;
+  /** Bounding box for pmtiles extract CLI: west,south,east,north */
+  bbox: string;
+  /** Flag emoji */
+  flag: string;
+}
+
+export const REGION_CATALOG: RegionExtract[] = [
+  { id: 'spain', name: 'España', approxSize: '~600 MB', bbox: '-9.39,36.00,3.35,43.79', flag: '🇪🇸' },
+  { id: 'portugal', name: 'Portugal', approxSize: '~100 MB', bbox: '-9.52,36.96,-6.19,42.15', flag: '🇵🇹' },
+  { id: 'france', name: 'Francia', approxSize: '~800 MB', bbox: '-5.14,41.33,9.56,51.09', flag: '🇫🇷' },
+  { id: 'iberia', name: 'Península Ibérica', approxSize: '~700 MB', bbox: '-9.52,36.00,3.35,43.79', flag: '🇪🇸🇵🇹' },
+  { id: 'italy', name: 'Italia', approxSize: '~500 MB', bbox: '6.63,36.62,18.52,47.09', flag: '🇮🇹' },
+  { id: 'germany', name: 'Alemania', approxSize: '~700 MB', bbox: '5.87,47.27,15.04,55.06', flag: '🇩🇪' },
+];
+
+/**
+ * Get the pmtiles extract CLI command for a region.
+ * Uses the latest daily build from Protomaps.
+ */
+export function getExtractCommand(region: RegionExtract): string {
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+  return `pmtiles extract https://build.protomaps.com/${dateStr}.pmtiles ${region.id}.pmtiles --bbox=${region.bbox}`;
+}
+
+export type OfflineMapMode = 'auto' | 'offline';
+
 const IDB_STORE_NAME = 'vialroute_tiles';
 export const ACTIVE_OFFLINE_MAP_KEY = 'vialroute_active_offline_map';
 export const OFFLINE_MAP_MODE_KEY = 'vialroute_offline_map_mode';
 
 /** Custom event name for same-tab offline map changes */
 export const OFFLINE_MAP_CHANGED_EVENT = 'vialroute:offline-map-changed';
-
-export type OfflineMapMode = 'auto' | 'offline';
 
 function readStorage(key: string): string | null {
   try {
@@ -152,10 +186,21 @@ export async function listOfflineTileSources(): Promise<OfflineTileSource[]> {
  * Store a PMTiles file in IndexedDB and register it as a source.
  * Reads real bounds from the PMTiles header when possible.
  */
+/**
+ * Store a PMTiles file in IndexedDB and register it as a source.
+ * Validates file size before loading into memory.
+ * Reads real bounds from the PMTiles header when possible.
+ */
 export async function addOfflineTileSource(
   file: File,
   name: string,
 ): Promise<OfflineTileSource> {
+  if (file.size > MAX_TILE_FILE_SIZE) {
+    throw new Error(
+      `El archivo (${(file.size / (1024 * 1024 * 1024)).toFixed(1)} GB) supera el límite de 2 GB para almacenamiento offline. Usa un extracto regional más pequeño.`
+    );
+  }
+
   const id = `tiles_${Date.now()}`;
   const buffer = await file.arrayBuffer();
   const realBounds = await readPMTilesBounds(buffer);
@@ -185,6 +230,34 @@ export async function addOfflineTileSource(
   });
 
   return source;
+}
+
+/** Info about the tile cache */
+export interface TileCacheInfo {
+  tileCount: number;
+  /** Estimated size is unavailable from Cache API, so we just count */
+}
+
+/** Get real stats about the runtime tile cache */
+export async function getTileCacheInfo(): Promise<TileCacheInfo | null> {
+  try {
+    if (!('caches' in window)) return null;
+    const cache = await caches.open('map-tiles');
+    const keys = await cache.keys();
+    return { tileCount: keys.length };
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the runtime tile cache */
+export async function clearTileCache(): Promise<void> {
+  try {
+    if (!('caches' in window)) return;
+    await caches.delete('map-tiles');
+  } catch {
+    // ignore
+  }
 }
 
 export async function removeOfflineTileSource(id: string): Promise<void> {
