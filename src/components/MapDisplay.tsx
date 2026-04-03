@@ -10,7 +10,9 @@ import {
   getOfflineTileData,
   listOfflineTileSources,
   getActiveOfflineMapId,
+  setActiveOfflineMapId,
   shouldUseOfflineMap,
+  getOfflineMapMode,
   OFFLINE_MAP_CHANGED_EVENT,
 } from '@/utils/offline-tiles';
 import { toast } from 'sonner';
