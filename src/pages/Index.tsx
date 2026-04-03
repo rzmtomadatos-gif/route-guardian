@@ -36,6 +36,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   const [pendingRouteForCode, setPendingRouteForCode] = useState<RouteType | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const navigate = useNavigate();
 
   const processFile = useCallback(
