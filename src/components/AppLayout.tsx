@@ -1,8 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, List, Settings, Save, X } from 'lucide-react';
-import { routeToKml, downloadKml } from '@/utils/kml-export';
-import { toast } from '@/hooks/use-toast';
-import type { Route } from '@/types/route';
+import { Upload, Map, List, Settings, X } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: Upload, label: 'Cargar' },
@@ -13,32 +10,12 @@ const navItems = [
 
 interface Props {
   children: React.ReactNode;
-  route?: Route | null;
-  isDirty?: boolean;
-  onMarkClean?: () => void;
   selectedCount?: number;
   onClearSelection?: () => void;
 }
 
-export function AppLayout({ children, route, isDirty, onMarkClean, selectedCount = 0, onClearSelection }: Props) {
+export function AppLayout({ children, selectedCount = 0, onClearSelection }: Props) {
   const location = useLocation();
-
-  const handleSave = () => {
-    if (!route) return;
-    const kml = routeToKml(route);
-    downloadKml(kml, route.fileName || `${route.name}.kml`);
-    onMarkClean?.();
-    toast({ title: 'Guardado', description: `${route.fileName} exportado correctamente.` });
-  };
-
-  const handleSaveAs = () => {
-    if (!route) return;
-    const newName = prompt('Nombre del archivo:', route.name + '_copia');
-    if (!newName) return;
-    const kml = routeToKml(route);
-    downloadKml(kml, `${newName}.kml`);
-    toast({ title: 'Guardado como', description: `${newName}.kml exportado correctamente.` });
-  };
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">
@@ -76,32 +53,6 @@ export function AppLayout({ children, route, isDirty, onMarkClean, selectedCount
               </Link>
             );
           })}
-          {/* Save button in nav */}
-          {route && (
-            <div className="flex flex-col items-center gap-1 relative">
-              <button
-                onClick={handleSave}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  handleSaveAs();
-                }}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                  isDirty
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                title="Guardar (click derecho: Guardar como)"
-              >
-                <div className="relative">
-                  <Save className="w-5 h-5" />
-                  {isDirty && (
-                    <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive" />
-                  )}
-                </div>
-                <span className="text-[10px] font-medium">Guardar</span>
-              </button>
-            </div>
-          )}
         </div>
       </nav>
     </div>

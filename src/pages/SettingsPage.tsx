@@ -2,11 +2,12 @@ import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, Save } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { exportCampaign, importCampaign } from '@/utils/persistence';
+import { routeToKml, downloadKml } from '@/utils/kml-export';
 import { toast } from 'sonner';
 import type { Route, AppState } from '@/types/route';
 
@@ -15,12 +16,14 @@ interface Props {
   hasRoute: boolean;
   route: Route | null;
   state: AppState;
+  isDirty?: boolean;
+  onMarkClean?: () => void;
   onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
   onApplyRetroactiveIds: (code: string, projectName: string) => void;
   onRestoreState: (state: AppState) => void;
 }
 
-export default function SettingsPage({ onClear, hasRoute, route, state, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
+export default function SettingsPage({ onClear, hasRoute, route, state, isDirty, onMarkClean, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -326,6 +329,55 @@ export default function SettingsPage({ onClear, hasRoute, route, state, onUpdate
             <p className="text-xs text-muted-foreground">Versión 1.1.0</p>
           </div>
         </div>
+
+        {/* Export KML */}
+        {route && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Save className="w-4 h-4" />
+              <span className="text-sm font-medium">Exportar ruta</span>
+            </div>
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Exporta la ruta actual como archivo KML.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    const kml = routeToKml(route);
+                    downloadKml(kml, route.fileName || `${route.name}.kml`);
+                    onMarkClean?.();
+                    toast.success(`${route.fileName || route.name} exportado correctamente.`);
+                  }}
+                  className="flex-1"
+                  size="sm"
+                >
+                  <div className="relative mr-2">
+                    <Save className="w-4 h-4" />
+                    {isDirty && (
+                      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive" />
+                    )}
+                  </div>
+                  Guardar KML
+                </Button>
+                <Button
+                  onClick={() => {
+                    const newName = prompt('Nombre del archivo:', route.name + '_copia');
+                    if (!newName) return;
+                    const kml = routeToKml(route);
+                    downloadKml(kml, `${newName}.kml`);
+                    toast.success(`${newName}.kml exportado correctamente.`);
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                  size="sm"
+                >
+                  Guardar como…
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Campaign export/import */}
         <div className="space-y-3">
