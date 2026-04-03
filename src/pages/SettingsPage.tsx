@@ -23,7 +23,7 @@ interface Props {
   onRestoreState: (state: AppState) => void;
 }
 
-export default function SettingsPage({ onClear, hasRoute, route, state, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
+export default function SettingsPage({ onClear, hasRoute, route, state, isDirty, onMarkClean, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
