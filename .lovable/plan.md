@@ -1,56 +1,43 @@
 
 
-## Diagnóstico
+## Mover botón "Guardar" de la barra de navegación a Configuración
 
-La app muestra una pantalla completamente en blanco porque **`sql.js` v1.11.0 no proporciona un export default ESM**, pero el código en `src/utils/persistence/db.ts` lo importa como si lo tuviera:
+### Resumen
 
+El botón "Guardar" (exportar KML) actualmente ocupa espacio en la barra de navegación inferior, donde compite con los 4 tabs principales. Moverlo a la página de Configuración es más coherente: guardar/exportar es una acción puntual, no navegación frecuente.
+
+### Cambios
+
+**1. `src/components/AppLayout.tsx`**
+- Eliminar todo el bloque del botón "Guardar" (líneas 79-104) y las props relacionadas (`route`, `isDirty`, `onMarkClean`).
+- Eliminar imports no usados (`Save`, `routeToKml`, `downloadKml`, `toast`).
+- La interfaz Props se simplifica: solo `children`, `selectedCount`, `onClearSelection`.
+
+**2. `src/pages/SettingsPage.tsx`**
+- Añadir props `isDirty` y `onMarkClean` a la interfaz.
+- Añadir una nueva sección "Exportar ruta" con dos botones:
+  - **Guardar KML** — exporta con el nombre actual (indicador visual de cambios pendientes si `isDirty`).
+  - **Guardar como…** — permite elegir nuevo nombre.
+- Ubicar esta sección después de "Campaña" y antes de "Datos", agrupada con el mismo estilo visual (icono `Save`, tarjeta con borde).
+
+**3. `src/App.tsx`**
+- Dejar de pasar `route`, `isDirty`, `onMarkClean` a `AppLayout`.
+- Pasar `isDirty` y `onMarkClean` a `SettingsPage`.
+
+### Ubicación en Settings
+
+La sección quedará así:
+
+```text
+┌─────────────────────────────┐
+│ 💾  Exportar ruta            │
+│                             │
+│ Exporta la ruta actual como │
+│ archivo KML.                │
+│                             │
+│ [● Guardar KML]  [Guardar…] │
+└─────────────────────────────┘
 ```
-import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
-```
 
-El error exacto en consola es:
-> `SyntaxError: The requested module '/node_modules/sql.js/dist/sql-wasm.js' does not provide an export named 'default'`
-
-Esto mata la carga de `db.ts` → `persistence/index.ts` → `App.tsx` → **nada se renderiza**.
-
-## Plan de corrección
-
-### Paso 1: Corregir el import de sql.js en `src/utils/persistence/db.ts`
-
-Cambiar la línea 38 de:
-```typescript
-import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
-```
-
-A un import compatible con el formato CommonJS de sql.js:
-```typescript
-import initSqlJsModule from 'sql.js';
-const initSqlJs = initSqlJsModule as unknown as typeof import('sql.js').default;
-```
-
-O más simple y robusto, usar un dynamic import con fallback:
-```typescript
-// sql.js exports CJS, not ESM default — handle both cases
-import * as sqlJsModule from 'sql.js';
-const initSqlJs: any = (sqlJsModule as any).default ?? sqlJsModule;
-```
-
-Y para el tipo `Database`, importarlo solo como type:
-```typescript
-import type { Database as SqlJsDatabase } from 'sql.js';
-```
-
-### Paso 2: Verificar que la app renderiza
-
-Tras el cambio, comprobar que `/map` y `/` cargan correctamente sin errores en consola.
-
-## Archivos a modificar
-
-- `src/utils/persistence/db.ts` — línea 38: corregir import de sql.js
-
-## Impacto
-
-- Cero impacto en lógica de negocio
-- Restaura el renderizado completo de la app
-- Mantiene toda la funcionalidad de persistencia SQLite existente
+El indicador de cambios pendientes (punto rojo) se mostrará junto al texto del botón en lugar de en la barra de navegación.
 
