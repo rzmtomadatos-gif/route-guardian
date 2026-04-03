@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileUp, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parseKMLFile, applyNamingField, applyProjectCode } from '@/utils/kml-parser';
