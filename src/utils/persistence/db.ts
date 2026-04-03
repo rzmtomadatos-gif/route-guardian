@@ -35,7 +35,10 @@
  * localStorage is NOT used for reads or writes — only as a migration source.
  */
 
-import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js';
+// sql.js v1.11 exports CJS, not ESM default — handle both cases
+import * as sqlJsModule from 'sql.js';
+const initSqlJs: any = (sqlJsModule as any).default ?? sqlJsModule;
+type SqlJsDatabase = import('sql.js').Database;
 import type { AppState } from '@/types/route';
 import {
   DB_NAME,
