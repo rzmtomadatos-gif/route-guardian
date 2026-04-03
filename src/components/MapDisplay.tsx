@@ -131,7 +131,7 @@ export function MapDisplay({
       if (sources.length > 0) {
         targetMapId = sources[0].id;
         // Persist selection so it sticks across reopens
-        (await import('@/utils/offline-tiles')).setActiveOfflineMapId(targetMapId);
+        setActiveOfflineMapId(targetMapId);
       }
     }
 
