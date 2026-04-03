@@ -179,10 +179,21 @@ export async function listOfflineTileSources(): Promise<OfflineTileSource[]> {
  * Store a PMTiles file in IndexedDB and register it as a source.
  * Reads real bounds from the PMTiles header when possible.
  */
+/**
+ * Store a PMTiles file in IndexedDB and register it as a source.
+ * Validates file size before loading into memory.
+ * Reads real bounds from the PMTiles header when possible.
+ */
 export async function addOfflineTileSource(
   file: File,
   name: string,
 ): Promise<OfflineTileSource> {
+  if (file.size > MAX_TILE_FILE_SIZE) {
+    throw new Error(
+      `El archivo (${(file.size / (1024 * 1024 * 1024)).toFixed(1)} GB) supera el límite de 2 GB para almacenamiento offline. Usa un extracto regional más pequeño.`
+    );
+  }
+
   const id = `tiles_${Date.now()}`;
   const buffer = await file.arrayBuffer();
   const realBounds = await readPMTilesBounds(buffer);
@@ -212,6 +223,34 @@ export async function addOfflineTileSource(
   });
 
   return source;
+}
+
+/** Info about the tile cache */
+export interface TileCacheInfo {
+  tileCount: number;
+  /** Estimated size is unavailable from Cache API, so we just count */
+}
+
+/** Get real stats about the runtime tile cache */
+export async function getTileCacheInfo(): Promise<TileCacheInfo | null> {
+  try {
+    if (!('caches' in window)) return null;
+    const cache = await caches.open('map-tiles');
+    const keys = await cache.keys();
+    return { tileCount: keys.length };
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the runtime tile cache */
+export async function clearTileCache(): Promise<void> {
+  try {
+    if (!('caches' in window)) return;
+    await caches.delete('map-tiles');
+  } catch {
+    // ignore
+  }
 }
 
 export async function removeOfflineTileSource(id: string): Promise<void> {
