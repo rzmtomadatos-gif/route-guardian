@@ -330,6 +330,55 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
           </div>
         </div>
 
+        {/* Export KML */}
+        {route && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Save className="w-4 h-4" />
+              <span className="text-sm font-medium">Exportar ruta</span>
+            </div>
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Exporta la ruta actual como archivo KML.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    const kml = routeToKml(route);
+                    downloadKml(kml, route.fileName || `${route.name}.kml`);
+                    onMarkClean?.();
+                    toast.success(`${route.fileName || route.name} exportado correctamente.`);
+                  }}
+                  className="flex-1"
+                  size="sm"
+                >
+                  <div className="relative mr-2">
+                    <Save className="w-4 h-4" />
+                    {isDirty && (
+                      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive" />
+                    )}
+                  </div>
+                  Guardar KML
+                </Button>
+                <Button
+                  onClick={() => {
+                    const newName = prompt('Nombre del archivo:', route.name + '_copia');
+                    if (!newName) return;
+                    const kml = routeToKml(route);
+                    downloadKml(kml, `${newName}.kml`);
+                    toast.success(`${newName}.kml exportado correctamente.`);
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                  size="sm"
+                >
+                  Guardar como…
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Campaign export/import */}
         <div className="space-y-3">
           <span className="text-sm font-medium text-muted-foreground">Campaña</span>

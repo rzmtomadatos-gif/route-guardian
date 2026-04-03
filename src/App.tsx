@@ -201,6 +201,8 @@ function AppRoutes() {
               hasRoute={!!state.route}
               route={state.route}
               state={state}
+              isDirty={isDirty}
+              onMarkClean={markClean}
               onUpdateRouteContext={updateRouteContext}
               onApplyRetroactiveIds={applyRetroactiveIds}
               onRestoreState={restoreState}
