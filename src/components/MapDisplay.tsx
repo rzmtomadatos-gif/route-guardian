@@ -209,7 +209,6 @@ export function MapDisplay({
       }
     } else if (wasOffline) {
       // Came back online → restore online tiles
-      const { getOfflineMapMode } = require('@/utils/offline-tiles');
       const mode = getOfflineMapMode();
       if (mode !== 'offline') {
         // Only restore online if user didn't force offline mode
