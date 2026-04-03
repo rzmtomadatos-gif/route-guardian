@@ -19,12 +19,39 @@ export interface OfflineTileSource {
   storage: 'indexeddb' | 'filesystem';
 }
 
-const IDB_STORE_NAME = 'vialroute_tiles';
-export const ACTIVE_OFFLINE_MAP_KEY = 'vialroute_active_offline_map';
-export const OFFLINE_MAP_MODE_KEY = 'vialroute_offline_map_mode';
+/** Max file size for IndexedDB storage (2 GB) */
+export const MAX_TILE_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
-/** Custom event name for same-tab offline map changes */
-export const OFFLINE_MAP_CHANGED_EVENT = 'vialroute:offline-map-changed';
+/** Regional extract catalog with bounding boxes for CLI extraction */
+export interface RegionExtract {
+  id: string;
+  name: string;
+  /** Approximate size at maxzoom 15 */
+  approxSize: string;
+  /** Bounding box for pmtiles extract CLI: west,south,east,north */
+  bbox: string;
+  /** Flag emoji */
+  flag: string;
+}
+
+export const REGION_CATALOG: RegionExtract[] = [
+  { id: 'spain', name: 'España', approxSize: '~600 MB', bbox: '-9.39,36.00,3.35,43.79', flag: '🇪🇸' },
+  { id: 'portugal', name: 'Portugal', approxSize: '~100 MB', bbox: '-9.52,36.96,-6.19,42.15', flag: '🇵🇹' },
+  { id: 'france', name: 'Francia', approxSize: '~800 MB', bbox: '-5.14,41.33,9.56,51.09', flag: '🇫🇷' },
+  { id: 'iberia', name: 'Península Ibérica', approxSize: '~700 MB', bbox: '-9.52,36.00,3.35,43.79', flag: '🇪🇸🇵🇹' },
+  { id: 'italy', name: 'Italia', approxSize: '~500 MB', bbox: '6.63,36.62,18.52,47.09', flag: '🇮🇹' },
+  { id: 'germany', name: 'Alemania', approxSize: '~700 MB', bbox: '5.87,47.27,15.04,55.06', flag: '🇩🇪' },
+];
+
+/**
+ * Get the pmtiles extract CLI command for a region.
+ * Uses the latest daily build from Protomaps.
+ */
+export function getExtractCommand(region: RegionExtract): string {
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+  return `pmtiles extract https://build.protomaps.com/${dateStr}.pmtiles ${region.id}.pmtiles --bbox=${region.bbox}`;
+}
 
 export type OfflineMapMode = 'auto' | 'offline';
 
