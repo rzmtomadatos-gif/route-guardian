@@ -44,6 +44,8 @@ interface Props {
   fitToActiveSegment?: boolean;
   centerActiveRequest?: number;
   arrowSegmentIds?: string[];
+  /** Callback to notify parent about offline map state changes */
+  onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -89,6 +91,7 @@ export function MapDisplay({
   fitToActiveSegment = false,
   centerActiveRequest = 0,
   arrowSegmentIds,
+  onOfflineStateChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -104,6 +107,11 @@ export function MapDisplay({
   const [noTilesWarning, setNoTilesWarning] = useState(false);
   const { isOnline, wasOffline, ackRecovery } = useConnectivity();
 
+  // Notify parent of state changes
+  useEffect(() => {
+    onOfflineStateChange?.({ active: offlineMapActive, noTiles: noTilesWarning });
+  }, [offlineMapActive, noTilesWarning, onOfflineStateChange]);
+
   const segmentFingerprint = useMemo(
     () => buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds),
     [segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
@@ -118,10 +126,9 @@ export function MapDisplay({
 
   /**
    * Apply or remove offline map layer.
-   * @param forceOffline true = switch to offline, false = switch to online, undefined = auto-detect
    */
   const syncOfflineMap = useCallback(async (map: L.Map, forceOffline?: boolean) => {
-    const currentOnline = navigator.onLine; // always read fresh, avoid stale closure
+    const currentOnline = navigator.onLine;
     let targetMapId = getActiveOfflineMapId();
     const wantOffline = forceOffline ?? shouldUseOfflineMap(currentOnline);
 
@@ -130,7 +137,6 @@ export function MapDisplay({
       const sources = await listOfflineTileSources();
       if (sources.length > 0) {
         targetMapId = sources[0].id;
-        // Persist selection so it sticks across reopens
         setActiveOfflineMapId(targetMapId);
       }
     }
@@ -145,7 +151,6 @@ export function MapDisplay({
         URL.revokeObjectURL(activeBlobUrl);
         activeBlobUrl = null;
       }
-      // Restore online tiles
       if (tileLayerRef.current && !map.hasLayer(tileLayerRef.current)) {
         tileLayerRef.current.addTo(map);
       }
@@ -165,7 +170,6 @@ export function MapDisplay({
     const data = await getOfflineTileData(targetMapId);
     if (!data) return;
 
-    // Clean up previous offline layer
     if (offlineLayerRef.current) {
       offlineLayerRef.current.remove();
       offlineLayerRef.current = null;
@@ -179,7 +183,6 @@ export function MapDisplay({
 
     const layer = await getProtomapsLayer(activeBlobUrl);
     if (layer) {
-      // Remove online tiles
       if (tileLayerRef.current && map.hasLayer(tileLayerRef.current)) {
         tileLayerRef.current.remove();
       }
@@ -196,24 +199,20 @@ export function MapDisplay({
     const map = mapRef.current;
 
     if (!isOnline) {
-      // Went offline → try to switch to offline map
       if (!offlineMapActive) {
         syncOfflineMap(map, true).then(() => {
-          // Check if switch succeeded (offlineLayerRef will be set)
           if (offlineLayerRef.current) {
-            toast.info('Sin conexión — mapa offline activado automáticamente');
+            toast.info('Sin conexión — mapa offline activado', { duration: 3000 });
           } else {
-            toast.warning('Sin conexión — no hay mapa offline disponible. Importa uno en Configuración.');
+            toast.warning('Sin conexión — no hay mapa offline disponible', { duration: 4000 });
           }
         });
       }
     } else if (wasOffline) {
-      // Came back online → restore online tiles
       const mode = getOfflineMapMode();
       if (mode !== 'offline') {
-        // Only restore online if user didn't force offline mode
         syncOfflineMap(map, false);
-        toast.success('Conexión restaurada — mapa online activo');
+        toast.success('Conexión restaurada — mapa online', { duration: 2000 });
       }
       setNoTilesWarning(false);
       ackRecovery();
@@ -235,13 +234,11 @@ export function MapDisplay({
     }).addTo(map);
     tileLayerRef.current = tileLayer;
 
-    // Detect tile load failures (offline without PMTiles)
     let tileErrors = 0;
     tileLayer.on('tileerror', () => {
       tileErrors++;
       if (tileErrors >= 3 && !offlineLayerRef.current) {
         setNoTilesWarning(true);
-        // Auto-try offline map if available
         const activeMapId = getActiveOfflineMapId();
         if (activeMapId) {
           syncOfflineMap(map, true);
@@ -265,8 +262,6 @@ export function MapDisplay({
     });
 
     mapRef.current = map;
-
-    // Check for offline map on init
     syncOfflineMap(map);
 
     return () => {
@@ -281,7 +276,7 @@ export function MapDisplay({
     };
   }, [syncOfflineMap]);
 
-  // Listen for offline map changes (same-tab custom event from OfflineMapsManager)
+  // Listen for offline map changes
   useEffect(() => {
     const handler = () => {
       if (mapRef.current) syncOfflineMap(mapRef.current);
@@ -290,7 +285,7 @@ export function MapDisplay({
     return () => window.removeEventListener(OFFLINE_MAP_CHANGED_EVENT, handler);
   }, [syncOfflineMap]);
 
-  // Draw static segments (only when fingerprint changes)
+  // Draw static segments
   useEffect(() => {
     if (!mapRef.current || !segmentLayerRef.current || !arrowLayerRef.current) return;
     if (segmentFingerprint === prevFingerprintRef.current) return;
@@ -424,33 +419,6 @@ export function MapDisplay({
   }, [currentPosition]);
 
   return (
-    <div ref={containerRef} className={`w-full h-full ${className}`} style={{ position: 'relative' }}>
-      {/* Offline map active badge */}
-      {offlineMapActive && (
-        <div
-          style={{
-            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 1000, background: 'rgba(0,80,40,0.85)', color: '#4ade80',
-            padding: '3px 10px', borderRadius: 6, fontSize: 10, pointerEvents: 'none',
-          }}
-        >
-          🗺 Mapa offline activo
-        </div>
-      )}
-
-      {/* No tiles warning */}
-      {noTilesWarning && !offlineMapActive && (
-        <div
-          style={{
-            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 1000, background: 'rgba(120,80,0,0.9)', color: '#fbbf24',
-            padding: '4px 12px', borderRadius: 6, fontSize: 11, pointerEvents: 'none',
-            maxWidth: '90%', textAlign: 'center',
-          }}
-        >
-          ⚠ Sin conexión — importa un mapa .pmtiles en Configuración para ver cartografía offline
-        </div>
-      )}
-    </div>
+    <div ref={containerRef} className={`w-full h-full ${className}`} />
   );
 }
