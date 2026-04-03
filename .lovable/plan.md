@@ -1,43 +1,60 @@
 
 
-## Mover botón "Guardar" de la barra de navegación a Configuración
+## Añadir botón "Crear KML" en estados vacíos (sin ruta cargada)
 
-### Resumen
+### Situación actual
 
-El botón "Guardar" (exportar KML) actualmente ocupa espacio en la barra de navegación inferior, donde compite con los 4 tabs principales. Moverlo a la página de Configuración es más coherente: guardar/exportar es una acción puntual, no navegación frecuente.
+- **MapPage** (`/map`): Ya tiene un estado vacío con botón "Cargar archivo" → redirige a `/` (upload). No tiene opción de crear KML nuevo.
+- **SegmentsPage** (`/segments`): No tiene guarda para `!route` — accede a `route.name` directamente (línea 301), lo que puede causar error si no hay ruta. No hay estado vacío.
+- **Index.tsx** (`/`): Solo permite subir KML existente. No tiene opción de crear uno nuevo.
 
-### Cambios
+### Cambios propuestos
 
-**1. `src/components/AppLayout.tsx`**
-- Eliminar todo el bloque del botón "Guardar" (líneas 79-104) y las props relacionadas (`route`, `isDirty`, `onMarkClean`).
-- Eliminar imports no usados (`Save`, `routeToKml`, `downloadKml`, `toast`).
-- La interfaz Props se simplifica: solo `children`, `selectedCount`, `onClearSelection`.
+**1. `src/pages/MapPage.tsx`** — Ampliar el estado vacío (líneas 986-994)
+- Mantener el botón "Cargar archivo" existente.
+- Añadir un segundo botón "Crear KML nuevo" que llame a `onRouteLoaded` con una ruta vacía (nombre por defecto, sin segmentos, con ProjectCodeDialog para pedir código y nombre).
+- Alternativa más simple: redirigir a `/` con un query param `?create=true` que active el flujo de creación.
 
-**2. `src/pages/SettingsPage.tsx`**
-- Añadir props `isDirty` y `onMarkClean` a la interfaz.
-- Añadir una nueva sección "Exportar ruta" con dos botones:
-  - **Guardar KML** — exporta con el nombre actual (indicador visual de cambios pendientes si `isDirty`).
-  - **Guardar como…** — permite elegir nuevo nombre.
-- Ubicar esta sección después de "Campaña" y antes de "Datos", agrupada con el mismo estilo visual (icono `Save`, tarjeta con borde).
+**2. `src/pages/SegmentsPage.tsx`** — Añadir guarda para `!route`
+- Antes del return principal (línea 296), añadir un bloque `if (!route)` que muestre:
+  - Mensaje "No hay ruta cargada"
+  - Botón "Cargar archivo" → navega a `/`
+  - Botón "Crear KML nuevo" → activa flujo de creación
 
-**3. `src/App.tsx`**
-- Dejar de pasar `route`, `isDirty`, `onMarkClean` a `AppLayout`.
-- Pasar `isDirty` y `onMarkClean` a `SettingsPage`.
+**3. `src/pages/Index.tsx`** — Añadir botón "Crear KML nuevo"
+- Debajo del dropzone (tras el bloque de error, ~línea 168), añadir un separador visual y un botón "Crear KML vacío".
+- Al pulsar, abrir directamente el `ProjectCodeDialog` para pedir código y nombre de proyecto.
+- Al confirmar, crear una ruta vacía con ese código/nombre y navegar a `/map`.
 
-### Ubicación en Settings
+### Flujo de creación de KML vacío
 
-La sección quedará así:
+Todos los botones "Crear KML nuevo" convergen en el mismo flujo:
+1. Se abre `ProjectCodeDialog` (ya existe en el proyecto).
+2. El usuario introduce código de proyecto y nombre.
+3. Se crea un objeto `Route` vacío con esos datos (sin segmentos, con `optimizedOrder: []`).
+4. Se llama a `onRouteLoaded(route)` y se navega a `/map`.
 
-```text
-┌─────────────────────────────┐
-│ 💾  Exportar ruta            │
-│                             │
-│ Exporta la ruta actual como │
-│ archivo KML.                │
-│                             │
-│ [● Guardar KML]  [Guardar…] │
-└─────────────────────────────┘
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---|---|
+| `src/pages/Index.tsx` | Añadir botón "Crear KML vacío" + estado para abrir ProjectCodeDialog sin archivo |
+| `src/pages/MapPage.tsx` | Ampliar estado vacío con botón "Crear KML nuevo" (navega a `/?create=true`) |
+| `src/pages/SegmentsPage.tsx` | Añadir guarda `if (!route)` con estado vacío y botones |
+
+### Detalle técnico
+
+La ruta vacía se construirá así:
+```typescript
+const emptyRoute: Route = {
+  id: crypto.randomUUID(),
+  name: projectName,
+  fileName: `${code}.kml`,
+  projectCode: code,
+  segments: [],
+  optimizedOrder: [],
+};
 ```
 
-El indicador de cambios pendientes (punto rojo) se mostrará junto al texto del botón en lugar de en la barra de navegación.
+El `ProjectCodeDialog` ya existe y acepta `onConfirm(code, projectName)`, por lo que se reutiliza directamente sin crear componentes nuevos.
 
