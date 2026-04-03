@@ -10,7 +10,9 @@ import {
   getOfflineTileData,
   listOfflineTileSources,
   getActiveOfflineMapId,
+  setActiveOfflineMapId,
   shouldUseOfflineMap,
+  getOfflineMapMode,
   OFFLINE_MAP_CHANGED_EVENT,
 } from '@/utils/offline-tiles';
 import { toast } from 'sonner';
@@ -114,13 +116,27 @@ export function MapDisplay({
     return ids;
   }, [activeSegmentId, arrowSegmentIds]);
 
-  /** Apply or remove offline map layer */
+  /**
+   * Apply or remove offline map layer.
+   * @param forceOffline true = switch to offline, false = switch to online, undefined = auto-detect
+   */
   const syncOfflineMap = useCallback(async (map: L.Map, forceOffline?: boolean) => {
-    const activeMapId = getActiveOfflineMapId();
-    const wantOffline = forceOffline ?? shouldUseOfflineMap(isOnline);
+    const currentOnline = navigator.onLine; // always read fresh, avoid stale closure
+    let targetMapId = getActiveOfflineMapId();
+    const wantOffline = forceOffline ?? shouldUseOfflineMap(currentOnline);
+
+    // If going offline with no active map, auto-select first available source
+    if (wantOffline && !targetMapId) {
+      const sources = await listOfflineTileSources();
+      if (sources.length > 0) {
+        targetMapId = sources[0].id;
+        // Persist selection so it sticks across reopens
+        setActiveOfflineMapId(targetMapId);
+      }
+    }
 
     // --- Deactivate offline layer ---
-    if (!activeMapId || !wantOffline) {
+    if (!targetMapId || !wantOffline) {
       if (offlineLayerRef.current) {
         offlineLayerRef.current.remove();
         offlineLayerRef.current = null;
@@ -140,13 +156,13 @@ export function MapDisplay({
 
     // --- Activate offline layer ---
     const sources = await listOfflineTileSources();
-    const source = sources.find((s) => s.id === activeMapId);
+    const source = sources.find((s) => s.id === targetMapId);
     if (!source) {
-      setNoTilesWarning(!isOnline);
+      setNoTilesWarning(!currentOnline);
       return;
     }
 
-    const data = await getOfflineTileData(activeMapId);
+    const data = await getOfflineTileData(targetMapId);
     if (!data) return;
 
     // Clean up previous offline layer
@@ -172,31 +188,37 @@ export function MapDisplay({
       setOfflineMapActive(true);
       setNoTilesWarning(false);
     }
-  }, [isOnline]);
+  }, []);
 
   // ─── Auto-switch on connectivity changes ───
   useEffect(() => {
     if (!mapRef.current) return;
+    const map = mapRef.current;
 
     if (!isOnline) {
-      // Went offline: auto-switch to offline map if available
-      const activeMapId = getActiveOfflineMapId();
-      if (activeMapId && !offlineMapActive) {
-        syncOfflineMap(mapRef.current, true);
-        toast.info('Sin conexión — usando mapa offline');
-      } else if (!activeMapId) {
-        setNoTilesWarning(true);
+      // Went offline → try to switch to offline map
+      if (!offlineMapActive) {
+        syncOfflineMap(map, true).then(() => {
+          // Check if switch succeeded (offlineLayerRef will be set)
+          if (offlineLayerRef.current) {
+            toast.info('Sin conexión — mapa offline activado automáticamente');
+          } else {
+            toast.warning('Sin conexión — no hay mapa offline disponible. Importa uno en Configuración.');
+          }
+        });
       }
     } else if (wasOffline) {
-      // Came back online: restore online tiles
-      if (offlineMapActive) {
-        syncOfflineMap(mapRef.current, false);
+      // Came back online → restore online tiles
+      const mode = getOfflineMapMode();
+      if (mode !== 'offline') {
+        // Only restore online if user didn't force offline mode
+        syncOfflineMap(map, false);
         toast.success('Conexión restaurada — mapa online activo');
       }
       setNoTilesWarning(false);
       ackRecovery();
     }
-  }, [isOnline, wasOffline, offlineMapActive, syncOfflineMap, ackRecovery]);
+  }, [isOnline, wasOffline]);
 
   // Initialize map
   useEffect(() => {
