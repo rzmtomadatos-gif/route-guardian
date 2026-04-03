@@ -1,60 +1,93 @@
 
 
-## Añadir botón "Crear KML" en estados vacíos (sin ruta cargada)
+## Problema
 
-### Situación actual
+1. **El enlace a protomaps.com/downloads no funciona** — la página está vacía o no existe tal cual.
+2. **Archivos de 130 GB no caben en IndexedDB** — `file.arrayBuffer()` intenta cargar todo en RAM y falla. No hay límite de tamaño ni feedback al usuario.
+3. **No hay forma de ver el estado real de la caché de tiles online** — el usuario no sabe cuántas tiles tiene en caché ni cuánto pesan.
+4. **La sección explicativa "¿Qué diferencia hay?" no aporta valor operativo** — solo texto teórico sin datos reales.
 
-- **MapPage** (`/map`): Ya tiene un estado vacío con botón "Cargar archivo" → redirige a `/` (upload). No tiene opción de crear KML nuevo.
-- **SegmentsPage** (`/segments`): No tiene guarda para `!route` — accede a `route.name` directamente (línea 301), lo que puede causar error si no hay ruta. No hay estado vacío.
-- **Index.tsx** (`/`): Solo permite subir KML existente. No tiene opción de crear uno nuevo.
+## Plan
 
-### Cambios propuestos
+### 1. Reemplazar guía de descarga con enlaces directos funcionales
 
-**1. `src/pages/MapPage.tsx`** — Ampliar el estado vacío (líneas 986-994)
-- Mantener el botón "Cargar archivo" existente.
-- Añadir un segundo botón "Crear KML nuevo" que llame a `onRouteLoaded` con una ruta vacía (nombre por defecto, sin segmentos, con ProjectCodeDialog para pedir código y nombre).
-- Alternativa más simple: redirigir a `/` con un query param `?create=true` que active el flujo de creación.
+Sustituir el desplegable actual por una sección con enlaces directos a extractos regionales de Protomaps en su CDN pública (maps.protomaps.com). Incluir un catálogo precargado con los países/regiones más relevantes para el proyecto (España, Portugal, Francia) con tamaños aproximados y URLs directas.
 
-**2. `src/pages/SegmentsPage.tsx`** — Añadir guarda para `!route`
-- Antes del return principal (línea 296), añadir un bloque `if (!route)` que muestre:
-  - Mensaje "No hay ruta cargada"
-  - Botón "Cargar archivo" → navega a `/`
-  - Botón "Crear KML nuevo" → activa flujo de creación
+Flujo propuesto:
+- El usuario ve una lista de regiones disponibles con su tamaño estimado.
+- Pulsa "Descargar" → se descarga el `.pmtiles` directamente desde la URL pública vía `fetch` con barra de progreso.
+- Al completarse, se importa automáticamente en IndexedDB sin paso intermedio de selección de archivo.
 
-**3. `src/pages/Index.tsx`** — Añadir botón "Crear KML nuevo"
-- Debajo del dropzone (tras el bloque de error, ~línea 168), añadir un separador visual y un botón "Crear KML vacío".
-- Al pulsar, abrir directamente el `ProjectCodeDialog` para pedir código y nombre de proyecto.
-- Al confirmar, crear una ruta vacía con ese código/nombre y navegar a `/map`.
+**Archivo**: `src/components/OfflineMapsManager.tsx`
 
-### Flujo de creación de KML vacío
+### 2. Añadir descarga directa con progreso desde URL
 
-Todos los botones "Crear KML nuevo" convergen en el mismo flujo:
-1. Se abre `ProjectCodeDialog` (ya existe en el proyecto).
-2. El usuario introduce código de proyecto y nombre.
-3. Se crea un objeto `Route` vacío con esos datos (sin segmentos, con `optimizedOrder: []`).
-4. Se llama a `onRouteLoaded(route)` y se navega a `/map`.
+Nueva función `downloadAndImportPMTiles(url, name)` en `src/utils/offline-tiles.ts`:
+- Usa `fetch` con `ReadableStream` para medir progreso.
+- Valida tamaño máximo (~2 GB, límite práctico de IndexedDB).
+- Muestra barra de progreso en la UI.
+- Al terminar, importa automáticamente como si fuera un archivo local.
+
+**Archivos**: `src/utils/offline-tiles.ts`, `src/components/OfflineMapsManager.tsx`
+
+### 3. Límite de tamaño en importación local
+
+En `addOfflineTileSource`, añadir validación antes de `file.arrayBuffer()`:
+- Si `file.size > 2 * 1024 * 1024 * 1024` (2 GB), rechazar con mensaje claro: "El archivo es demasiado grande para almacenar offline. Usa un extracto regional más pequeño."
+
+**Archivo**: `src/utils/offline-tiles.ts`
+
+### 4. Mostrar estado real de la caché de tiles online
+
+Reemplazar la sección teórica "¿Qué diferencia hay?" por un panel con datos reales:
+- Consultar `caches.open('map-tiles')` y contar las entradas con `.keys()`.
+- Mostrar: número de tiles en caché, fecha aproximada de las más antiguas.
+- Botón "Limpiar caché" para vaciarla.
+
+**Archivo**: `src/components/OfflineMapsManager.tsx` (nueva sección al final)
+
+### 5. Catálogo de regiones predefinidas
+
+Definir un array estático de regiones con URLs de descarga directa. Fuente: builds públicos de Protomaps (e.g. `https://build.protomaps.com/`). Regiones iniciales:
+
+| Región | Tamaño aprox. |
+|---|---|
+| España | ~600 MB |
+| Portugal | ~100 MB |
+| Francia | ~800 MB |
+| Península Ibérica | ~700 MB |
+
+**Archivo**: `src/utils/offline-tiles.ts` (constante `REGION_CATALOG`)
 
 ### Archivos a modificar
 
 | Archivo | Cambio |
 |---|---|
-| `src/pages/Index.tsx` | Añadir botón "Crear KML vacío" + estado para abrir ProjectCodeDialog sin archivo |
-| `src/pages/MapPage.tsx` | Ampliar estado vacío con botón "Crear KML nuevo" (navega a `/?create=true`) |
-| `src/pages/SegmentsPage.tsx` | Añadir guarda `if (!route)` con estado vacío y botones |
+| `src/utils/offline-tiles.ts` | Catálogo de regiones, función de descarga con progreso, validación de tamaño |
+| `src/components/OfflineMapsManager.tsx` | UI de catálogo con descarga directa, barra de progreso, estado de caché real, eliminar sección teórica |
 
 ### Detalle técnico
 
-La ruta vacía se construirá así:
+La descarga directa usa `fetch` + `Response.body.getReader()` para streaming con progreso:
 ```typescript
-const emptyRoute: Route = {
-  id: crypto.randomUUID(),
-  name: projectName,
-  fileName: `${code}.kml`,
-  projectCode: code,
-  segments: [],
-  optimizedOrder: [],
-};
+const response = await fetch(url);
+const total = Number(response.headers.get('content-length'));
+const reader = response.body.getReader();
+const chunks: Uint8Array[] = [];
+let received = 0;
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  chunks.push(value);
+  received += value.length;
+  onProgress?.(received / total);
+}
 ```
 
-El `ProjectCodeDialog` ya existe y acepta `onConfirm(code, projectName)`, por lo que se reutiliza directamente sin crear componentes nuevos.
+Para la caché de tiles:
+```typescript
+const cache = await caches.open('map-tiles');
+const keys = await cache.keys();
+// keys.length = número de tiles en caché
+```
 
