@@ -103,9 +103,6 @@ function AppRoutes() {
 
   return (
     <AppLayout
-      route={state.route}
-      isDirty={isDirty}
-      onMarkClean={markClean}
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
     >
