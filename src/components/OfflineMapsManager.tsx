@@ -1,13 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { MapPin, Upload, Trash2, HardDrive, Map } from 'lucide-react';
+import { MapPin, Upload, Trash2, HardDrive, Map, Wifi, WifiOff } from 'lucide-react';
 import {
   listOfflineTileSources,
   addOfflineTileSource,
   removeOfflineTileSource,
-  notifyOfflineMapChanged,
+  getActiveOfflineMapId,
+  setActiveOfflineMapId,
+  getOfflineMapMode,
+  setOfflineMapMode,
   type OfflineTileSource,
+  type OfflineMapMode,
 } from '@/utils/offline-tiles';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { toast } from 'sonner';
 
 function formatBytes(bytes: number): string {
@@ -19,7 +24,6 @@ function formatBytes(bytes: number): string {
 
 function formatBounds(bounds: [number, number, number, number]): string {
   const [w, s, e, n] = bounds;
-  // Detect placeholder global bounds
   if (w <= -179 && s <= -89 && e >= 179 && n >= 89) return 'Global (sin bounds específicos)';
   return `${s.toFixed(2)}°–${n.toFixed(2)}°N, ${w.toFixed(2)}°–${e.toFixed(2)}°E`;
 }
@@ -27,9 +31,9 @@ function formatBounds(bounds: [number, number, number, number]): string {
 export function OfflineMapsManager() {
   const [sources, setSources] = useState<OfflineTileSource[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(() => {
-    try { return localStorage.getItem('vialroute_active_offline_map'); } catch { return null; }
-  });
+  const [activeId, setActiveIdState] = useState<string | null>(() => getActiveOfflineMapId());
+  const [mode, setModeState] = useState<OfflineMapMode>(() => getOfflineMapMode());
+  const { isOnline } = useConnectivity();
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,9 +66,8 @@ export function OfflineMapsManager() {
       await removeOfflineTileSource(id);
       setSources((prev) => prev.filter((s) => s.id !== id));
       if (activeId === id) {
-        setActiveId(null);
-        try { localStorage.removeItem('vialroute_active_offline_map'); } catch {}
-        notifyOfflineMapChanged();
+        setActiveIdState(null);
+        setActiveOfflineMapId(null);
       }
       toast.success(`Mapa offline "${name}" eliminado`);
     } catch (err: any) {
@@ -73,13 +76,18 @@ export function OfflineMapsManager() {
   };
 
   const handleActivate = (id: string | null) => {
-    setActiveId(id);
-    try {
-      if (id) localStorage.setItem('vialroute_active_offline_map', id);
-      else localStorage.removeItem('vialroute_active_offline_map');
-    } catch {}
-    notifyOfflineMapChanged();
-    toast.success(id ? 'Mapa offline activado' : 'Mapa online restaurado');
+    setActiveIdState(id);
+    setActiveOfflineMapId(id);
+    toast.success(id ? 'Mapa offline seleccionado' : 'Mapa offline desactivado');
+  };
+
+  const handleModeToggle = () => {
+    const next: OfflineMapMode = mode === 'auto' ? 'offline' : 'auto';
+    setModeState(next);
+    setOfflineMapMode(next);
+    toast.info(next === 'auto'
+      ? 'Modo auto: mapa online con red, offline sin red'
+      : 'Modo forzado: siempre usa mapa offline seleccionado');
   };
 
   return (
@@ -87,6 +95,10 @@ export function OfflineMapsManager() {
       <div className="flex items-center gap-2 text-muted-foreground">
         <Map className="w-4 h-4" />
         <span className="text-sm font-medium">Mapas offline</span>
+        <span className={`ml-auto flex items-center gap-1 text-[10px] ${isOnline ? 'text-green-400' : 'text-amber-400'}`}>
+          {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
       </div>
       <div className="bg-card rounded-xl p-4 border border-border space-y-3">
         <p className="text-xs text-muted-foreground">
@@ -101,6 +113,21 @@ export function OfflineMapsManager() {
             protomaps.com
           </a>.
         </p>
+
+        {/* Mode toggle */}
+        {activeId && (
+          <button
+            onClick={handleModeToggle}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs transition-colors ${
+              mode === 'offline'
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+                : 'border-border bg-secondary/50 text-muted-foreground'
+            }`}
+          >
+            <span>{mode === 'auto' ? '🔄 Auto: online si hay red, offline si no' : '📴 Forzado: siempre offline'}</span>
+            <span className="text-[10px] opacity-60">toca para cambiar</span>
+          </button>
+        )}
 
         {sources.length === 0 ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
@@ -168,10 +195,15 @@ export function OfflineMapsManager() {
           onChange={handleImport}
         />
 
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          <strong>Nota:</strong> Los tiles visitados previamente online también se guardan en caché automáticamente (hasta 2000 tiles, 7 días).
-          Un mapa PMTiles importado ofrece cobertura completa de la región sin depender de visitas previas.
-        </p>
+        <div className="text-[10px] text-muted-foreground leading-relaxed space-y-1">
+          <p>
+            <strong>Mapa offline real</strong> = archivo PMTiles importado con cobertura completa de una región.
+          </p>
+          <p>
+            <strong>Caché de tiles</strong> = tiles visitados previamente online que se guardan automáticamente
+            (hasta 2000 tiles, 7 días). No sustituye a un mapa offline real.
+          </p>
+        </div>
       </div>
     </div>
   );
