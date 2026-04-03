@@ -161,24 +161,22 @@ export function useCopilotDriver(token: string | null) {
     if (!token) { setLoading(false); return; }
 
     supabase
-      .from('copilot_sessions')
-      .select('*')
-      .eq('token', token)
-      .single()
+      .rpc('read_copilot_session_by_token', { p_token: token })
       .then(({ data, error: err }) => {
         if (err || !data) {
           setError('Sesión no encontrada');
           setLoading(false);
           return;
         }
-        setSession(parseSession(data));
+        const raw = typeof data === 'string' ? JSON.parse(data) : data;
+        setSession(parseSession(raw));
         setLoading(false);
 
         const channel = supabase
-          .channel(`copilot-${data.id}`)
+          .channel(`copilot-${raw.id}`)
           .on(
             'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${data.id}` },
+            { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${raw.id}` },
             (payload) => {
               setSession(parseSession(payload.new));
             }
