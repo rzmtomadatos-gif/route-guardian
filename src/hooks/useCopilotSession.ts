@@ -59,6 +59,7 @@ export function useCopilotOperator() {
               ...prev,
               ...raw,
               queue: Array.isArray(raw.queue) ? raw.queue : JSON.parse(raw.queue || '[]'),
+              token: prev.token,
             };
           });
         }
@@ -178,7 +179,11 @@ export function useCopilotDriver(token: string | null) {
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${raw.id}` },
             (payload) => {
-              setSession(parseSession(payload.new));
+              setSession(prev => {
+                const parsed = parseSession(payload.new);
+                if (!prev) return parsed;
+                return { ...prev, ...parsed, token: prev.token };
+              });
             }
           )
           .subscribe();
