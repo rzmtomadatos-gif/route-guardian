@@ -5,6 +5,7 @@ import {
   listOfflineTileSources,
   addOfflineTileSource,
   removeOfflineTileSource,
+  notifyOfflineMapChanged,
   type OfflineTileSource,
 } from '@/utils/offline-tiles';
 import { toast } from 'sonner';
@@ -14,6 +15,13 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatBounds(bounds: [number, number, number, number]): string {
+  const [w, s, e, n] = bounds;
+  // Detect placeholder global bounds
+  if (w <= -179 && s <= -89 && e >= 179 && n >= 89) return 'Global (sin bounds específicos)';
+  return `${s.toFixed(2)}°–${n.toFixed(2)}°N, ${w.toFixed(2)}°–${e.toFixed(2)}°E`;
 }
 
 export function OfflineMapsManager() {
@@ -37,15 +45,10 @@ export function OfflineMapsManager() {
     }
     setLoading(true);
     try {
-      // For now, use a default bounding box — in a real implementation,
-      // we'd read the PMTiles header to extract bounds
-      const source = await addOfflineTileSource(
-        file,
-        file.name.replace('.pmtiles', ''),
-        [-180, -90, 180, 90], // placeholder bounds
-      );
+      const source = await addOfflineTileSource(file, file.name.replace('.pmtiles', ''));
       setSources((prev) => [...prev, source]);
-      toast.success(`Mapa offline "${source.name}" importado (${formatBytes(source.size)})`);
+      const boundsInfo = formatBounds(source.bounds);
+      toast.success(`Mapa offline "${source.name}" importado (${formatBytes(source.size)}) — ${boundsInfo}`);
     } catch (err: any) {
       toast.error(`Error importando: ${err.message || err}`);
     } finally {
@@ -61,6 +64,7 @@ export function OfflineMapsManager() {
       if (activeId === id) {
         setActiveId(null);
         try { localStorage.removeItem('vialroute_active_offline_map'); } catch {}
+        notifyOfflineMapChanged();
       }
       toast.success(`Mapa offline "${name}" eliminado`);
     } catch (err: any) {
@@ -74,6 +78,7 @@ export function OfflineMapsManager() {
       if (id) localStorage.setItem('vialroute_active_offline_map', id);
       else localStorage.removeItem('vialroute_active_offline_map');
     } catch {}
+    notifyOfflineMapChanged();
     toast.success(id ? 'Mapa offline activado' : 'Mapa online restaurado');
   };
 
@@ -117,7 +122,9 @@ export function OfflineMapsManager() {
                   <HardDrive className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{s.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{formatBytes(s.size)}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatBytes(s.size)} · {formatBounds(s.bounds)}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
