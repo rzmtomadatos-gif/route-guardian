@@ -38,6 +38,14 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreateDialog(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const processFile = useCallback(
     async (file: File) => {
