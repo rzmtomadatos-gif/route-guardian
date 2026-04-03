@@ -1020,13 +1020,15 @@ export default function MapPage({
         
       </div>
 
-      {/* Map mode indicator */}
-      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
-      mapMode === 'google' ?
-      'bg-green-500/20 text-green-400 border border-green-500/30' :
-      'bg-muted/80 text-muted-foreground border border-border'}`
-      }>
-        {mapMode === 'google' ? '● Google Maps activo' : '● Modo offline (Leaflet)'}
+      {/* Map mode indicator — non-invasive, outside map container */}
+      <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
+        <div className={`px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
+          mapMode === 'google'
+            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+            : 'bg-muted/80 text-muted-foreground border border-border'
+        }`}>
+          {mapMode === 'google' ? '● Google Maps' : '● Leaflet offline'}
+        </div>
       </div>
       {/* Debug mode toggle */}
       <button
