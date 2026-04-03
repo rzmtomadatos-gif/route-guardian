@@ -20,13 +20,64 @@ export interface OfflineTileSource {
 }
 
 const IDB_STORE_NAME = 'vialroute_tiles';
+export const ACTIVE_OFFLINE_MAP_KEY = 'vialroute_active_offline_map';
+export const OFFLINE_MAP_MODE_KEY = 'vialroute_offline_map_mode';
 
 /** Custom event name for same-tab offline map changes */
 export const OFFLINE_MAP_CHANGED_EVENT = 'vialroute:offline-map-changed';
 
+export type OfflineMapMode = 'auto' | 'offline';
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // ignore storage failures
+  }
+}
+
 /** Dispatch a same-tab event when offline map selection changes */
 export function notifyOfflineMapChanged() {
   window.dispatchEvent(new CustomEvent(OFFLINE_MAP_CHANGED_EVENT));
+}
+
+export function getActiveOfflineMapId(): string | null {
+  return readStorage(ACTIVE_OFFLINE_MAP_KEY);
+}
+
+export function setActiveOfflineMapId(id: string | null) {
+  writeStorage(ACTIVE_OFFLINE_MAP_KEY, id);
+  notifyOfflineMapChanged();
+}
+
+export function getOfflineMapMode(): OfflineMapMode {
+  return readStorage(OFFLINE_MAP_MODE_KEY) === 'offline' ? 'offline' : 'auto';
+}
+
+export function setOfflineMapMode(mode: OfflineMapMode) {
+  writeStorage(OFFLINE_MAP_MODE_KEY, mode);
+  notifyOfflineMapChanged();
+}
+
+export function clearOfflineMapSelection() {
+  writeStorage(ACTIVE_OFFLINE_MAP_KEY, null);
+  writeStorage(OFFLINE_MAP_MODE_KEY, 'auto');
+  notifyOfflineMapChanged();
+}
+
+export function shouldUseOfflineMap(isOnline = navigator.onLine): boolean {
+  const activeId = getActiveOfflineMapId();
+  if (!activeId) return false;
+  return getOfflineMapMode() === 'offline' || !isOnline;
 }
 
 function openTileIDB(): Promise<IDBDatabase> {
@@ -56,7 +107,6 @@ async function readPMTilesBounds(
   try {
     const { PMTiles } = await import('pmtiles');
 
-    // PMTiles can accept a custom source — we wrap the ArrayBuffer
     const source = {
       getBytes: async (offset: number, length: number) => {
         const slice = buffer.slice(offset, offset + length);
@@ -73,7 +123,6 @@ async function readPMTilesBounds(
       header.minLat !== undefined &&
       header.maxLon !== undefined &&
       header.maxLat !== undefined &&
-      // Reject degenerate / placeholder bounds
       !(header.minLon === 0 && header.minLat === 0 && header.maxLon === 0 && header.maxLat === 0)
     ) {
       return [header.minLon, header.minLat, header.maxLon, header.maxLat];
@@ -109,13 +158,9 @@ export async function addOfflineTileSource(
 ): Promise<OfflineTileSource> {
   const id = `tiles_${Date.now()}`;
   const buffer = await file.arrayBuffer();
-
-  // Try to read real bounds from header
   const realBounds = await readPMTilesBounds(buffer);
-
   const idb = await openTileIDB();
 
-  // Store the binary
   await new Promise<void>((resolve, reject) => {
     const tx = idb.transaction('files', 'readwrite');
     tx.objectStore('files').put(buffer, id);
