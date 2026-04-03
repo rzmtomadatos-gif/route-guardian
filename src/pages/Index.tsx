@@ -127,6 +127,25 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
     [pendingRouteForCode, onRouteLoaded, navigate]
   );
 
+  const handleCreateEmpty = useCallback(
+    (code: string, projectName: string) => {
+      const emptyRoute: RouteType = {
+        id: crypto.randomUUID(),
+        name: projectName || code,
+        loadedAt: new Date().toISOString(),
+        fileName: `${code}.kml`,
+        projectCode: code,
+        projectName: projectName || code,
+        segments: [],
+        optimizedOrder: [],
+      };
+      setShowCreateDialog(false);
+      onRouteLoaded(emptyRoute);
+      navigate('/map');
+    },
+    [onRouteLoaded, navigate]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
