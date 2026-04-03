@@ -1,10 +1,29 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
+import { getOfflineTileData, listOfflineTileSources } from '@/utils/offline-tiles';
+
+// Dynamic import for protomaps-leaflet (only loaded when needed)
+let protomapsModule: any = null;
+async function getProtomapsLayer(source: any): Promise<L.Layer | null> {
+  try {
+    if (!protomapsModule) {
+      protomapsModule = await import('protomaps-leaflet');
+    }
+    return (protomapsModule.leafletLayer as any)({
+      url: source,
+      // Use dark theme to match app design
+      theme: 'dark',
+    });
+  } catch (e) {
+    console.error('Failed to load protomaps-leaflet:', e);
+    return null;
+  }
+}
 
 interface Props {
   segments: Segment[];
@@ -63,10 +82,13 @@ export function MapDisplay({
   const mapRef = useRef<L.Map | null>(null);
   const segmentLayerRef = useRef<L.LayerGroup | null>(null);
   const arrowLayerRef = useRef<L.LayerGroup | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const offlineLayerRef = useRef<L.Layer | null>(null);
   const posMarkerRef = useRef<L.CircleMarker | null>(null);
   const currentZoomRef = useRef(6);
   const { requestFitBounds: smartFit } = useSmartFitLeaflet();
   const prevFingerprintRef = useRef('');
+  const [offlineMapActive, setOfflineMapActive] = useState(false);
 
   const segmentFingerprint = useMemo(
     () => buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds),
@@ -90,10 +112,12 @@ export function MapDisplay({
       attributionControl: false,
     }).setView([40.4168, -3.7038], 6);
 
+    // Start with online tiles
     const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
       errorTileUrl: '', // prevent broken image icons
     }).addTo(map);
+    tileLayerRef.current = tileLayer;
 
     // Detect tile load failures (offline) and show indicator
     let tileErrors = 0;
@@ -121,7 +145,6 @@ export function MapDisplay({
       const zoom = map.getZoom();
       const prevZoom = currentZoomRef.current;
       currentZoomRef.current = zoom;
-      // Toggle arrow layer at zoom threshold
       if (zoom < 15 && prevZoom >= 15) {
         arrowLayerRef.current?.remove();
       } else if (zoom >= 15 && prevZoom < 15) {
@@ -131,10 +154,84 @@ export function MapDisplay({
 
     mapRef.current = map;
 
+    // Check for offline map source
+    loadOfflineMapIfActive(map);
+
     return () => {
       map.remove();
       mapRef.current = null;
+      tileLayerRef.current = null;
+      offlineLayerRef.current = null;
     };
+  }, []);
+
+  // Load offline PMTiles map if user has one activated
+  async function loadOfflineMapIfActive(map: L.Map) {
+    try {
+      const activeMapId = localStorage.getItem('vialroute_active_offline_map');
+      if (!activeMapId) return;
+
+      const sources = await listOfflineTileSources();
+      const source = sources.find((s) => s.id === activeMapId);
+      if (!source) return;
+
+      const data = await getOfflineTileData(activeMapId);
+      if (!data) return;
+
+      // Try to create protomaps layer from stored PMTiles data
+      const pmtilesModule = await import('pmtiles');
+      const pmtiles = new pmtilesModule.PMTiles(new pmtilesModule.FetchSource(''));
+      
+      // Create a blob URL from the stored data to feed to protomaps
+      const blob = new Blob([data], { type: 'application/octet-stream' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const layer = await getProtomapsLayer(blobUrl);
+      if (layer) {
+        // Remove online tiles, add offline
+        if (tileLayerRef.current) {
+          tileLayerRef.current.remove();
+        }
+        layer.addTo(map);
+        offlineLayerRef.current = layer;
+        setOfflineMapActive(true);
+
+        // Remove offline badge if present
+        if (containerRef.current) {
+          const badge = containerRef.current.querySelector('.offline-badge');
+          if (badge) badge.remove();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load offline map:', e);
+      // Keep online tiles as fallback
+    }
+  }
+
+  // Listen for offline map activation changes
+  useEffect(() => {
+    const handler = () => {
+      if (!mapRef.current) return;
+      const activeMapId = localStorage.getItem('vialroute_active_offline_map');
+      
+      if (!activeMapId) {
+        // Restore online tiles
+        if (offlineLayerRef.current && mapRef.current) {
+          offlineLayerRef.current.remove();
+          offlineLayerRef.current = null;
+        }
+        if (tileLayerRef.current && mapRef.current) {
+          tileLayerRef.current.addTo(mapRef.current);
+        }
+        setOfflineMapActive(false);
+        return;
+      }
+      
+      loadOfflineMapIfActive(mapRef.current);
+    };
+    
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }, []);
 
   // Draw static segments (only when fingerprint changes)
@@ -190,7 +287,7 @@ export function MapDisplay({
 
       bounds.extend(latLngs);
 
-      // Arrows — only for arrowSegmentIds, rendered in separate layer
+      // Arrows
       if (!arrowSet || arrowSet.has(seg.id)) {
         const arrows = getSegmentArrows(seg.id, seg.coordinates);
         arrows.forEach(({ pos, angle }) => {
@@ -199,7 +296,7 @@ export function MapDisplay({
         });
       }
 
-      // Order number — only for nearby/active segments
+      // Order number
       if (optimizedOrder && orderNumberIds.has(seg.id)) {
         const orderIdx = optimizedOrder.indexOf(seg.id);
         if (orderIdx >= 0) {
@@ -253,7 +350,7 @@ export function MapDisplay({
     }
   }, [centerActiveRequest, smartFit]);
 
-  // GPS position marker — separate from segment rendering
+  // GPS position marker
   useEffect(() => {
     if (!mapRef.current || !segmentLayerRef.current) return;
 
@@ -282,5 +379,19 @@ export function MapDisplay({
     }
   }, [currentPosition]);
 
-  return <div ref={containerRef} className={`w-full h-full ${className}`} />;
+  return (
+    <div ref={containerRef} className={`w-full h-full ${className}`}>
+      {offlineMapActive && (
+        <div
+          style={{
+            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 1000, background: 'rgba(0,80,40,0.85)', color: '#4ade80',
+            padding: '3px 10px', borderRadius: 6, fontSize: 10, pointerEvents: 'none',
+          }}
+        >
+          🗺 Mapa offline activo
+        </div>
+      )}
+    </div>
+  );
 }

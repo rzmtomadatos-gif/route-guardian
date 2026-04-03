@@ -309,6 +309,9 @@ export default function SettingsPage({ onClear, hasRoute, route, state, onUpdate
           </div>
         )}
 
+        {/* Offline Maps */}
+        <OfflineMapsManager />
+
         {/* App info */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-muted-foreground">
