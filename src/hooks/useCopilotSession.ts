@@ -173,10 +173,10 @@ export function useCopilotDriver(token: string | null) {
         setLoading(false);
 
         const channel = supabase
-          .channel(`copilot-${data.id}`)
+          .channel(`copilot-${raw.id}`)
           .on(
             'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${data.id}` },
+            { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${raw.id}` },
             (payload) => {
               setSession(parseSession(payload.new));
             }
