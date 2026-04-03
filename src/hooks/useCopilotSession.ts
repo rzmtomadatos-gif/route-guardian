@@ -26,6 +26,16 @@ export interface CopilotSession {
   batch_url: string | null;
 }
 
+/** Helper: token-gated update via RPC (SECURITY DEFINER) */
+async function rpcUpdate(token: string, updates: Record<string, unknown>) {
+  const { error } = await supabase.rpc('update_copilot_session', {
+    p_token: token,
+    p_updates: updates as any,
+  });
+  if (error) console.error('Copilot RPC update error:', error);
+  return error;
+}
+
 /* ─── Operator side ─── */
 
 export function useCopilotOperator() {
@@ -77,39 +87,31 @@ export function useCopilotOperator() {
   const updateDestination = useCallback(async (segment: Segment, trackNumber?: number | null) => {
     if (!session) return;
     const start = segment.coordinates[0];
-    await supabase
-      .from('copilot_sessions')
-      .update({
-        segment_name: segment.name,
-        segment_id: segment.id,
-        destination_lat: start.lat,
-        destination_lng: start.lng,
-        status: 'navigating',
-        track_number: trackNumber ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, {
+      segment_name: segment.name,
+      segment_id: segment.id,
+      destination_lat: start.lat,
+      destination_lng: start.lng,
+      status: 'navigating',
+      track_number: trackNumber ?? null,
+    });
   }, [session]);
 
   /** Push a batch of destinations into the queue and generate batch URL */
   const pushQueue = useCallback(async (items: QueueItem[], cursorIndex: number, batchUrl?: string) => {
     if (!session) return;
     const newBatchNumber = (session.batch_number || 0) + (batchUrl ? 1 : 0);
-    await supabase
-      .from('copilot_sessions')
-      .update({
-        queue: items as any,
-        cursor_index: cursorIndex,
-        status: items.length > 0 ? 'navigating' : 'waiting',
-        segment_name: items[0]?.name ?? null,
-        segment_id: items[0]?.segmentId ?? null,
-        destination_lat: items[0]?.lat ?? null,
-        destination_lng: items[0]?.lng ?? null,
-        batch_url: batchUrl ?? session.batch_url,
-        batch_number: newBatchNumber,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, {
+      queue: items,
+      cursor_index: cursorIndex,
+      status: items.length > 0 ? 'navigating' : 'waiting',
+      segment_name: items[0]?.name ?? null,
+      segment_id: items[0]?.segmentId ?? null,
+      destination_lat: items[0]?.lat ?? null,
+      destination_lng: items[0]?.lng ?? null,
+      batch_url: batchUrl ?? session.batch_url,
+      batch_number: newBatchNumber,
+    });
 
     setSession(prev => prev ? { ...prev, queue: items, cursor_index: cursorIndex, batch_url: batchUrl ?? prev.batch_url, batch_number: newBatchNumber } : prev);
   }, [session]);
@@ -118,39 +120,26 @@ export function useCopilotOperator() {
   const forceSendBatch = useCallback(async (batchUrl: string) => {
     if (!session) return;
     const newBatchNumber = (session.batch_number || 0) + 1;
-    await supabase
-      .from('copilot_sessions')
-      .update({
-        batch_url: batchUrl,
-        batch_number: newBatchNumber,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, {
+      batch_url: batchUrl,
+      batch_number: newBatchNumber,
+    });
     setSession(prev => prev ? { ...prev, batch_url: batchUrl, batch_number: newBatchNumber } : prev);
   }, [session]);
 
   const setBlocked = useCallback(async () => {
     if (!session) return;
-    await supabase
-      .from('copilot_sessions')
-      .update({ status: 'blocked', updated_at: new Date().toISOString() })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, { status: 'blocked' });
   }, [session]);
 
   const setWaiting = useCallback(async () => {
     if (!session) return;
-    await supabase
-      .from('copilot_sessions')
-      .update({ status: 'waiting', updated_at: new Date().toISOString() })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, { status: 'waiting' });
   }, [session]);
 
   const endSession = useCallback(async () => {
     if (!session) return;
-    await supabase
-      .from('copilot_sessions')
-      .update({ status: 'ended', queue: [], updated_at: new Date().toISOString() })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, { status: 'ended', queue: [] });
     setActive(false);
     setSession(null);
   }, [session]);
@@ -216,18 +205,14 @@ export function useCopilotDriver(token: string | null) {
     const next = newQueue[0];
     const newCursor = session.cursor_index + 1;
 
-    await supabase
-      .from('copilot_sessions')
-      .update({
-        queue: newQueue as any,
-        cursor_index: newCursor,
-        segment_name: next?.name ?? null,
-        segment_id: next?.segmentId ?? null,
-        destination_lat: next?.lat ?? null,
-        destination_lng: next?.lng ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', session.id);
+    await rpcUpdate(session.token, {
+      queue: newQueue,
+      cursor_index: newCursor,
+      segment_name: next?.name ?? null,
+      segment_id: next?.segmentId ?? null,
+      destination_lat: next?.lat ?? null,
+      destination_lng: next?.lng ?? null,
+    });
 
     // Return next destination for immediate nav opening
     return next ?? null;
