@@ -72,13 +72,10 @@ export function useCopilotOperator() {
   }, [session?.id, active]);
 
   const createSession = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('copilot_sessions')
-      .insert({ status: 'waiting', queue: [], cursor_index: 0 })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('create_copilot_session');
     if (error) { console.error('Copilot create error:', error); return null; }
-    const s = { ...data, queue: (Array.isArray(data.queue) ? data.queue : []) as unknown as QueueItem[] } as CopilotSession;
+    const raw = data as any;
+    const s = { ...raw, queue: Array.isArray(raw.queue) ? raw.queue : JSON.parse(raw.queue || '[]') } as CopilotSession;
     setSession(s);
     setActive(true);
     return s;
