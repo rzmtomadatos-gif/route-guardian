@@ -25,23 +25,18 @@ export default defineConfig(({ mode }) => ({
         enabled: false, // NEVER enable in dev — breaks Lovable preview iframes
       },
       includeAssets: [
-        "sql-wasm.wasm",
-        "placeholder.svg",
         "robots.txt",
         "manifest.json",
-        "favicon.ico",
-        "pwa-192x192.png",
-        "pwa-512x512.png",
       ],
       manifest: false, // We provide our own public/manifest.json
       workbox: {
         globPatterns: [
           "**/*.{js,css,html,ico,png,svg,woff,woff2}",
         ],
-        // Precache WASM separately — must NOT also appear in globPatterns
-        // (duplicate entries cause workbox SW installation to fail silently)
+        // Keep the WASM binary in precache exactly once.
+        // Public icons/favicon/placeholder are already covered by globPatterns.
         additionalManifestEntries: [
-          { url: "/sql-wasm.wasm", revision: "2" },
+          { url: "sql-wasm.wasm", revision: "3" },
         ],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/~oauth/],
