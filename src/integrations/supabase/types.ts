@@ -70,6 +70,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_copilot_session: { Args: never; Returns: Json }
       delete_copilot_session: { Args: { p_token: string }; Returns: undefined }
       update_copilot_session: {
         Args: { p_token: string; p_updates: Json }
