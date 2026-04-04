@@ -334,12 +334,12 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         {route && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Save className="w-4 h-4" />
+              <FileOutput className="w-4 h-4" />
               <span className="text-sm font-medium">Exportar ruta</span>
             </div>
             <div className="bg-card rounded-xl p-4 border border-border space-y-3">
               <p className="text-xs text-muted-foreground">
-                Exporta la ruta actual como archivo KML.
+                Descarga la ruta actual como archivo KML. El trabajo se guarda automáticamente en el dispositivo.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -352,13 +352,8 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                   className="flex-1"
                   size="sm"
                 >
-                  <div className="relative mr-2">
-                    <Save className="w-4 h-4" />
-                    {isDirty && (
-                      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive" />
-                    )}
-                  </div>
-                  Guardar KML
+                  <FileOutput className="w-4 h-4 mr-2" />
+                  Exportar KML
                 </Button>
                 <Button
                   onClick={() => {
@@ -372,7 +367,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                   className="flex-1"
                   size="sm"
                 >
-                  Guardar como…
+                  Exportar como…
                 </Button>
               </div>
             </div>
