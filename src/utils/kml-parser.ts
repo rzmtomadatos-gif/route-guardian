@@ -124,11 +124,15 @@ function collectSegments(
       const props = (feature.properties || {}) as Record<string, unknown>;
       const meta = extractKmlMeta(props);
 
-      const kmlId =
+      const rawKmlId =
         (feature.properties?.name as string) ||
         (feature.properties?.Name as string) ||
         '';
-      const name = meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`;
+      const kmlId = sanitizeTextField(stripHtml(rawKmlId), 500);
+      const name = sanitizeTextField(
+        meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`,
+        500
+      );
 
       segments.push({
         id: generateId(),
