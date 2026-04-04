@@ -4,6 +4,7 @@ import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 
@@ -118,8 +119,11 @@ export function GoogleMapDisplay({
 
   const [mapReady, setMapReady] = useState(false);
   const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
+  const [offlineSwitch, setOfflineSwitch] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(6);
   const { requestFitBounds: smartFit, resetFitState } = useSmartFitGoogle();
+  const { isOnline, wasOffline, ackRecovery } = useConnectivity();
+  const hadGoogleRef = useRef(false);
 
   // Track segment fingerprint to avoid redundant rebuilds
   const prevFingerprintRef = useRef('');
@@ -156,6 +160,30 @@ export function GoogleMapDisplay({
     (window as any).gm_authFailure = handler;
     return () => { delete (window as any).gm_authFailure; };
   }, []);
+
+  // --- Connectivity-aware switching ---
+  // When offline: switch to Leaflet (which has offline tile support)
+  // When back online: restore Google Maps if it was previously active
+  useEffect(() => {
+    if (!isOnline && !fallbackToLeaflet) {
+      // Going offline — remember we had Google and switch to Leaflet
+      if (mapReady || hadGoogleRef.current) {
+        hadGoogleRef.current = true;
+      }
+      setOfflineSwitch(true);
+    } else if (isOnline && wasOffline && offlineSwitch) {
+      // Coming back online — restore Google Maps if we had it
+      if (hadGoogleRef.current && !fallbackToLeaflet) {
+        setOfflineSwitch(false);
+      }
+      ackRecovery();
+    }
+  }, [isOnline, wasOffline, fallbackToLeaflet, mapReady, offlineSwitch, ackRecovery]);
+
+  // Track that Google Maps was successfully initialized
+  useEffect(() => {
+    if (mapReady) hadGoogleRef.current = true;
+  }, [mapReady]);
 
   // --- Initialize map ---
   useEffect(() => {
@@ -617,7 +645,8 @@ export function GoogleMapDisplay({
     }
   }, [centerActiveRequest, mapReady, smartFit]);
 
-  if (fallbackToLeaflet) {
+  // Render Leaflet if: permanent fallback (auth error / no key) OR temporary offline switch
+  if (fallbackToLeaflet || offlineSwitch) {
     return (
       <MapDisplay
         segments={segments}

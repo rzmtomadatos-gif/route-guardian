@@ -221,10 +221,10 @@ export function OfflineMapsManager() {
           <div className="flex flex-col items-center gap-2 py-4 text-center">
             <HardDrive className="w-8 h-8 text-muted-foreground/40" />
             <p className="text-xs text-muted-foreground">
-              No hay mapas descargados
+              No hay mapas descargados para uso sin conexión
             </p>
             <p className="text-[10px] text-muted-foreground/70">
-              Importa un archivo .pmtiles para navegar sin conexión
+              Importa un mapa regional para navegar cuando no haya cobertura de red
             </p>
           </div>
         )}
@@ -239,7 +239,7 @@ export function OfflineMapsManager() {
             className="w-full"
           >
             <Upload className="w-4 h-4 mr-2" />
-            {loading ? 'Importando mapa...' : 'Importar archivo .pmtiles'}
+            {loading ? 'Importando mapa...' : 'Importar mapa regional'}
           </Button>
           <input
             ref={fileRef}
@@ -249,7 +249,7 @@ export function OfflineMapsManager() {
             onChange={handleImport}
           />
           <p className="text-[10px] text-muted-foreground/70 text-center">
-            Máximo 2 GB por archivo
+            Formato PMTiles · Máximo 2 GB por archivo
           </p>
         </div>
 
@@ -322,14 +322,17 @@ export function OfflineMapsManager() {
           </div>
         </details>
 
-        {/* Real cache stats */}
+        {/* Tile cache - clearly differentiated from offline maps */}
         <div className="border-t border-border pt-3 space-y-2">
           <div className="flex items-center gap-2">
             <Database className="w-3.5 h-3.5 text-muted-foreground" />
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-              Caché de zonas visitadas
+              Caché automática (zonas visitadas online)
             </p>
           </div>
+          <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+            Guarda temporalmente las zonas que has visitado con conexión. No sustituye a un mapa offline real.
+          </p>
 
           {cacheInfo !== null ? (
             <div className="rounded-lg border border-border bg-secondary/30 p-3">
