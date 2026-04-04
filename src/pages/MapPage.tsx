@@ -90,35 +90,47 @@ export default function MapPage({
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
+  const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Detect Google Maps availability and auth failures
+  const googleAvailable = useMemo(() => !!getGoogleMapsApiKey(), []);
   useEffect(() => {
-    const key = getGoogleMapsApiKey();
-    if (key) {
-      setMapMode('google');
-    }
+    if (googleAvailable) setMapMode('google');
 
-    // Listen for Google Maps auth failure
     (window as any).gm_authFailure = () => {
       setMapMode('leaflet');
-      toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+      setGoogleFailed(true);
+      toast.error('API key inválida. Usando mapa alternativo.');
     };
 
-    // Check for error containers periodically
     const checkErrors = setInterval(() => {
       const errContainer = document.querySelector('.gm-err-container');
       if (errContainer) {
         setMapMode('leaflet');
-        toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+        setGoogleFailed(true);
+        toast.error('API key inválida. Usando mapa alternativo.');
         clearInterval(checkErrors);
       }
     }, 3000);
 
     return () => clearInterval(checkErrors);
-  }, []);
+  }, [googleAvailable]);
+
+  // Unified map state
+  const mapState = useMapState({
+    googleAvailable,
+    googleFailed,
+    offlineSwitch: offlineSwitchActive,
+    offlineLayerActive,
+    activeSegment: state.route?.segments.find(s => s.id === state.activeSegmentId),
+    segments: state.route?.segments,
+    currentPosition: geo?.position,
+  });
 
   // Sync URL param on mount
   useEffect(() => {
