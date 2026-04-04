@@ -221,10 +221,10 @@ export function OfflineMapsManager() {
           <div className="flex flex-col items-center gap-2 py-4 text-center">
             <HardDrive className="w-8 h-8 text-muted-foreground/40" />
             <p className="text-xs text-muted-foreground">
-              No hay mapas descargados
+              No hay mapas descargados para uso sin conexión
             </p>
             <p className="text-[10px] text-muted-foreground/70">
-              Importa un archivo .pmtiles para navegar sin conexión
+              Importa un mapa regional para navegar cuando no haya cobertura de red
             </p>
           </div>
         )}
