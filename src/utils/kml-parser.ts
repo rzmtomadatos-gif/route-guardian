@@ -52,13 +52,15 @@ function extractDescriptionFields(descriptionHtml: string): Record<string, strin
 }
 
 function extractKmlMeta(props: Record<string, unknown>): SegmentKmlMeta {
-  let carretera = getProp(props, 'carretera');
-  let identtramo = getProp(props, 'identtramo');
-  let tipo = getProp(props, 'tipo');
-  let calzada = getProp(props, 'calzada');
-  let sentido = getProp(props, 'sentido');
-  let pkInicial = getProp(props, 'pkinicial');
-  let pkFinal = getProp(props, 'pkfinal');
+  const s = (v: string | undefined) => v ? sanitizeTextField(stripHtml(v), 500) : undefined;
+
+  let carretera = s(getProp(props, 'carretera'));
+  let identtramo = s(getProp(props, 'identtramo'));
+  let tipo = s(getProp(props, 'tipo'));
+  let calzada = s(getProp(props, 'calzada'));
+  let sentido = s(getProp(props, 'sentido'));
+  let pkInicial = s(getProp(props, 'pkinicial'));
+  let pkFinal = s(getProp(props, 'pkfinal'));
 
   const desc = getProp(props, 'description');
   if (desc) {
