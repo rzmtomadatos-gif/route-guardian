@@ -157,6 +157,17 @@ export default function MapPage({
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
 
+  // Unified map state — must be after geo
+  const mapState = useMapState({
+    googleAvailable,
+    googleFailed,
+    offlineSwitch: offlineSwitchActive,
+    offlineLayerActive,
+    activeSegment: state.route?.segments.find(s => s.id === state.activeSegmentId),
+    segments: state.route?.segments,
+    currentPosition: geo.position,
+  });
+
 
 
   const [activeRouteBlock, setActiveRouteBlock] = useState<string[]>([]);
