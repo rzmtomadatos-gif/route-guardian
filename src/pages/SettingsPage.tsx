@@ -313,7 +313,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         )}
 
         {/* Offline Maps */}
-        <OfflineMapsManager />
+        <OfflineMapsManager segments={route?.segments} />
 
         {/* App info */}
         <div className="space-y-3">
