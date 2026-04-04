@@ -95,6 +95,7 @@ export function MapDisplay({
   centerActiveRequest = 0,
   arrowSegmentIds,
   onOfflineStateChange,
+  allSegments,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
