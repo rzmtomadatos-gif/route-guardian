@@ -30,6 +30,10 @@ interface Props {
   fitToActiveSegment?: boolean;
   centerActiveRequest?: number;
   arrowSegmentIds?: string[];
+  /** All campaign segments for offline coverage selection */
+  allSegments?: Segment[];
+  /** Notify parent about offline layer state */
+  onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
