@@ -47,6 +47,8 @@ interface Props {
   arrowSegmentIds?: string[];
   /** Callback to notify parent about offline map state changes */
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
+  /** All campaign segments for coverage-based offline map selection */
+  allSegments?: Segment[];
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
