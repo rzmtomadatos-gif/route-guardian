@@ -274,9 +274,9 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
       <AlertDialog open={unsavedDialogOpen} onOpenChange={setUnsavedDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cambios sin guardar</AlertDialogTitle>
+            <AlertDialogTitle>Cambios sin exportar</AlertDialogTitle>
             <AlertDialogDescription>
-              El archivo actual tiene cambios sin guardar. ¿Qué deseas hacer antes de cargar el nuevo archivo?
+              El proyecto actual tiene cambios que no se han exportado a KML. ¿Qué deseas hacer antes de cargar el nuevo archivo?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
