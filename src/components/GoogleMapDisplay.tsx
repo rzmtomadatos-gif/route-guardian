@@ -664,6 +664,8 @@ export function GoogleMapDisplay({
         fitToActiveSegment={fitToActiveSegment}
         centerActiveRequest={centerActiveRequest}
         arrowSegmentIds={arrowSegmentIds}
+        allSegments={allSegments}
+        onOfflineStateChange={onOfflineStateChange}
       />
     );
   }
