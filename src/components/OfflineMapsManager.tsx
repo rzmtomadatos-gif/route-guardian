@@ -239,7 +239,7 @@ export function OfflineMapsManager() {
             className="w-full"
           >
             <Upload className="w-4 h-4 mr-2" />
-            {loading ? 'Importando mapa...' : 'Importar archivo .pmtiles'}
+            {loading ? 'Importando mapa...' : 'Importar mapa regional'}
           </Button>
           <input
             ref={fileRef}
@@ -249,7 +249,7 @@ export function OfflineMapsManager() {
             onChange={handleImport}
           />
           <p className="text-[10px] text-muted-foreground/70 text-center">
-            Máximo 2 GB por archivo
+            Formato PMTiles · Máximo 2 GB por archivo
           </p>
         </div>
 
