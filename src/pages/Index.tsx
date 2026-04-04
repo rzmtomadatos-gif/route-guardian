@@ -173,7 +173,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           </div>
           <h1 className="text-2xl font-bold text-foreground">VialRoute</h1>
           <p className="text-muted-foreground text-sm">
-            Carga un archivo KML/KMZ con los tramos a grabar para generar la ruta optimizada.
+            Cuaderno de bitácora operativo para campañas de auscultación vial.
           </p>
         </div>
 
