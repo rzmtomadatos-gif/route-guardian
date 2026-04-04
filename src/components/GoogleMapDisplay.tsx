@@ -4,6 +4,7 @@ import type { Segment, LatLng } from '@/types/route';
 import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 
