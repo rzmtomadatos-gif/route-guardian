@@ -119,8 +119,11 @@ export function GoogleMapDisplay({
 
   const [mapReady, setMapReady] = useState(false);
   const [fallbackToLeaflet, setFallbackToLeaflet] = useState(false);
+  const [offlineSwitch, setOfflineSwitch] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(6);
   const { requestFitBounds: smartFit, resetFitState } = useSmartFitGoogle();
+  const { isOnline, wasOffline, ackRecovery } = useConnectivity();
+  const hadGoogleRef = useRef(false);
 
   // Track segment fingerprint to avoid redundant rebuilds
   const prevFingerprintRef = useRef('');
