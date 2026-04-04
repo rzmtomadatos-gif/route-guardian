@@ -13,9 +13,9 @@ import {
   setActiveOfflineMapId,
   shouldUseOfflineMap,
   getOfflineMapMode,
-  findSourceForPoint,
   OFFLINE_MAP_CHANGED_EVENT,
 } from '@/utils/offline-tiles';
+import { selectBestSource } from '@/hooks/useMapState';
 import { toast } from 'sonner';
 
 // Dynamic import for protomaps-leaflet (only loaded when needed)
