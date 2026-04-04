@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
+import { useMapState } from '@/hooks/useMapState';
 import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound, playF7Sound, playF9Sound } from '@/utils/sounds';
 import { Button } from '@/components/ui/button';
 import { GoogleMapDisplay, type AreaSelectionMode } from '@/components/GoogleMapDisplay';
@@ -89,35 +90,39 @@ export default function MapPage({
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
+  const [googleFailed, setGoogleFailed] = useState(false);
+  const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
+  const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Detect Google Maps availability and auth failures
+  const googleAvailable = useMemo(() => !!getGoogleMapsApiKey(), []);
   useEffect(() => {
-    const key = getGoogleMapsApiKey();
-    if (key) {
-      setMapMode('google');
-    }
+    if (googleAvailable) setMapMode('google');
 
-    // Listen for Google Maps auth failure
     (window as any).gm_authFailure = () => {
       setMapMode('leaflet');
-      toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+      setGoogleFailed(true);
+      toast.error('API key inválida. Usando mapa alternativo.');
     };
 
-    // Check for error containers periodically
     const checkErrors = setInterval(() => {
       const errContainer = document.querySelector('.gm-err-container');
       if (errContainer) {
         setMapMode('leaflet');
-        toast.error('API key inválida o sin permisos. Cambiando a mapa offline (Leaflet).');
+        setGoogleFailed(true);
+        toast.error('API key inválida. Usando mapa alternativo.');
         clearInterval(checkErrors);
       }
     }, 3000);
 
     return () => clearInterval(checkErrors);
-  }, []);
+  }, [googleAvailable]);
+
+
+
 
   // Sync URL param on mount
   useEffect(() => {
@@ -151,6 +156,17 @@ export default function MapPage({
   const geo = useGeolocation(gpsEnabled);
   const copilot = useCopilotOperator();
   const lastDeviationRef = useRef(0);
+
+  // Unified map state — must be after geo
+  const mapState = useMapState({
+    googleAvailable,
+    googleFailed,
+    offlineSwitch: offlineSwitchActive,
+    offlineLayerActive,
+    activeSegment: state.route?.segments.find(s => s.id === state.activeSegmentId),
+    segments: state.route?.segments,
+    currentPosition: geo.position,
+  });
 
 
 
@@ -1019,22 +1035,19 @@ export default function MapPage({
           onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
           fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
           centerActiveRequest={centerActiveRequest}
-          arrowSegmentIds={arrowSegmentIds} />
+          arrowSegmentIds={arrowSegmentIds}
+          allSegments={state.route?.segments}
+          onOfflineStateChange={useCallback((s: { active: boolean; noTiles: boolean }) => {
+            setOfflineLayerActive(s.active);
+            setOfflineSwitchActive(!navigator.onLine);
+          }, [])} />
         
       </div>
 
-      {/* Map mode indicator — non-invasive, outside map container */}
+      {/* Map state indicator — unified source of truth */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
-        <div className={`px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
-          mapMode === 'google'
-            ? navigator.onLine
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-            : 'bg-muted/80 text-muted-foreground border border-border'
-        }`}>
-          {mapMode === 'google'
-            ? navigator.onLine ? '● Google Maps' : '● Offline (Leaflet)'
-            : '● Leaflet'}
+        <div className={`px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${mapState.badgeClass}`}>
+          {mapState.label}
         </div>
       </div>
       {/* Debug mode toggle */}
