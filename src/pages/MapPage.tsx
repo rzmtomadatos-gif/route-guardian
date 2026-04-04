@@ -1035,22 +1035,19 @@ export default function MapPage({
           onAreaClick={zoneSelectMode !== 'none' ? handleZoneSelectClick : handleAreaClick}
           fitToActiveSegment={state.navigationActive && !!state.activeSegmentId}
           centerActiveRequest={centerActiveRequest}
-          arrowSegmentIds={arrowSegmentIds} />
+          arrowSegmentIds={arrowSegmentIds}
+          allSegments={state.route?.segments}
+          onOfflineStateChange={useCallback((s: { active: boolean; noTiles: boolean }) => {
+            setOfflineLayerActive(s.active);
+            setOfflineSwitchActive(!navigator.onLine);
+          }, [])} />
         
       </div>
 
-      {/* Map mode indicator — non-invasive, outside map container */}
+      {/* Map state indicator — unified source of truth */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
-        <div className={`px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${
-          mapMode === 'google'
-            ? navigator.onLine
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-            : 'bg-muted/80 text-muted-foreground border border-border'
-        }`}>
-          {mapMode === 'google'
-            ? navigator.onLine ? '● Google Maps' : '● Offline (Leaflet)'
-            : '● Leaflet'}
+        <div className={`px-2.5 py-1 rounded-full text-[10px] font-medium shadow-sm backdrop-blur-sm ${mapState.badgeClass}`}>
+          {mapState.label}
         </div>
       </div>
       {/* Debug mode toggle */}
