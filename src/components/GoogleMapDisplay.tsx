@@ -161,6 +161,30 @@ export function GoogleMapDisplay({
     return () => { delete (window as any).gm_authFailure; };
   }, []);
 
+  // --- Connectivity-aware switching ---
+  // When offline: switch to Leaflet (which has offline tile support)
+  // When back online: restore Google Maps if it was previously active
+  useEffect(() => {
+    if (!isOnline && !fallbackToLeaflet) {
+      // Going offline — remember we had Google and switch to Leaflet
+      if (mapReady || hadGoogleRef.current) {
+        hadGoogleRef.current = true;
+      }
+      setOfflineSwitch(true);
+    } else if (isOnline && wasOffline && offlineSwitch) {
+      // Coming back online — restore Google Maps if we had it
+      if (hadGoogleRef.current && !fallbackToLeaflet) {
+        setOfflineSwitch(false);
+      }
+      ackRecovery();
+    }
+  }, [isOnline, wasOffline, fallbackToLeaflet, mapReady, offlineSwitch, ackRecovery]);
+
+  // Track that Google Maps was successfully initialized
+  useEffect(() => {
+    if (mapReady) hadGoogleRef.current = true;
+  }, [mapReady]);
+
   // --- Initialize map ---
   useEffect(() => {
     if (fallbackToLeaflet) return;
