@@ -86,8 +86,8 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
     [hasRoute, isDirty, processFile]
   );
 
-  const handleUnsavedSave = useCallback(() => {
-    // Save current route as KML, then load new file
+  const handleUnsavedExport = useCallback(() => {
+    // Export current route as KML, then load new file
     if (route) {
       const kml = routeToKml(route);
       downloadKml(kml, route.fileName || `${route.name}.kml`);
