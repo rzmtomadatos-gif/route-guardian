@@ -132,12 +132,39 @@ export function MapDisplay({
     let targetMapId = getActiveOfflineMapId();
     const wantOffline = forceOffline ?? shouldUseOfflineMap(currentOnline);
 
-    // If going offline with no active map, auto-select first available source
+    // If going offline with no active map, auto-select best source by coverage
     if (wantOffline && !targetMapId) {
       const sources = await listOfflineTileSources();
       if (sources.length > 0) {
-        targetMapId = sources[0].id;
+        // Use map center or route centroid for coverage matching
+        const center = map.getCenter();
+        const bestSource = findSourceForPoint(sources, center.lat, center.lng);
+        targetMapId = bestSource ? bestSource.id : sources[0].id;
         setActiveOfflineMapId(targetMapId);
+        if (bestSource) {
+          toast.info(`Mapa offline "${bestSource.name}" seleccionado por cobertura`);
+        }
+      }
+    }
+
+    // Validate coverage of active map against current view
+    if (wantOffline && targetMapId) {
+      const sources = await listOfflineTileSources();
+      const activeSource = sources.find((s) => s.id === targetMapId);
+      if (activeSource) {
+        const center = map.getCenter();
+        const covers = findSourceForPoint([activeSource], center.lat, center.lng);
+        if (!covers) {
+          // Try to find a better source
+          const better = findSourceForPoint(sources, center.lat, center.lng);
+          if (better && better.id !== targetMapId) {
+            targetMapId = better.id;
+            setActiveOfflineMapId(targetMapId);
+            toast.info(`Cambiando a mapa "${better.name}" — cubre mejor esta zona`);
+          } else if (!better) {
+            toast.warning('El mapa offline activo no cubre esta zona', { duration: 4000 });
+          }
+        }
       }
     }
 
