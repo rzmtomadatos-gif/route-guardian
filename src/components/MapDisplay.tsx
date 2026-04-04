@@ -228,7 +228,7 @@ export function MapDisplay({
       setOfflineMapActive(true);
       setNoTilesWarning(false);
     }
-  }, []);
+  }, [segments, activeSegmentId, allSegments]);
 
   // ─── Auto-switch on connectivity changes ───
   useEffect(() => {
