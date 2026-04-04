@@ -136,38 +136,44 @@ export function MapDisplay({
     let targetMapId = getActiveOfflineMapId();
     const wantOffline = forceOffline ?? shouldUseOfflineMap(currentOnline);
 
-    // If going offline with no active map, auto-select best source by coverage
+    // Get campaign context for coverage-based selection
+    const campaignSegs = allSegments ?? segments;
+    const activeSeg = activeSegmentId ? campaignSegs.find(s => s.id === activeSegmentId) : undefined;
+    const center = map.getCenter();
+    const fallbackPos = { lat: center.lat, lng: center.lng };
+
+    // If going offline with no active map, auto-select best source by campaign coverage
     if (wantOffline && !targetMapId) {
       const sources = await listOfflineTileSources();
       if (sources.length > 0) {
-        // Use map center or route centroid for coverage matching
-        const center = map.getCenter();
-        const bestSource = findSourceForPoint(sources, center.lat, center.lng);
-        targetMapId = bestSource ? bestSource.id : sources[0].id;
-        setActiveOfflineMapId(targetMapId);
-        if (bestSource) {
-          toast.info(`Mapa offline "${bestSource.name}" seleccionado por cobertura`);
+        const best = selectBestSource(sources, campaignSegs, activeSeg, fallbackPos);
+        if (best) {
+          targetMapId = best.source.id;
+          setActiveOfflineMapId(targetMapId);
+          toast.info(`Mapa offline "${best.source.name}" seleccionado por cobertura de campaña`);
         }
       }
     }
 
-    // Validate coverage of active map against current view
+    // Validate coverage of active map against campaign context
     if (wantOffline && targetMapId) {
       const sources = await listOfflineTileSources();
       const activeSource = sources.find((s) => s.id === targetMapId);
-      if (activeSource) {
-        const center = map.getCenter();
-        const covers = findSourceForPoint([activeSource], center.lat, center.lng);
-        if (!covers) {
-          // Try to find a better source
-          const better = findSourceForPoint(sources, center.lat, center.lng);
-          if (better && better.id !== targetMapId) {
-            targetMapId = better.id;
+      if (activeSource && sources.length > 1) {
+        const best = selectBestSource(sources, campaignSegs, activeSeg, fallbackPos);
+        if (best && best.source.id !== targetMapId && best.score > 0.5) {
+          const currentScore = selectBestSource([activeSource], campaignSegs, activeSeg, fallbackPos);
+          if (currentScore && currentScore.score < best.score - 0.2) {
+            targetMapId = best.source.id;
             setActiveOfflineMapId(targetMapId);
-            toast.info(`Cambiando a mapa "${better.name}" — cubre mejor esta zona`);
-          } else if (!better) {
-            toast.warning('El mapa offline activo no cubre esta zona', { duration: 4000 });
+            toast.info(`Cambiando a mapa "${best.source.name}" — cubre mejor tu campaña`);
           }
+        }
+      }
+      if (activeSource) {
+        const score = selectBestSource([activeSource], campaignSegs, activeSeg, fallbackPos);
+        if (score && score.score < 0.3) {
+          toast.warning('El mapa offline activo no cubre bien esta campaña', { duration: 4000 });
         }
       }
     }
