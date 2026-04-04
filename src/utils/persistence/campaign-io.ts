@@ -6,7 +6,8 @@ import type { AppState } from '@/types/route';
 import { saveStateToDB } from './db';
 import { getAllEvents, appendEvents } from './db';
 import { logEvent } from './event-log';
-import type { CampaignExport, PersistentEvent } from './types';
+import type { PersistentEvent } from './types';
+import { campaignExportSchema, MAX_FILE_SIZE_BYTES } from './campaign-schema';
 
 const APP_VERSION = '1.1.0';
 
@@ -16,8 +17,8 @@ const APP_VERSION = '1.1.0';
 export async function exportCampaign(state: AppState): Promise<void> {
   const eventLog = await getAllEvents();
 
-  const data: CampaignExport = {
-    version: 1,
+  const data = {
+    version: 1 as const,
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
     state,
@@ -50,39 +51,67 @@ export async function exportCampaign(state: AppState): Promise<void> {
  * Does NOT corrupt existing state if validation fails.
  */
 export async function importCampaign(file: File): Promise<AppState> {
+  // ── File size check ──────────────────────────────────────────
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error(
+      `El archivo es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo permitido: ${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB.`
+    );
+  }
+  if (file.size === 0) {
+    throw new Error('El archivo está vacío.');
+  }
+
   const text = await file.text();
-  let data: CampaignExport;
+  let rawData: unknown;
 
   try {
-    data = JSON.parse(text);
+    rawData = JSON.parse(text);
   } catch {
     throw new Error('El archivo no es un JSON válido.');
   }
 
-  // Validate minimum structure
-  if (!data || typeof data !== 'object') {
-    throw new Error('Formato de campaña no reconocido.');
-  }
-  if (data.version !== 1) {
-    throw new Error(`Versión de campaña no soportada: ${data.version}`);
-  }
-  if (!data.state || typeof data.state !== 'object') {
-    throw new Error('El archivo no contiene un estado de campaña válido.');
+  // ── Schema validation with Zod ───────────────────────────────
+  const parseResult = campaignExportSchema.safeParse(rawData);
+
+  if (!parseResult.success) {
+    const issues = parseResult.error.issues.slice(0, 5);
+    const details = issues
+      .map((issue) => {
+        const path = issue.path.length > 0 ? issue.path.join('.') : '(raíz)';
+        return `• ${path}: ${issue.message}`;
+      })
+      .join('\n');
+    const extra = parseResult.error.issues.length > 5
+      ? `\n... y ${parseResult.error.issues.length - 5} errores más.`
+      : '';
+    throw new Error(`Campaña inválida. Errores encontrados:\n${details}${extra}`);
   }
 
+  const data = parseResult.data;
   const state = data.state as AppState;
 
-  // Ensure required fields
-  if (!state.route && !state.incidents) {
+  // ── Consistency checks beyond schema ─────────────────────────
+  if (!state.route && (!state.incidents || state.incidents.length === 0)) {
     throw new Error('El archivo no contiene datos de ruta ni incidencias.');
   }
 
-  // Apply defaults for missing fields
-  if (!('trackSession' in state)) (state as any).trackSession = null;
-  if (!('blockEndPrompt' in state))
-    (state as any).blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
-  if (!('workDay' in state)) (state as any).workDay = 1;
-  if (!('acquisitionMode' in state)) (state as any).acquisitionMode = 'RST';
+  if (state.route) {
+    // Verify optimizedOrder references existing segment IDs
+    const segmentIds = new Set(state.route.segments.map((s) => s.id));
+    const invalidOrderIds = state.route.optimizedOrder.filter((id) => !segmentIds.has(id));
+    if (invalidOrderIds.length > 0) {
+      console.warn(`[Campaign Import] ${invalidOrderIds.length} IDs in optimizedOrder don't match any segment — rebuilding order.`);
+      state.route.optimizedOrder = state.route.segments.map((s) => s.id);
+    }
+
+    // Verify incident segmentIds reference existing segments
+    if (state.incidents && state.incidents.length > 0) {
+      const orphanIncidents = state.incidents.filter((inc) => !segmentIds.has(inc.segmentId));
+      if (orphanIncidents.length > 0) {
+        console.warn(`[Campaign Import] ${orphanIncidents.length} incidencias referencian tramos inexistentes — se conservan pero podrían no ser visibles.`);
+      }
+    }
+  }
 
   // Persist state
   await saveStateToDB(state);

@@ -2,6 +2,7 @@ import { kmlWithFolders } from '@tmcw/togeojson';
 import type { Folder } from '@tmcw/togeojson';
 import JSZip from 'jszip';
 import type { Segment, LatLng, Route, SegmentKmlMeta } from '@/types/route';
+import { sanitizeHtml, stripHtml, sanitizeTextField } from '@/utils/sanitize';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
@@ -37,25 +38,29 @@ function getProp(props: Record<string, unknown>, key: string): string | undefine
 }
 
 function extractDescriptionFields(descriptionHtml: string): Record<string, string> {
+  // Sanitize HTML before parsing to prevent XSS from malicious KML
+  const safeHtml = sanitizeHtml(descriptionHtml);
   const fields: Record<string, string> = {};
   const rowRegex = /<td[^>]*>\s*(.*?)\s*<\/td>\s*<td[^>]*>\s*(.*?)\s*<\/td>/gi;
   let match;
-  while ((match = rowRegex.exec(descriptionHtml)) !== null) {
-    const key = match[1].replace(/<[^>]*>/g, '').trim();
-    const value = match[2].replace(/<[^>]*>/g, '').trim();
-    if (key && value) fields[key.toLowerCase()] = value;
+  while ((match = rowRegex.exec(safeHtml)) !== null) {
+    const key = stripHtml(match[1]).trim();
+    const value = stripHtml(match[2]).trim();
+    if (key && value) fields[key.toLowerCase()] = sanitizeTextField(value, 1000);
   }
   return fields;
 }
 
 function extractKmlMeta(props: Record<string, unknown>): SegmentKmlMeta {
-  let carretera = getProp(props, 'carretera');
-  let identtramo = getProp(props, 'identtramo');
-  let tipo = getProp(props, 'tipo');
-  let calzada = getProp(props, 'calzada');
-  let sentido = getProp(props, 'sentido');
-  let pkInicial = getProp(props, 'pkinicial');
-  let pkFinal = getProp(props, 'pkfinal');
+  const s = (v: string | undefined) => v ? sanitizeTextField(stripHtml(v), 500) : undefined;
+
+  let carretera = s(getProp(props, 'carretera'));
+  let identtramo = s(getProp(props, 'identtramo'));
+  let tipo = s(getProp(props, 'tipo'));
+  let calzada = s(getProp(props, 'calzada'));
+  let sentido = s(getProp(props, 'sentido'));
+  let pkInicial = s(getProp(props, 'pkinicial'));
+  let pkFinal = s(getProp(props, 'pkfinal'));
 
   const desc = getProp(props, 'description');
   if (desc) {
@@ -121,11 +126,15 @@ function collectSegments(
       const props = (feature.properties || {}) as Record<string, unknown>;
       const meta = extractKmlMeta(props);
 
-      const kmlId =
+      const rawKmlId =
         (feature.properties?.name as string) ||
         (feature.properties?.Name as string) ||
         '';
-      const name = meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`;
+      const kmlId = sanitizeTextField(stripHtml(rawKmlId), 500);
+      const name = sanitizeTextField(
+        meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`,
+        500
+      );
 
       segments.push({
         id: generateId(),
@@ -147,7 +156,15 @@ function collectSegments(
   }
 }
 
+const MAX_KML_FILE_SIZE = 200 * 1024 * 1024; // 200 MB
+
 export async function parseKMLFile(file: File): Promise<ParsedKmlResult> {
+  if (file.size > MAX_KML_FILE_SIZE) {
+    throw new Error(`El archivo KML/KMZ es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo: ${MAX_KML_FILE_SIZE / 1024 / 1024} MB.`);
+  }
+  if (file.size === 0) {
+    throw new Error('El archivo KML/KMZ está vacío.');
+  }
   const xmlDoc = await readKMLFromFile(file);
   const root = kmlWithFolders(xmlDoc);
 
