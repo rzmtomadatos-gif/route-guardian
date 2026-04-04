@@ -2,6 +2,7 @@ import { kmlWithFolders } from '@tmcw/togeojson';
 import type { Folder } from '@tmcw/togeojson';
 import JSZip from 'jszip';
 import type { Segment, LatLng, Route, SegmentKmlMeta } from '@/types/route';
+import { sanitizeHtml, stripHtml, sanitizeTextField } from '@/utils/sanitize';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
