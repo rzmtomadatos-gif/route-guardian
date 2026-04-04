@@ -38,13 +38,15 @@ function getProp(props: Record<string, unknown>, key: string): string | undefine
 }
 
 function extractDescriptionFields(descriptionHtml: string): Record<string, string> {
+  // Sanitize HTML before parsing to prevent XSS from malicious KML
+  const safeHtml = sanitizeHtml(descriptionHtml);
   const fields: Record<string, string> = {};
   const rowRegex = /<td[^>]*>\s*(.*?)\s*<\/td>\s*<td[^>]*>\s*(.*?)\s*<\/td>/gi;
   let match;
-  while ((match = rowRegex.exec(descriptionHtml)) !== null) {
-    const key = match[1].replace(/<[^>]*>/g, '').trim();
-    const value = match[2].replace(/<[^>]*>/g, '').trim();
-    if (key && value) fields[key.toLowerCase()] = value;
+  while ((match = rowRegex.exec(safeHtml)) !== null) {
+    const key = stripHtml(match[1]).trim();
+    const value = stripHtml(match[2]).trim();
+    if (key && value) fields[key.toLowerCase()] = sanitizeTextField(value, 1000);
   }
   return fields;
 }
