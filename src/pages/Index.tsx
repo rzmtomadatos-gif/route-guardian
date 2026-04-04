@@ -289,7 +289,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
             >
               Descartar cambios
             </AlertDialogAction>
-            <AlertDialogAction onClick={handleUnsavedSave}>
+            <AlertDialogAction onClick={handleUnsavedExport}>
               Exportar KML y continuar
             </AlertDialogAction>
           </AlertDialogFooter>
