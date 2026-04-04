@@ -645,7 +645,8 @@ export function GoogleMapDisplay({
     }
   }, [centerActiveRequest, mapReady, smartFit]);
 
-  if (fallbackToLeaflet) {
+  // Render Leaflet if: permanent fallback (auth error / no key) OR temporary offline switch
+  if (fallbackToLeaflet || offlineSwitch) {
     return (
       <MapDisplay
         segments={segments}
