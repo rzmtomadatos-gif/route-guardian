@@ -121,16 +121,8 @@ export default function MapPage({
     return () => clearInterval(checkErrors);
   }, [googleAvailable]);
 
-  // Unified map state
-  const mapState = useMapState({
-    googleAvailable,
-    googleFailed,
-    offlineSwitch: offlineSwitchActive,
-    offlineLayerActive,
-    activeSegment: state.route?.segments.find(s => s.id === state.activeSegmentId),
-    segments: state.route?.segments,
-    currentPosition: geo?.position,
-  });
+
+
 
   // Sync URL param on mount
   useEffect(() => {
