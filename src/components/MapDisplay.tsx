@@ -13,6 +13,7 @@ import {
   setActiveOfflineMapId,
   shouldUseOfflineMap,
   getOfflineMapMode,
+  findSourceForPoint,
   OFFLINE_MAP_CHANGED_EVENT,
 } from '@/utils/offline-tiles';
 import { toast } from 'sonner';
