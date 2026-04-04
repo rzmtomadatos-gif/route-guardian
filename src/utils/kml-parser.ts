@@ -156,7 +156,15 @@ function collectSegments(
   }
 }
 
+const MAX_KML_FILE_SIZE = 200 * 1024 * 1024; // 200 MB
+
 export async function parseKMLFile(file: File): Promise<ParsedKmlResult> {
+  if (file.size > MAX_KML_FILE_SIZE) {
+    throw new Error(`El archivo KML/KMZ es demasiado grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Máximo: ${MAX_KML_FILE_SIZE / 1024 / 1024} MB.`);
+  }
+  if (file.size === 0) {
+    throw new Error('El archivo KML/KMZ está vacío.');
+  }
   const xmlDoc = await readKMLFromFile(file);
   const root = kmlWithFolders(xmlDoc);
 
