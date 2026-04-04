@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, Save } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
@@ -334,12 +334,12 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         {route && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Save className="w-4 h-4" />
+              <FileOutput className="w-4 h-4" />
               <span className="text-sm font-medium">Exportar ruta</span>
             </div>
             <div className="bg-card rounded-xl p-4 border border-border space-y-3">
               <p className="text-xs text-muted-foreground">
-                Exporta la ruta actual como archivo KML.
+                Descarga la ruta actual como archivo KML. El trabajo se guarda automáticamente en el dispositivo.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -352,13 +352,8 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                   className="flex-1"
                   size="sm"
                 >
-                  <div className="relative mr-2">
-                    <Save className="w-4 h-4" />
-                    {isDirty && (
-                      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-destructive" />
-                    )}
-                  </div>
-                  Guardar KML
+                  <FileOutput className="w-4 h-4 mr-2" />
+                  Exportar KML
                 </Button>
                 <Button
                   onClick={() => {
@@ -372,7 +367,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                   className="flex-1"
                   size="sm"
                 >
-                  Guardar como…
+                  Exportar como…
                 </Button>
               </div>
             </div>

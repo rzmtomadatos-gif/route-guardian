@@ -216,17 +216,18 @@ export default function SegmentsPage({
 
   if (!route) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6">
-        <div className="text-center space-y-3">
-          <MapPin className="w-12 h-12 text-muted-foreground/30 mx-auto" />
-          <p className="text-muted-foreground">No hay ruta cargada</p>
-          <Button onClick={() => navigate('/')} className="bg-primary text-primary-foreground">
-            Cargar archivo
-          </Button>
-          <p className="text-[10px] text-muted-foreground">
-            o ve al mapa para crear tramos desde cero
-          </p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-3">
+        <MapPin className="w-12 h-12 text-muted-foreground/30 mx-auto" />
+        <p className="text-muted-foreground">No hay proyecto cargado</p>
+        <Button onClick={() => navigate('/')} className="bg-primary text-primary-foreground">
+          Cargar archivo KML
+        </Button>
+        <Button onClick={() => navigate('/?create=true')} variant="outline">
+          Crear proyecto nuevo
+        </Button>
+        <p className="text-[10px] text-muted-foreground">
+          También puedes ir al mapa para crear tramos desde cero
+        </p>
       </div>
     );
   }
@@ -293,20 +294,8 @@ export default function SegmentsPage({
     return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  if (!route) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-3">
-        <p className="text-muted-foreground mb-2">No hay ruta cargada</p>
-        <Button onClick={() => navigate('/')} className="bg-primary text-primary-foreground">
-          <Download className="w-5 h-5 mr-2" />
-          Cargar archivo
-        </Button>
-        <Button onClick={() => navigate('/?create=true')} variant="outline">
-          Crear KML nuevo
-        </Button>
-      </div>
-    );
-  }
+
+
 
   return (
     <div className="flex flex-col h-full">
