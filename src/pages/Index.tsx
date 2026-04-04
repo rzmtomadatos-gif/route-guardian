@@ -233,7 +233,7 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
           className="w-full"
         >
           <Route className="w-4 h-4 mr-2" />
-          Crear KML vacío
+          Crear proyecto nuevo
         </Button>
 
         {hasRoute && (
