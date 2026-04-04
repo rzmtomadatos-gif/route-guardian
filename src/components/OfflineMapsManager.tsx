@@ -322,14 +322,17 @@ export function OfflineMapsManager() {
           </div>
         </details>
 
-        {/* Real cache stats */}
+        {/* Tile cache - clearly differentiated from offline maps */}
         <div className="border-t border-border pt-3 space-y-2">
           <div className="flex items-center gap-2">
             <Database className="w-3.5 h-3.5 text-muted-foreground" />
             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-              Caché de zonas visitadas
+              Caché automática (zonas visitadas online)
             </p>
           </div>
+          <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+            Guarda temporalmente las zonas que has visitado con conexión. No sustituye a un mapa offline real.
+          </p>
 
           {cacheInfo !== null ? (
             <div className="rounded-lg border border-border bg-secondary/30 p-3">
