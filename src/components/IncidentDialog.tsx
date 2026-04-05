@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, CloudRain, CloudFog, Construction, Droplets, Car, MoreHorizontal, CircleOff, Circle, Ban, ShieldAlert, TrafficCone, Monitor, Laptop, Server } from 'lucide-react';
 import type { IncidentCategory, IncidentImpact } from '@/types/route';
+import { sanitizeTextField } from '@/utils/sanitize';
 
 const categories: { value: IncidentCategory; label: string; icon: React.ElementType; defaultImpact: IncidentImpact }[] = [
   { value: 'carretera_cortada', label: 'Cortada', icon: CircleOff, defaultImpact: 'critica_no_grabable' },
