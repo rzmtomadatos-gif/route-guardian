@@ -1,130 +1,71 @@
 
 
-## Actualizar documentación VialRoute — Resumen Ejecutivo y Resumen de Seguridad
+# Diagnóstico y plan de corrección: Mapa offline en blanco, reinicio de GPS/Copiloto, reinicio del mapa
 
-### Estado actual del proyecto (listado completo)
+## Diagnóstico
 
-```text
-TERMINADO (implementado y verificado)
-──────────────────────────────────────
-✔ Service Worker / PWA (vite-plugin-pwa + Workbox)
-  - Precache de sql-wasm.wasm (10 MB limit)
-  - Runtime caching de tiles CartoDB (7 días, 2000 entries)
-  - Precache de JS/CSS/HTML/iconos
-  - manifest.json propio
+### Problema raíz: React Router desmonta las páginas al navegar
 
-✔ Inicialización resistente (withTimeout en initDatabase)
-  - Timeout 8s para carga WASM
-  - Modo degradado con banner "Modo contingencia"
-  - degradedMode=true si falla WASM
+La arquitectura actual usa `<Routes>` estándar de React Router. Cuando navegas de `/map` a `/segments`, `/settings` o `/` (Cargar), **React desmonta completamente `MapPage`**. Cuando vuelves a `/map`, se monta una instancia nueva desde cero. Esto causa los tres problemas:
 
-✔ Persistencia SQL.js + IndexedDB
-  - Esquema versionado (app_state, event_log)
-  - Export/Import de campaña (JSON)
-  - Migración localStorage → IndexedDB completada
+1. **GPS y Copiloto se reinician**: `useGeolocation` y `useCopilotOperator` viven dentro de `MapPage`. Al desmontar, el watch de GPS se para (`clearWatch`) y la sesión de copiloto se desconecta. Al volver, se crean nuevas instancias vacías.
 
-✔ Seguridad sesiones Copiloto (4 migraciones aplicadas)
-  - RPCs SECURITY DEFINER: create, update, delete, read_by_token
-  - Column-level REVOKE SELECT en columna token (anon + authenticated)
-  - CHECK constraints en status y batch_url
-  - Limpieza automática sesiones > 7 días
-  - Tokens UUID v4 (gen_random_uuid)
+2. **El mapa se reinicializa**: Tanto `GoogleMapDisplay` como `MapDisplay` (Leaflet) crean la instancia del mapa en un `useEffect` de montaje. Al desmontar, se destruye (`map.remove()`). Al volver, se recrea desde cero (vista por defecto Madrid, zoom 6).
 
-✔ Cliente Copiloto resiliente
-  - useCopilotSession.ts preserva token en memoria
-  - Merge Realtime (token: prev.token) en operador y conductor
-  - Compatible con payload sin token
+3. **Mapa offline en blanco**: En `MapDisplay`, la función `syncOfflineMap` se pasa como dependencia del `useEffect` de inicialización (línea 314). Como `syncOfflineMap` es un `useCallback` que depende de `segments`, `activeSegmentId` y `allSegments`, cada cambio en esas props **recrea la referencia** de `syncOfflineMap`, lo que potencialmente causa que el `useEffect` de inicialización se ejecute de nuevo pero con la condición `if (mapRef.current) return` que impide la re-creación — o en el peor caso, destruye y recrea el mapa. Además, al crear el blob URL para protomaps-leaflet y luego destruir/recrear el componente, el blob se revoca pero la capa protomaps puede quedar en estado inconsistente, mostrando blanco.
 
-✔ Linter de base de datos limpio (0 hallazgos)
+## Plan de cambios
 
-✔ Escaneo de seguridad limpio
-  - 2 hallazgos informativos (ignorados con justificación)
-  - 0 errores, 0 warnings activos
+### 1. Elevar GPS y Copiloto a `AppRoutes` (persisten entre pestañas)
 
-✔ Mapas Google + fallback Leaflet
-  - Conmutación automática si falta API key o red
+**Archivo**: `src/App.tsx`
 
-EN PROCESO / PARCIAL
-──────────────────────────────────────
-◐ Restricción API Key Google Maps
-  - Key en frontend (necesario), pero falta restricción
-    por dominio/referrer en consola Google (acción externa)
+- Mover `useGeolocation` y `useCopilotOperator` al nivel de `AppRoutes`, fuera de `MapPage`.
+- Pasar el estado de GPS (`gpsEnabled`, `setGpsEnabled`, `geo`) y copilot como props a `MapPage` y a cualquier otra página que lo necesite.
+- Así, al navegar entre pestañas, el watch de GPS sigue activo y la sesión de copiloto no se desconecta.
 
-◐ Sanitización KML/HTML
-  - Parser KML funciona con DOMParser
-  - Falta sanitizer robusto (DOMPurify) para campos
-    <description> con HTML arbitrario
+### 2. Preservar el mapa entre navegaciones (ocultar en vez de desmontar)
 
-◐ Validación JSON import
-  - JSON.parse con try/catch
-  - Falta validación exhaustiva (JSON Schema)
+**Archivos**: `src/App.tsx`, `src/pages/MapPage.tsx`
 
-◐ CSP (Content Security Policy)
-  - No configurada en headers de despliegue
+Dos opciones (la primera es la más estable para este proyecto):
 
-PENDIENTE (no iniciado)
-──────────────────────────────────────
-○ Migración a Capacitor + SQLite nativo (Fase 3+)
-○ Grabación GPS cada 10 m ("Cuenta Pasos")
-○ Tests de seguridad automatizados (DAST/fuzzing KML)
-○ npm audit / SCA integrado en pipeline
-○ Reglas RST/Garmin completadas (Fase 2)
-○ UI para crear proyecto offline sin KML previo
-○ PIN opcional para conductor en copiloto
-○ Mapas offline con PMTiles (descarga en background)
-```
+**Opción elegida: Renderizar `MapPage` siempre y ocultar con CSS**
 
-### Cambios a aplicar en cada documento
+- En `AppRoutes`, renderizar `MapPage` siempre (fuera de `<Routes>`) con `display: none` cuando la ruta activa no sea `/map`.
+- Esto preserva la instancia del mapa (Google o Leaflet), los tiles cargados, la capa offline, el zoom y la posición del usuario.
+- Las demás rutas (`/`, `/segments`, `/settings`) siguen dentro de `<Routes>` normal.
+- Cuando se vuelve a `/map`, solo se cambia `display: none` → `display: flex` y se llama `map.invalidateSize()` (Leaflet) o `google.maps.event.trigger(map, 'resize')` para que recalcule el viewport.
 
-**Resumen Ejecutivo (Resumen_ejecutivo04-04_v2.docx)**
+### 3. Corregir la dependencia circular en `syncOfflineMap`
 
-1. **Sección 2 (Hallazgos)**: Actualizar párrafo RLS/Supabase con detalle de 4 migraciones, RPCs SECURITY DEFINER, column-level grants, y verificación con `has_column_privilege`.
+**Archivo**: `src/components/MapDisplay.tsx`
 
-2. **Sección 3 (Causas fallo offline)**:
-   - Punto 1 (WASM no cacheado): marcar RESUELTO — PWA precachea sql-wasm.wasm.
-   - Punto 2 (Ausencia de SW): marcar RESUELTO — vite-plugin-pwa activo.
-   - Punto 5 (RLS mal configuradas): marcar RESUELTO.
+- Eliminar `syncOfflineMap` de las dependencias del `useEffect` de inicialización del mapa (línea 260-314).
+- Usar un `ref` para `syncOfflineMap` en vez de incluirlo en el array de dependencias, evitando que cambios en segments/activeSegmentId destruyan el mapa.
+- Llamar a `syncOfflineMap` desde un `useEffect` separado que responda a cambios en el ID de mapa offline activo.
 
-3. **Sección 4 (Mejoras P0)**:
-   - Precache SW: IMPLEMENTADO
-   - Inicialización resistente: IMPLEMENTADO
-   - Swap offline/online mapa: PARCIAL (tiles Carto cacheados, Google Maps fallback funciona)
+### 4. Invalidar tamaño del mapa al volver a mostrarlo
 
-4. **Sección 7 (Criterios aceptación)**: Marcar cumplidos los puntos verificados.
+**Archivo**: `src/pages/MapPage.tsx` o nuevo wrapper
 
-5. **Nueva sección**: "Seguridad de sesiones Copiloto" con la arquitectura actual.
+- Detectar cuando la vista del mapa pasa de oculta a visible.
+- Llamar `invalidateSize()` (Leaflet) o `trigger('resize')` (Google Maps) para que los tiles se re-rendericen correctamente.
 
-6. **Sección 10 (Fases)**: Actualizar timeline con estado real.
+## Archivos a modificar
 
-**Resumen de Seguridad (Resumen_seguridad_v2.docx)**
+| Archivo | Cambio |
+|---|---|
+| `src/App.tsx` | Elevar GPS y copiloto; renderizar MapPage persistente con CSS toggle |
+| `src/pages/MapPage.tsx` | Recibir GPS/copilot como props; añadir lógica de resize al volver visible |
+| `src/components/MapDisplay.tsx` | Desacoplar `syncOfflineMap` del useEffect de init; usar ref |
+| `src/components/GoogleMapDisplay.tsx` | Añadir resize trigger al volver visible |
 
-1. **Sección Autenticación/Autorización (p.8)**: Añadir que tokens son UUID v4, column-level REVOKE aplicado, acceso solo vía RPC.
+## Resultado esperado
 
-2. **Sección Gestión de Sesiones (p.8)**: Eliminar referencia a políticas INSERT/UPDATE/DELETE públicas — ya no existen.
-
-3. **Tabla de impacto (pp.12-14)**: Rebajar severidad residual de "Token copiloto predecible/expuesto" y "RLS ausente" a Bajo/Mitigado.
-
-4. **Checklist de Remediación (pp.16-17)**: Actualizar estados:
-   - Configurar RLS en Supabase: `[✓]`
-   - Mejorar autenticación copiloto: `[✓]`
-   - Restringir API Keys: `[parcial]`
-   - Sanitizar KML/HTML: `[ ]`
-   - Validar JSON import: `[ ]`
-   - Configurar CSP: `[ ]`
-   - Tests de seguridad: `[ ]`
-
-5. **Nueva sección**: "Mitigaciones implementadas (abril 2026)" — resumen consolidado de las 4 migraciones y cambios de cliente.
-
-### Implementación
-
-1. Generar ambos DOCX con Node.js (`docx` library) basados en el contenido original actualizado
-2. Guardar como:
-   - `/mnt/documents/Resumen_ejecutivo04-04_v2.docx`
-   - `/mnt/documents/Resumen_seguridad_v2.docx`
-3. QA visual de ambos documentos (convertir a imágenes y verificar)
-
-### Archivos afectados
-- **Crear**: `/mnt/documents/Resumen_ejecutivo04-04_v2.docx`
-- **Crear**: `/mnt/documents/Resumen_seguridad_v2.docx`
-- Sin cambios en código fuente
+- GPS y copiloto **no se reinician** al cambiar de pestaña.
+- El mapa **conserva su estado** (zoom, posición, capa offline, tiles cargados).
+- El mapa offline PMTiles **no se queda en blanco** al volver a la pestaña.
+- La navegación entre pestañas es instantánea.
+- No se rompe ningún flujo operativo existente.
 
