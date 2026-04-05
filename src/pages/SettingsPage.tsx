@@ -143,6 +143,43 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Account section */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Shield className="w-4 h-4" />
+            <span className="text-sm font-medium">Cuenta</span>
+          </div>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            {user ? (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm text-foreground font-medium">{user.user_metadata?.full_name || 'Operador'}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  <p className="text-xs text-muted-foreground">Rol: operador</p>
+                </div>
+                <Button
+                  onClick={() => setShowLogoutDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Cerrar sesión
+                </Button>
+              </>
+            ) : isOfflineMode ? (
+              <div className="space-y-1">
+                <p className="text-sm text-warning font-medium">Modo local de contingencia</p>
+                <p className="text-xs text-muted-foreground">
+                  Operando sin sesión cloud activa. Reconecta a internet e inicia sesión para funciones remotas.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No autenticado.</p>
+            )}
+          </div>
+        </div>
+
         {/* Retroactive IDs */}
         {route && (
           <div className="space-y-3">
