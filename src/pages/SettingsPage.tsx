@@ -26,6 +26,8 @@ interface Props {
 }
 
 export default function SettingsPage({ onClear, hasRoute, route, state, isDirty, onMarkClean, onUpdateRouteContext, onApplyRetroactiveIds, onRestoreState }: Props) {
+  const { user, isOfflineMode } = useAuth();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [apiKey, setApiKey] = useState(getGoogleMapsApiKey());
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
