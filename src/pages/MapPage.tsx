@@ -97,7 +97,7 @@ export default function MapPage({
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [gpsEnabled, setGpsEnabled] = useState(false);
+  // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [googleFailed, setGoogleFailed] = useState(false);
