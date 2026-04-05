@@ -334,6 +334,30 @@ export async function getEventCount(): Promise<number> {
  * This is AWAITABLE — callers must await to guarantee cleanup before
  * navigating or changing state.
  */
+/**
+ * Read-only probe: checks if a local campaign exists in SQLite.
+ * Initializes the DB engine if needed (idempotent, non-destructive)
+ * but NEVER writes, modifies, or resets any data.
+ * Used by useAuth to activate offline contingency mode.
+ */
+export async function probeLocalCampaign(): Promise<boolean> {
+  try {
+    const database = await initDatabase();
+    if (!database) return false;
+    const result = database.exec(
+      `SELECT 1 FROM app_state WHERE key = 'current' LIMIT 1;`
+    );
+    return result.length > 0 && result[0].values.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wipe the entire database (state + events + meta). Used by clearAll.
+ * This is AWAITABLE — callers must await to guarantee cleanup before
+ * navigating or changing state.
+ */
 export async function destroyDatabase(): Promise<void> {
   if (db) {
     db.close();

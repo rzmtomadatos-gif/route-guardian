@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { sessionStore } from '@/utils/session-storage';
-import { loadStateFromDB, destroyDatabase } from '@/utils/persistence';
+import { probeLocalCampaign, destroyDatabase } from '@/utils/persistence';
 import type { Session, User } from '@supabase/supabase-js';
 
 const HAS_EVER_AUTH_KEY = 'hasEverAuthenticated';
@@ -50,8 +50,8 @@ export function useAuth() {
       let hasLocalData = false;
       if (!session && hasEverAuth) {
         try {
-          const localState = await loadStateFromDB();
-          hasLocalData = localState !== null;
+          // Read-only probe — initializes SQLite if needed, never modifies data
+          hasLocalData = await probeLocalCampaign();
         } catch {
           hasLocalData = false;
         }

@@ -3,7 +3,7 @@
  * All persistence goes through SQLite. No localStorage dependency.
  */
 
-export { initDatabase, saveStateToDB, loadStateFromDB, clearStateDB, getAllEvents, clearEventsDB, getEventCount, destroyDatabase, isDegraded } from './db';
+export { initDatabase, saveStateToDB, loadStateFromDB, clearStateDB, getAllEvents, clearEventsDB, getEventCount, destroyDatabase, isDegraded, probeLocalCampaign } from './db';
 export { logEvent } from './event-log';
 export { migrateAndLoad, didStartDegraded } from './migration';
 export { exportCampaign, importCampaign } from './campaign-io';

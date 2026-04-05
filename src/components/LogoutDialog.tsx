@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { LogOut, Trash2, Shield } from 'lucide-react';
+import { LogOut, Trash2, Shield, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -17,9 +17,29 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+const CONFIRM_TIMEOUT_MS = 5000;
+
 export function LogoutDialog({ open, onOpenChange }: Props) {
   const { signOut } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset confirmation state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setConfirmWipe(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
+  }, [open]);
+
+  // Auto-reset confirmation after timeout
+  useEffect(() => {
+    if (confirmWipe) {
+      timerRef.current = setTimeout(() => setConfirmWipe(false), CONFIRM_TIMEOUT_MS);
+      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    }
+  }, [confirmWipe]);
 
   const handleLogout = async (wipeData: boolean) => {
     setLoading(true);
@@ -32,6 +52,15 @@ export function LogoutDialog({ open, onOpenChange }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleWipeClick = () => {
+    if (!confirmWipe) {
+      setConfirmWipe(true);
+      return;
+    }
+    // Second click — execute wipe
+    handleLogout(true);
   };
 
   return (
@@ -61,15 +90,28 @@ export function LogoutDialog({ open, onOpenChange }: Props) {
             <LogOut className="w-4 h-4 mr-2" />
             Cerrar sesión y conservar datos
           </Button>
-          <Button
-            onClick={() => handleLogout(true)}
-            disabled={loading}
-            variant="outline"
-            className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Cerrar sesión y borrar datos
-          </Button>
+
+          {!confirmWipe ? (
+            <Button
+              onClick={handleWipeClick}
+              disabled={loading}
+              variant="outline"
+              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Cerrar sesión y borrar datos
+            </Button>
+          ) : (
+            <Button
+              onClick={handleWipeClick}
+              disabled={loading}
+              variant="destructive"
+              className="w-full animate-pulse"
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              ¿Seguro? Se perderán TODOS los datos. Pulsa de nuevo.
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
