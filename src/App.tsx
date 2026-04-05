@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
+import { AuthGuard } from "@/components/AuthGuard";
 import { useRouteState } from "@/hooks/useRouteState";
 import { migrateAndLoad, didStartDegraded } from "@/utils/persistence";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -15,6 +16,8 @@ import SegmentsPage from "@/pages/SegmentsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import DriverPage from "@/pages/DriverPage";
 import DriverMiniPage from "@/pages/DriverMiniPage";
+import AuthPage from "@/pages/AuthPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -153,8 +156,6 @@ function AppRoutes() {
             />
           }
         />
-        <Route path="/driver" element={<DriverPage />} />
-        <Route path="/driver-mini" element={<DriverMiniPage />} />
         <Route path="*" element={isMapRoute ? null : <NotFound />} />
       </Routes>
       {/* Persistent MapPage — never unmounted, hidden via CSS when not on /map */}
@@ -202,7 +203,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppRoutes />
+        <Routes>
+          {/* Public routes — no auth required */}
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/driver" element={<DriverPage />} />
+          <Route path="/driver-mini" element={<DriverMiniPage />} />
+          {/* Protected routes */}
+          <Route
+            path="/*"
+            element={
+              <AuthGuard>
+                <AppRoutes />
+              </AuthGuard>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
