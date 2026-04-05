@@ -105,6 +105,7 @@ export function GoogleMapDisplay({
   arrowSegmentIds,
   allSegments,
   onOfflineStateChange,
+  visible,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
