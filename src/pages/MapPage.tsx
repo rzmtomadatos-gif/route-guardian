@@ -56,6 +56,11 @@ interface Props {
   onReverseSegment: (segmentId: string) => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
   onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
+  geo: ReturnType<typeof useGeolocation>;
+  gpsEnabled: boolean;
+  setGpsEnabled: (enabled: boolean) => void;
+  copilot: ReturnType<typeof useCopilotOperator>;
+  visible?: boolean;
 }
 
 export default function MapPage({
