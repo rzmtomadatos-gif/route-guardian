@@ -23,7 +23,13 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
   const [notes, setNotes] = useState(segment.notes);
 
   const handleSave = () => {
-    onSave({ name: name.trim(), kmlId: kmlId.trim(), direction, type, notes: notes.trim() });
+    onSave({
+      name: sanitizeTextField(name, 500),
+      kmlId: sanitizeTextField(kmlId, 500),
+      direction,
+      type,
+      notes: sanitizeTextField(notes, 5000),
+    });
     onOpenChange(false);
   };
 

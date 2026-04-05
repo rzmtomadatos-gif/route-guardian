@@ -55,7 +55,8 @@ export function IncidentDialog({ onSubmit, children }: Props) {
 
   const handleSubmit = () => {
     if (!selected || !impact) return;
-    onSubmit(selected, impact, note || undefined, impact === 'critica_invalida_bloque' ? currentNonRecordable : undefined);
+    const cleanNote = note ? sanitizeTextField(note, 2000) : undefined;
+    onSubmit(selected, impact, cleanNote || undefined, impact === 'critica_invalida_bloque' ? currentNonRecordable : undefined);
     setSelected(null);
     setImpact(null);
     setNote('');
