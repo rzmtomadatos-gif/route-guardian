@@ -180,9 +180,9 @@ const eventSchema = z.object({
   eventId: z.string().min(1).max(200),
   timestamp: isoDateString,
   eventType: eventTypeEnum,
-  workDay: z.number().optional(),
-  trackNumber: z.number().optional(),
-  segmentId: z.string().optional(),
+  workDay: z.number().nullable().optional(),
+  trackNumber: z.number().nullable().optional(),
+  segmentId: z.string().nullable().optional(),
   payload: z.record(z.unknown()).optional(), // payload varies — passthrough-like
 }).strict();
 
