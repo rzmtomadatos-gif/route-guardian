@@ -3,10 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useRouteState } from "@/hooks/useRouteState";
 import { migrateAndLoad, didStartDegraded } from "@/utils/persistence";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { useCopilotOperator } from "@/hooks/useCopilotSession";
 import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
@@ -22,6 +24,12 @@ type DbStatus = 'starting' | 'ready' | 'degraded';
 function AppRoutes() {
   const routeState = useRouteState();
   const [dbStatus, setDbStatus] = useState<DbStatus>('starting');
+  const location = useLocation();
+
+  // Persistent GPS & Copilot — survive tab switches
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const geo = useGeolocation(gpsEnabled);
+  const copilot = useCopilotOperator();
 
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
@@ -38,50 +46,16 @@ function AppRoutes() {
   }, []);
 
   const {
-    state,
-    isDirty,
-    markClean,
-    setRoute,
-    startNavigation,
-    stopNavigation,
-    confirmStartSegment,
-    completeSegment,
-    addIncident,
-    reoptimize,
-    resetSegment,
-    clearRoute,
-    setActiveSegment,
-    setBase,
-    updateSegment,
-    updateIncident,
-    deleteIncident,
-    addLayer,
-    renameLayer,
-    deleteLayer,
-    moveSegmentToLayer,
-    mergeSegments,
-    addSegment,
-    deleteSegment,
-    bulkDeleteSegments,
-    bulkMoveToLayer,
-    bulkSetColor,
-    duplicateSegments,
-    reorderSegment,
-    reverseSegment,
-    simplifySegments,
-    setRstMode,
-    setRstGroupSize,
-    markPosibleRepetir,
-    repeatSegment,
-    finalizeTrack,
-    skipSegment,
-    closeBlockEndPrompt,
-    setWorkDay,
-    updateRouteContext,
-    applyRetroactiveIds,
-    setAcquisitionMode,
-    applyRouteOrder,
-    restoreState,
+    state, isDirty, markClean, setRoute, startNavigation, stopNavigation,
+    confirmStartSegment, completeSegment, addIncident, reoptimize,
+    resetSegment, clearRoute, setActiveSegment, setBase, updateSegment,
+    updateIncident, deleteIncident, addLayer, renameLayer, deleteLayer,
+    moveSegmentToLayer, mergeSegments, addSegment, deleteSegment,
+    bulkDeleteSegments, bulkMoveToLayer, bulkSetColor, duplicateSegments,
+    reorderSegment, reverseSegment, simplifySegments, setRstMode,
+    setRstGroupSize, markPosibleRepetir, repeatSegment, finalizeTrack,
+    skipSegment, closeBlockEndPrompt, setWorkDay, updateRouteContext,
+    applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -100,6 +74,8 @@ function AppRoutes() {
       if (allLayers.size > 0) setHiddenLayers(allLayers);
     }
   }
+
+  const isMapRoute = location.pathname === '/map';
 
   return (
     <AppLayout
@@ -127,38 +103,6 @@ function AppRoutes() {
               isDirty={isDirty}
               route={state.route}
               onMarkClean={markClean}
-            />
-          }
-        />
-        <Route
-          path="/map"
-          element={
-            <MapPage
-              state={state}
-              onStartNavigation={startNavigation}
-              onStopNavigation={stopNavigation}
-              onConfirmStart={confirmStartSegment}
-              onComplete={completeSegment}
-              onResetSegment={resetSegment}
-              onAddIncident={addIncident}
-              onReoptimize={reoptimize}
-              onSetActiveSegment={setActiveSegment}
-              onSetBase={setBase}
-              onAddSegment={addSegment}
-              onMergeSegments={mergeSegments}
-              selectedIds={selectedIds}
-              onSelectedIdsChange={setSelectedIds}
-              hiddenLayers={hiddenLayers}
-              onSetRstMode={setRstMode}
-              onSetRstGroupSize={setRstGroupSize}
-              onRepeatSegment={repeatSegment}
-              onFinalizeTrack={finalizeTrack}
-              onSkipSegment={skipSegment}
-              onCloseBlockEndPrompt={closeBlockEndPrompt}
-              onSetWorkDay={setWorkDay}
-              onReverseSegment={reverseSegment}
-              onSetAcquisitionMode={setAcquisitionMode}
-              onApplyRouteOrder={applyRouteOrder}
             />
           }
         />
@@ -211,8 +155,43 @@ function AppRoutes() {
         />
         <Route path="/driver" element={<DriverPage />} />
         <Route path="/driver-mini" element={<DriverMiniPage />} />
-        <Route path="*" element={<NotFound />} />
+        <Route path="*" element={isMapRoute ? null : <NotFound />} />
       </Routes>
+      {/* Persistent MapPage — never unmounted, hidden via CSS when not on /map */}
+      <div style={{ display: isMapRoute ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <MapPage
+          state={state}
+          onStartNavigation={startNavigation}
+          onStopNavigation={stopNavigation}
+          onConfirmStart={confirmStartSegment}
+          onComplete={completeSegment}
+          onResetSegment={resetSegment}
+          onAddIncident={addIncident}
+          onReoptimize={reoptimize}
+          onSetActiveSegment={setActiveSegment}
+          onSetBase={setBase}
+          onAddSegment={addSegment}
+          onMergeSegments={mergeSegments}
+          selectedIds={selectedIds}
+          onSelectedIdsChange={setSelectedIds}
+          hiddenLayers={hiddenLayers}
+          onSetRstMode={setRstMode}
+          onSetRstGroupSize={setRstGroupSize}
+          onRepeatSegment={repeatSegment}
+          onFinalizeTrack={finalizeTrack}
+          onSkipSegment={skipSegment}
+          onCloseBlockEndPrompt={closeBlockEndPrompt}
+          onSetWorkDay={setWorkDay}
+          onReverseSegment={reverseSegment}
+          onSetAcquisitionMode={setAcquisitionMode}
+          onApplyRouteOrder={applyRouteOrder}
+          geo={geo}
+          gpsEnabled={gpsEnabled}
+          setGpsEnabled={setGpsEnabled}
+          copilot={copilot}
+          visible={isMapRoute}
+        />
+      </div>
     </AppLayout>
   );
 }

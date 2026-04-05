@@ -49,6 +49,8 @@ interface Props {
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
   /** All campaign segments for coverage-based offline map selection */
   allSegments?: Segment[];
+  /** Whether this map is currently visible (for resize invalidation) */
+  visible?: boolean;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -96,6 +98,7 @@ export function MapDisplay({
   arrowSegmentIds,
   onOfflineStateChange,
   allSegments,
+  visible,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -230,6 +233,10 @@ export function MapDisplay({
     }
   }, [segments, activeSegmentId, allSegments]);
 
+  // Stable ref for syncOfflineMap — avoids re-triggering init/event effects
+  const syncOfflineMapRef = useRef(syncOfflineMap);
+  useEffect(() => { syncOfflineMapRef.current = syncOfflineMap; }, [syncOfflineMap]);
+
   // ─── Auto-switch on connectivity changes ───
   useEffect(() => {
     if (!mapRef.current) return;
@@ -237,7 +244,7 @@ export function MapDisplay({
 
     if (!isOnline) {
       if (!offlineMapActive) {
-        syncOfflineMap(map, true).then(() => {
+        syncOfflineMapRef.current(map, true).then(() => {
           if (offlineLayerRef.current) {
             toast.info('Sin conexión — mapa offline activado', { duration: 3000 });
           } else {
@@ -248,7 +255,7 @@ export function MapDisplay({
     } else if (wasOffline) {
       const mode = getOfflineMapMode();
       if (mode !== 'offline') {
-        syncOfflineMap(map, false);
+        syncOfflineMapRef.current(map, false);
         toast.success('Conexión restaurada — mapa online', { duration: 2000 });
       }
       setNoTilesWarning(false);
@@ -256,7 +263,7 @@ export function MapDisplay({
     }
   }, [isOnline, wasOffline]);
 
-  // Initialize map
+  // Initialize map — stable effect, no syncOfflineMap in deps
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -278,7 +285,7 @@ export function MapDisplay({
         setNoTilesWarning(true);
         const activeMapId = getActiveOfflineMapId();
         if (activeMapId) {
-          syncOfflineMap(map, true);
+          syncOfflineMapRef.current(map, true);
         }
       }
     });
@@ -299,7 +306,7 @@ export function MapDisplay({
     });
 
     mapRef.current = map;
-    syncOfflineMap(map);
+    syncOfflineMapRef.current(map);
 
     return () => {
       map.remove();
@@ -311,16 +318,25 @@ export function MapDisplay({
         activeBlobUrl = null;
       }
     };
-  }, [syncOfflineMap]);
+  }, []);
 
-  // Listen for offline map changes
+  // Listen for offline map changes — use ref to avoid re-subscribing
   useEffect(() => {
     const handler = () => {
-      if (mapRef.current) syncOfflineMap(mapRef.current);
+      if (mapRef.current) syncOfflineMapRef.current(mapRef.current);
     };
     window.addEventListener(OFFLINE_MAP_CHANGED_EVENT, handler);
     return () => window.removeEventListener(OFFLINE_MAP_CHANGED_EVENT, handler);
-  }, [syncOfflineMap]);
+  }, []);
+
+  // Resize when becoming visible (tab switch persistence)
+  const prevVisibleRef = useRef(visible);
+  useEffect(() => {
+    if (visible && !prevVisibleRef.current && mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 100);
+    }
+    prevVisibleRef.current = visible;
+  }, [visible]);
 
   // Draw static segments
   useEffect(() => {

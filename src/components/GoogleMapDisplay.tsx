@@ -678,6 +678,7 @@ export function GoogleMapDisplay({
         arrowSegmentIds={arrowSegmentIds}
         allSegments={allSegments}
         onOfflineStateChange={onOfflineStateChange}
+        visible={visible}
       />
     );
   }
