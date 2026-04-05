@@ -34,6 +34,8 @@ interface Props {
   allSegments?: Segment[];
   /** Notify parent about offline layer state */
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
+  /** Whether this map is currently visible (for resize invalidation) */
+  visible?: boolean;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
