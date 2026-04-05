@@ -133,6 +133,10 @@ export type Database = {
         Args: { p_token: string; p_updates: Json }
         Returns: Json
       }
+      update_own_profile: {
+        Args: { p_email?: string; p_full_name?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "supervisor" | "operator"
