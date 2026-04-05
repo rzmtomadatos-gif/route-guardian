@@ -163,8 +163,7 @@ export default function MapPage({
   const [fetchedWays, setFetchedWays] = useState<OverpassWay[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [pendingLayerName, setPendingLayerName] = useState('');
-  const geo = useGeolocation(gpsEnabled);
-  const copilot = useCopilotOperator();
+  // geo and copilot received as props (persisted in AppRoutes)
   const lastDeviationRef = useRef(0);
 
   // Unified map state — must be after geo
