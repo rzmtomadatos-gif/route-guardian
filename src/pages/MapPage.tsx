@@ -56,6 +56,11 @@ interface Props {
   onReverseSegment: (segmentId: string) => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
   onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
+  geo: ReturnType<typeof useGeolocation>;
+  gpsEnabled: boolean;
+  setGpsEnabled: (enabled: boolean) => void;
+  copilot: ReturnType<typeof useCopilotOperator>;
+  visible?: boolean;
 }
 
 export default function MapPage({
@@ -84,10 +89,15 @@ export default function MapPage({
   onReverseSegment,
   onSetAcquisitionMode,
   onApplyRouteOrder,
+  geo,
+  gpsEnabled,
+  setGpsEnabled,
+  copilot,
+  visible = true,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [gpsEnabled, setGpsEnabled] = useState(false);
+  // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [googleFailed, setGoogleFailed] = useState(false);
@@ -153,8 +163,7 @@ export default function MapPage({
   const [fetchedWays, setFetchedWays] = useState<OverpassWay[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [pendingLayerName, setPendingLayerName] = useState('');
-  const geo = useGeolocation(gpsEnabled);
-  const copilot = useCopilotOperator();
+  // geo and copilot received as props (persisted in AppRoutes)
   const lastDeviationRef = useRef(0);
 
   // Unified map state — must be after geo
@@ -1037,6 +1046,7 @@ export default function MapPage({
           centerActiveRequest={centerActiveRequest}
           arrowSegmentIds={arrowSegmentIds}
           allSegments={state.route?.segments}
+          visible={visible}
           onOfflineStateChange={useCallback((s: { active: boolean; noTiles: boolean }) => {
             setOfflineLayerActive(s.active);
             setOfflineSwitchActive(!navigator.onLine);

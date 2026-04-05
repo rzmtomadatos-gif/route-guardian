@@ -34,6 +34,8 @@ interface Props {
   allSegments?: Segment[];
   /** Notify parent about offline layer state */
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
+  /** Whether this map is currently visible (for resize invalidation) */
+  visible?: boolean;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -103,6 +105,7 @@ export function GoogleMapDisplay({
   arrowSegmentIds,
   allSegments,
   onOfflineStateChange,
+  visible,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -248,6 +251,15 @@ export function GoogleMapDisplay({
 
     return () => { zoomListenerRef.current?.remove(); zoomListenerRef.current = null; };
   }, [mapReady]);
+
+  // --- Resize when becoming visible (tab switch persistence) ---
+  const prevVisibleRef = useRef(visible);
+  useEffect(() => {
+    if (visible && !prevVisibleRef.current && mapRef.current) {
+      google.maps.event.trigger(mapRef.current, 'resize');
+    }
+    prevVisibleRef.current = visible;
+  }, [visible]);
 
   // Compute segment fingerprint
   const segmentFingerprint = useMemo(
@@ -666,6 +678,7 @@ export function GoogleMapDisplay({
         arrowSegmentIds={arrowSegmentIds}
         allSegments={allSegments}
         onOfflineStateChange={onOfflineStateChange}
+        visible={visible}
       />
     );
   }
