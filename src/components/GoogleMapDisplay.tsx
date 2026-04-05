@@ -252,6 +252,15 @@ export function GoogleMapDisplay({
     return () => { zoomListenerRef.current?.remove(); zoomListenerRef.current = null; };
   }, [mapReady]);
 
+  // --- Resize when becoming visible (tab switch persistence) ---
+  const prevVisibleRef = useRef(visible);
+  useEffect(() => {
+    if (visible && !prevVisibleRef.current && mapRef.current) {
+      google.maps.event.trigger(mapRef.current, 'resize');
+    }
+    prevVisibleRef.current = visible;
+  }, [visible]);
+
   // Compute segment fingerprint
   const segmentFingerprint = useMemo(
     () => buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds),
