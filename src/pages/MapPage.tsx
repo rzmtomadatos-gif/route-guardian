@@ -1053,10 +1053,7 @@ export default function MapPage({
           arrowSegmentIds={arrowSegmentIds}
           allSegments={state.route?.segments}
           visible={visible}
-          onOfflineStateChange={useCallback((s: { active: boolean; noTiles: boolean }) => {
-            setOfflineLayerActive(s.active);
-            setOfflineSwitchActive(!navigator.onLine);
-          }, [])} />
+          onOfflineStateChange={handleOfflineStateChange} />
         
       </div>
 
