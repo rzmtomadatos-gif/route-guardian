@@ -477,6 +477,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         open={showCodeDialog}
         onConfirm={handleCodeConfirm}
       />
+      <LogoutDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog} />
     </div>
   );
 }
