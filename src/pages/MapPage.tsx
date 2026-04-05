@@ -107,6 +107,12 @@ export default function MapPage({
   const [debugMode, setDebugMode] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
+  // Stable callback for offline state changes (must NOT be inline in JSX)
+  const handleOfflineStateChange = useCallback((s: { active: boolean; noTiles: boolean }) => {
+    setOfflineLayerActive(s.active);
+    setOfflineSwitchActive(!navigator.onLine);
+  }, []);
+
   // Detect Google Maps availability and auth failures
   const googleAvailable = useMemo(() => !!getGoogleMapsApiKey(), []);
   useEffect(() => {
