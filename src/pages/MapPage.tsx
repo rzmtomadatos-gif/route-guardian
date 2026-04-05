@@ -89,6 +89,11 @@ export default function MapPage({
   onReverseSegment,
   onSetAcquisitionMode,
   onApplyRouteOrder,
+  geo,
+  gpsEnabled,
+  setGpsEnabled,
+  copilot,
+  visible = true,
 }: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
