@@ -1,15 +1,17 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
+import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
 import { LogoutDialog } from '@/components/LogoutDialog';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Route, AppState } from '@/types/route';
 
