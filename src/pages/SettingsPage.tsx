@@ -194,6 +194,9 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
           </div>
         </div>
 
+        {/* Admin: Allowed Emails */}
+        {isAdmin && <AllowedEmailsManager />}
+
         {/* Retroactive IDs */}
         {route && (
           <div className="space-y-3">
