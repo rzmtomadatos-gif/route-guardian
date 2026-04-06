@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,20 @@ export default function AuthPage() {
       return;
     }
     setLoading(true);
+
+    // Verificar si el email está en la lista de autorizados
+    const { data: allowed } = await supabase
+      .from('allowed_emails')
+      .select('email')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (!allowed) {
+      toast.error('Este email no está autorizado. Contacta con el administrador.');
+      setLoading(false);
+      return;
+    }
+
     const { error } = await signUp(email, password, fullName || undefined);
     setLoading(false);
     if (error) {

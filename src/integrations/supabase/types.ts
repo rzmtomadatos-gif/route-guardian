@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      allowed_emails: {
+        Row: {
+          added_at: string
+          email: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          added_at?: string
+          email: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          added_at?: string
+          email?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
       copilot_sessions: {
         Row: {
           batch_number: number
@@ -118,6 +139,24 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -125,6 +164,13 @@ export type Database = {
     Functions: {
       create_copilot_session: { Args: never; Returns: Json }
       delete_copilot_session: { Args: { p_token: string }; Returns: undefined }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       read_copilot_session_by_token: {
         Args: { p_token: string }
         Returns: Json

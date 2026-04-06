@@ -1,15 +1,17 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
+import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
 import { LogoutDialog } from '@/components/LogoutDialog';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Route, AppState } from '@/types/route';
 
@@ -38,6 +40,18 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
 
   const handleExportCampaign = async () => {
     try {
@@ -155,7 +169,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <div className="space-y-1">
                   <p className="text-sm text-foreground font-medium">{user.user_metadata?.full_name || 'Operador'}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">Rol: operador</p>
+                  <p className="text-xs text-muted-foreground">Rol: {isAdmin ? 'administrador' : 'operador'}</p>
                 </div>
                 <Button
                   onClick={() => setShowLogoutDialog(true)}
@@ -179,6 +193,9 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
             )}
           </div>
         </div>
+
+        {/* Admin: Allowed Emails */}
+        {isAdmin && <AllowedEmailsManager />}
 
         {/* Retroactive IDs */}
         {route && (
