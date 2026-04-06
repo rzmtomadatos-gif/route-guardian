@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +10,18 @@ import { toast } from 'sonner';
 type Mode = 'login' | 'register' | 'forgot';
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn, signUp, resetPassword, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Si ya hay sesión activa, redirigir a la app
+  if (!authLoading && user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +33,8 @@ export default function AuthPage() {
       toast.error(error.message === 'Invalid login credentials'
         ? 'Credenciales inválidas. Comprueba email y contraseña.'
         : error.message);
+    } else {
+      navigate('/', { replace: true });
     }
   };
 
