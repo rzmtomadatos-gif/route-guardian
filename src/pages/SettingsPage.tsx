@@ -169,7 +169,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <div className="space-y-1">
                   <p className="text-sm text-foreground font-medium">{user.user_metadata?.full_name || 'Operador'}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">Rol: operador</p>
+                  <p className="text-xs text-muted-foreground">Rol: {isAdmin ? 'administrador' : 'operador'}</p>
                 </div>
                 <Button
                   onClick={() => setShowLogoutDialog(true)}
