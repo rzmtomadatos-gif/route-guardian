@@ -47,6 +47,20 @@ export default function AuthPage() {
       return;
     }
     setLoading(true);
+
+    // Verificar si el email está en la lista de autorizados
+    const { data: allowed } = await supabase
+      .from('allowed_emails')
+      .select('email')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (!allowed) {
+      toast.error('Este email no está autorizado. Contacta con el administrador.');
+      setLoading(false);
+      return;
+    }
+
     const { error } = await signUp(email, password, fullName || undefined);
     setLoading(false);
     if (error) {
