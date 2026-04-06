@@ -1,32 +1,62 @@
 
 
-# Corrección: importación rechaza `null` en eventLog
+# Fix: La app no redirige tras login exitoso
 
-## Cambio único
+## Problema
 
-**Archivo**: `src/utils/persistence/campaign-schema.ts`
+`AuthPage` no tiene lógica de redirección. Tras un login exitoso:
+- `supabase.auth.signInWithPassword()` actualiza la sesión internamente
+- `onAuthStateChange` se dispara, pero `AuthPage` no reacciona navegando
+- El usuario permanece en `/auth` hasta que recarga manualmente
 
-Cambiar 3 líneas en `eventSchema` (aprox. líneas 183-185):
+## Corrección
+
+**Archivo único**: `src/pages/AuthPage.tsx`
+
+Dos cambios:
+
+1. **Importar `useNavigate` y `Navigate`** de react-router-dom
+2. **Obtener `user`** del hook `useAuth()`
+3. **Si ya hay sesión activa, redirigir a `/`** (esto cubre el caso de que el usuario vuelva a `/auth` estando logueado, y también el momento justo post-login cuando `onAuthStateChange` actualiza el estado)
 
 ```typescript
-// ANTES
-workDay: z.number().optional(),
-trackNumber: z.number().optional(),
-segmentId: z.string().optional(),
+import { useNavigate, Navigate } from 'react-router-dom';
 
-// DESPUÉS
-workDay: z.number().nullable().optional(),
-trackNumber: z.number().nullable().optional(),
-segmentId: z.string().nullable().optional(),
+export default function AuthPage() {
+  const { signIn, signUp, resetPassword, user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Si ya hay sesión, redirigir a la app
+  if (!loading && user) {
+    return <Navigate to="/" replace />;
+  }
+
+  // handleLogin: tras login exitoso, navegar explícitamente
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setLoading(true);
+    const { error } = await signIn(email, password);
+    setLoading(false);
+    if (error) {
+      toast.error(...);
+    } else {
+      navigate('/', { replace: true });
+    }
+  };
+  // ... resto sin cambios
 ```
 
-## Por qué
+## Por qué funciona
 
-JSON serializa `undefined` como `null`. `.optional()` acepta `undefined` pero rechaza `null`. Añadir `.nullable()` acepta ambos sin afectar ningún otro comportamiento.
+- `useAuth` tiene `onAuthStateChange` que actualiza `user` cuando la sesión se crea
+- La redirección con `Navigate` captura el caso reactivo (sesión ya activa)
+- El `navigate()` en `handleLogin` cubre el caso imperativo (justo tras login exitoso)
+- Doble garantía: si uno falla, el otro actúa
 
 ## Qué NO se toca
 
-- Ningún otro archivo
-- Ningún otro esquema (segmentos, incidencias, ruta, estado)
-- Import/export, persistencia, auth — intactos
+- `useAuth.ts` — sin cambios
+- `AuthGuard.tsx` — sin cambios
+- Persistencia, campaña, esquemas — intactos
 
