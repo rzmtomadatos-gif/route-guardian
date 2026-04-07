@@ -8,6 +8,26 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 
+const DARK_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#1a1d23' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1d23' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3038' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+];
+
+const LIGHT_STYLES: google.maps.MapTypeStyle[] = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+];
+
+function getMapTheme(): 'light' | 'dark' {
+  try { return (localStorage.getItem('vialroute_map_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
+}
+
 export type AreaSelectionMode = 'none' | 'rectangle' | 'polygon' | 'circle';
 
 interface Props {
@@ -213,16 +233,7 @@ export function GoogleMapDisplay({
           zoom: 6,
           disableDefaultUI: true,
           zoomControl: true,
-          styles: [
-            { elementType: 'geometry', stylers: [{ color: '#1a1d23' }] },
-            { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1d23' }] },
-            { elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
-            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3038' }] },
-            { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
-            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-            { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-            { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-          ],
+          styles: getMapTheme() === 'dark' ? DARK_STYLES : LIGHT_STYLES,
         });
 
         setTimeout(() => {
@@ -250,6 +261,18 @@ export function GoogleMapDisplay({
     });
 
     return () => { zoomListenerRef.current?.remove(); zoomListenerRef.current = null; };
+  }, [mapReady]);
+
+  // --- Listen for map theme changes ---
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const handler = () => {
+      mapRef.current?.setOptions({
+        styles: getMapTheme() === 'dark' ? DARK_STYLES : LIGHT_STYLES,
+      });
+    };
+    window.addEventListener('vialroute:map-theme-changed', handler);
+    return () => window.removeEventListener('vialroute:map-theme-changed', handler);
   }, [mapReady]);
 
   // --- Resize when becoming visible (tab switch persistence) ---
