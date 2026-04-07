@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +37,9 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
   const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null);
   const [startHidden, setStartHidden] = useState(() => {
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
+  });
+  const [mapTheme, setMapTheme] = useState<'light' | 'dark'>(() => {
+    try { return (localStorage.getItem('vialroute_map_theme') || 'light') as 'light' | 'dark'; } catch { return 'light'; }
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
