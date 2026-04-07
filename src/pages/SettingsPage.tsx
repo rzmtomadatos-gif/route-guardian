@@ -303,6 +303,51 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
           </div>
         </div>
 
+        {/* Map theme */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <MapIcon className="w-4 h-4" />
+            <span className="text-sm font-medium">Tema de mapa</span>
+          </div>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setMapTheme('light');
+                  try { localStorage.setItem('vialroute_map_theme', 'light'); } catch {}
+                  window.dispatchEvent(new CustomEvent('vialroute:map-theme-changed'));
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                  mapTheme === 'light'
+                    ? 'border-primary bg-primary/10 text-primary font-medium'
+                    : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sun className="w-4 h-4" />
+                Claro
+              </button>
+              <button
+                onClick={() => {
+                  setMapTheme('dark');
+                  try { localStorage.setItem('vialroute_map_theme', 'dark'); } catch {}
+                  window.dispatchEvent(new CustomEvent('vialroute:map-theme-changed'));
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                  mapTheme === 'dark'
+                    ? 'border-primary bg-primary/10 text-primary font-medium'
+                    : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Moon className="w-4 h-4" />
+                Oscuro
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Al cambiar de tema, la caché offline se reconstruirá con las nuevas teselas al navegar con conexión.
+            </p>
+          </div>
+        </div>
+
         {/* Layers */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-muted-foreground">
