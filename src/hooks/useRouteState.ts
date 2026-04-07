@@ -727,12 +727,29 @@ export function useRouteState() {
     logEvent('SEGMENT_RESET', { segmentId });
   }, [setState]);
 
-  /** Close the block-end prompt, allowing actions to resume */
+  /** Close the block-end prompt, allowing actions to resume.
+   *  Pre-creates an inactive trackSession with T{N+1} so the UI
+   *  immediately reflects the next track number. */
   const closeBlockEndPrompt = useCallback(() => {
-    setState((s) => ({
-      ...s,
-      blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
-    }));
+    setState((s) => {
+      const segments = s.route?.segments ?? [];
+      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
+      const nextTrack = getMaxTrack(segments, s.trackSession, s.workDay) + 1;
+      return {
+        ...s,
+        blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
+        trackSession: {
+          active: false,
+          trackNumber: nextTrack,
+          capacity: groupLimit,
+          segmentIds: [],
+          startedAt: new Date().toISOString(),
+          endedAt: new Date().toISOString(),
+          closedManually: false,
+          trackStartTime: null,
+        },
+      };
+    });
   }, [setState]);
 
   const clearRoute = useCallback(() => {

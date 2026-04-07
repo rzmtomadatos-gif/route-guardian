@@ -199,38 +199,13 @@ export function MapDisplay({
       return;
     }
 
-    // --- Activate offline layer ---
-    const sources = await listOfflineTileSources();
-    const source = sources.find((s) => s.id === targetMapId);
-    if (!source) {
-      setNoTilesWarning(!currentOnline);
-      return;
-    }
-
-    const data = await getOfflineTileData(targetMapId);
-    if (!data) return;
-
-    if (offlineLayerRef.current) {
-      offlineLayerRef.current.remove();
-      offlineLayerRef.current = null;
-    }
-    if (activeBlobUrl) {
-      URL.revokeObjectURL(activeBlobUrl);
-    }
-
-    const blob = new Blob([data], { type: 'application/octet-stream' });
-    activeBlobUrl = URL.createObjectURL(blob);
-
-    const layer = await getProtomapsLayer(activeBlobUrl);
-    if (layer) {
-      if (tileLayerRef.current && map.hasLayer(tileLayerRef.current)) {
-        tileLayerRef.current.remove();
-      }
-      layer.addTo(map);
-      offlineLayerRef.current = layer;
-      setOfflineMapActive(true);
-      setNoTilesWarning(false);
-    }
+    // --- PMTiles loading paused ---
+    // PMTiles ArrayBuffer loading is disabled by default due to excessive
+    // RAM usage on mobile devices. The app now relies on the Service Worker
+    // tile cache (CacheFirst) for offline map coverage.
+    // PMTiles can be re-enabled in the future via Capacitor native file access.
+    console.info('[MapDisplay] PMTiles loading skipped — relying on SW tile cache');
+    setNoTilesWarning(!currentOnline && !offlineLayerRef.current);
   }, [segments, activeSegmentId, allSegments]);
 
   // Stable ref for syncOfflineMap — avoids re-triggering init/event effects
