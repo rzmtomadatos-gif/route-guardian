@@ -263,6 +263,18 @@ export function GoogleMapDisplay({
     return () => { zoomListenerRef.current?.remove(); zoomListenerRef.current = null; };
   }, [mapReady]);
 
+  // --- Listen for map theme changes ---
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const handler = () => {
+      mapRef.current?.setOptions({
+        styles: getMapTheme() === 'dark' ? DARK_STYLES : LIGHT_STYLES,
+      });
+    };
+    window.addEventListener('vialroute:map-theme-changed', handler);
+    return () => window.removeEventListener('vialroute:map-theme-changed', handler);
+  }, [mapReady]);
+
   // --- Resize when becoming visible (tab switch persistence) ---
   const prevVisibleRef = useRef(visible);
   useEffect(() => {
