@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, List, Settings, X, LogOut, WifiOff } from 'lucide-react';
+import { Upload, Map, List, Settings, X, WifiOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { LogoutDialog } from '@/components/LogoutDialog';
 
 const navItems = [
   { to: '/', icon: Upload, label: 'Cargar' },
@@ -19,12 +17,7 @@ interface Props {
 
 export function AppLayout({ children, selectedCount = 0, onClearSelection }: Props) {
   const location = useLocation();
-  const { user, isOfflineMode } = useAuth();
-  const [showLogout, setShowLogout] = useState(false);
-
-  const userInitials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    : user?.email?.slice(0, 2).toUpperCase() ?? '??';
+  const { isOfflineMode } = useAuth();
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">
@@ -47,11 +40,12 @@ export function AppLayout({ children, selectedCount = 0, onClearSelection }: Pro
         <div className="flex justify-around items-center py-2">
           {navItems.map(({ to, icon: Icon, label }) => {
             const active = location.pathname === to;
+            const isConfig = to === '/settings';
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                   active
                     ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground'
@@ -59,31 +53,15 @@ export function AppLayout({ children, selectedCount = 0, onClearSelection }: Pro
               >
                 <Icon className="w-5 h-5" />
                 <span className="text-[10px] font-medium">{label}</span>
+                {isConfig && isOfflineMode && (
+                  <WifiOff className="absolute -top-0.5 -right-0.5 w-3 h-3 text-amber-400" />
+                )}
               </Link>
             );
           })}
-          {/* User indicator */}
-          <button
-            onClick={() => setShowLogout(true)}
-            className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {isOfflineMode ? (
-              <>
-                <WifiOff className="w-5 h-5 text-warning" />
-                <span className="text-[10px] font-medium text-warning">Local</span>
-              </>
-            ) : (
-              <>
-                <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
-                  <span className="text-[8px] font-bold text-primary">{userInitials}</span>
-                </div>
-                <span className="text-[10px] font-medium">Cuenta</span>
-              </>
-            )}
-          </button>
         </div>
       </nav>
-      <LogoutDialog open={showLogout} onOpenChange={setShowLogout} />
+      
     </div>
   );
 }

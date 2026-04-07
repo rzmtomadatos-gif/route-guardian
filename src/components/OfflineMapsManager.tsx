@@ -63,9 +63,20 @@ export function OfflineMapsManager({ segments = [], activeSegment }: Props) {
   const { isOnline } = useConnectivity();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [hasSW, setHasSW] = useState(false);
+
   useEffect(() => {
     listOfflineTileSources().then(setSources).catch(() => {});
     getTileCacheInfo().then(setCacheInfo).catch(() => {});
+    // Check if Service Worker is registered
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then((reg) => setHasSW(!!reg));
+    }
+    // Refresh cache info every 30s
+    const interval = setInterval(() => {
+      getTileCacheInfo().then(setCacheInfo).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Compute coverage scores for each source
@@ -334,7 +345,14 @@ export function OfflineMapsManager({ segments = [], activeSegment }: Props) {
             Mejora la rapidez, pero <strong className="text-muted-foreground">no sustituye a un mapa descargado</strong>.
           </p>
 
-          {cacheInfo !== null ? (
+          {!hasSW ? (
+            <div className="rounded-lg border border-border bg-secondary/30 p-3">
+              <p className="text-xs text-muted-foreground">
+                La caché de teselas solo funciona en la <strong className="text-foreground">app instalada (PWA)</strong>.
+                En el navegador normal no se guardan teselas para uso offline.
+              </p>
+            </div>
+          ) : cacheInfo !== null ? (
             <div className="rounded-lg border border-border bg-secondary/30 p-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -342,24 +360,34 @@ export function OfflineMapsManager({ segments = [], activeSegment }: Props) {
                     {cacheInfo.tileCount.toLocaleString('es-ES')} zonas guardadas
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    Se borran automáticamente en 7 días (máx. 2000)
+                    Se borran automáticamente en 7 días (máx. 5.000)
                   </p>
                 </div>
-                {cacheInfo.tileCount > 0 && (
+                <div className="flex items-center gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-xs text-destructive/70 hover:text-destructive"
-                    onClick={handleClearCache}
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => getTileCacheInfo().then(setCacheInfo).catch(() => {})}
                   >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Limpiar
+                    ↻
                   </Button>
-                )}
+                  {cacheInfo.tileCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-destructive/70 hover:text-destructive"
+                      onClick={handleClearCache}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Limpiar
+                    </Button>
+                  )}
+                </div>
               </div>
               {cacheInfo.tileCount > 0 && (
                 <div className="mt-2">
-                  <Progress value={Math.min((cacheInfo.tileCount / 2000) * 100, 100)} className="h-1.5" />
+                  <Progress value={Math.min((cacheInfo.tileCount / 5000) * 100, 100)} className="h-1.5" />
                 </div>
               )}
             </div>
