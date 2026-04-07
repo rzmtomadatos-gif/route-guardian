@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +37,9 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
   const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null);
   const [startHidden, setStartHidden] = useState(() => {
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
+  });
+  const [mapTheme, setMapTheme] = useState<'light' | 'dark'>(() => {
+    try { return (localStorage.getItem('vialroute_map_theme') || 'light') as 'light' | 'dark'; } catch { return 'light'; }
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
@@ -297,6 +300,51 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <X className="w-4 h-4" />
               </Button>
             </div>
+          </div>
+        </div>
+
+        {/* Map theme */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <MapIcon className="w-4 h-4" />
+            <span className="text-sm font-medium">Tema de mapa</span>
+          </div>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setMapTheme('light');
+                  try { localStorage.setItem('vialroute_map_theme', 'light'); } catch {}
+                  window.dispatchEvent(new CustomEvent('vialroute:map-theme-changed'));
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                  mapTheme === 'light'
+                    ? 'border-primary bg-primary/10 text-primary font-medium'
+                    : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sun className="w-4 h-4" />
+                Claro
+              </button>
+              <button
+                onClick={() => {
+                  setMapTheme('dark');
+                  try { localStorage.setItem('vialroute_map_theme', 'dark'); } catch {}
+                  window.dispatchEvent(new CustomEvent('vialroute:map-theme-changed'));
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                  mapTheme === 'dark'
+                    ? 'border-primary bg-primary/10 text-primary font-medium'
+                    : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Moon className="w-4 h-4" />
+                Oscuro
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Al cambiar de tema, la caché offline se reconstruirá con las nuevas teselas al navegar con conexión.
+            </p>
           </div>
         </div>
 

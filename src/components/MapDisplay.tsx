@@ -247,7 +247,13 @@ export function MapDisplay({
       attributionControl: false,
     }).setView([40.4168, -3.7038], 6);
 
-    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const savedTheme = (() => {
+      try { return localStorage.getItem('vialroute_map_theme') || 'light'; } catch { return 'light'; }
+    })();
+    const tileUrl = savedTheme === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    const tileLayer = L.tileLayer(tileUrl, {
       maxZoom: 19,
       errorTileUrl: '',
     }).addTo(map);
@@ -302,6 +308,22 @@ export function MapDisplay({
     };
     window.addEventListener(OFFLINE_MAP_CHANGED_EVENT, handler);
     return () => window.removeEventListener(OFFLINE_MAP_CHANGED_EVENT, handler);
+  }, []);
+
+  // Listen for map theme changes
+  useEffect(() => {
+    const handler = () => {
+      if (!mapRef.current || !tileLayerRef.current) return;
+      const theme = (() => {
+        try { return localStorage.getItem('vialroute_map_theme') || 'light'; } catch { return 'light'; }
+      })();
+      const tileUrl = theme === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+      tileLayerRef.current.setUrl(tileUrl);
+    };
+    window.addEventListener('vialroute:map-theme-changed', handler);
+    return () => window.removeEventListener('vialroute:map-theme-changed', handler);
   }, []);
 
   // Resize when becoming visible (tab switch persistence)
