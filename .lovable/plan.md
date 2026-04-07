@@ -1,117 +1,114 @@
 
 
-# Lista blanca de emails autorizados
+# Bloque operativo: Mapas + UX de campo
 
-## Situación actual
+## Resumen ejecutivo
 
-Cualquier persona puede registrarse en `/auth` y acceder a la app. No hay control de acceso post-registro.
+6 cambios ordenados por impacto real en campo. Ninguno toca persistencia SQLite, campaña local ni copiloto.
 
-## Solución
+---
 
-Crear una tabla `allowed_emails` en la base de datos con los emails autorizados. El registro se bloquea en dos puntos:
+## Cambios por orden de prioridad
 
-1. **Frontend** (`AuthPage.tsx`): antes de llamar a `signUp`, consultar `allowed_emails` para verificar si el email está permitido. Si no lo está, mostrar error sin intentar el registro.
-2. **Backend** (trigger SQL): como segunda barrera, un trigger `BEFORE INSERT` en `auth.users` que rechace registros de emails no autorizados. **Nota**: no se puede poner triggers en `auth.users` (esquema reservado). En su lugar, la validación será por RLS + frontend, y opcionalmente ocultar el registro por completo.
+### 1. Track indicator — mostrar T{N+1} al confirmar equipo preparado
+**Problema**: `closeBlockEndPrompt` (línea 731 de `useRouteState.ts`) solo cierra el modal. La nueva sesión se crea en `confirmStartSegment`, así que entre "equipo preparado" e "iniciar tramo" la UI muestra el track anterior.
 
-**Enfoque final elegido**: validación en frontend + tabla `allowed_emails` con política RLS de solo lectura pública para que el frontend pueda consultarla.
+**Solución**: En `closeBlockEndPrompt`, calcular `nextTrack = getMaxTrack(...) + 1` y crear una `trackSession` inactiva con ese número. Cuando `confirmStartSegment` detecte una sesión inactiva con el número correcto, la activa en vez de crear otra.
 
-## Cambios
+**Archivos**: `src/hooks/useRouteState.ts` — función `closeBlockEndPrompt` (~5 líneas) + ajuste menor en `confirmStartSegment` para respetar sesión pre-creada.
 
-### 1. Migración SQL — tabla `allowed_emails`
+**Riesgo**: Si `allocateTrackNumber` no detecta la sesión inactiva, podría saltar un número. Se mitigará incluyendo sesiones inactivas en `getMaxTrack` (que ya lo hace, línea 44).
 
-```sql
-CREATE TABLE public.allowed_emails (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text NOT NULL UNIQUE,
-  added_at timestamptz NOT NULL DEFAULT now(),
-  notes text
-);
+---
 
-ALTER TABLE public.allowed_emails ENABLE ROW LEVEL SECURITY;
+### 2. Pausar PMTiles — desactivar carga por defecto
+**Problema**: `syncOfflineMap` en `MapDisplay.tsx` (línea 137) carga el PMTiles completo como `ArrayBuffer` → `Blob` → `URL.createObjectURL`. Archivos de cientos de MB revientan la RAM en móviles.
 
--- Cualquier usuario (incluso anónimo) puede leer para validar registro
-CREATE POLICY "Public read allowed_emails"
-  ON public.allowed_emails FOR SELECT
-  TO public
-  USING (true);
+**Solución**: Modificar `syncOfflineMap` para que **no cargue PMTiles** salvo que el usuario lo fuerce explícitamente desde un nuevo toggle "Avanzado" en Configuración. El flujo automático (`shouldUseOfflineMap`) se apoyará únicamente en la caché de teselas del Service Worker.
 
--- Insertar tu email como primer autorizado
-INSERT INTO public.allowed_emails (email, notes) 
-VALUES ('ernestorru@gmail.com', 'Admin principal');
-```
+**Archivos**: 
+- `src/components/MapDisplay.tsx` — `syncOfflineMap`: skip bloque de carga PMTiles si modo no es `'offline-pmtiles'`
+- `src/utils/offline-tiles.ts` — renombrar modo `'offline'` a `'offline-pmtiles'`, modo por defecto pasa a `'auto'` (solo caché SW)
+- `src/components/OfflineMapsManager.tsx` — la sección PMTiles se mueve bajo desplegable "Avanzado" con aviso de limitaciones de memoria
 
-### 2. `src/pages/AuthPage.tsx` — validación pre-registro
+**Riesgo bajo**: El código PMTiles se mantiene intacto, solo se desactiva el trigger automático.
 
-En `handleRegister`, antes de llamar a `signUp`:
+---
 
-```typescript
-// Verificar si el email está en la lista de autorizados
-const { data } = await supabase
-  .from('allowed_emails')
-  .select('email')
-  .eq('email', email.toLowerCase().trim())
-  .maybeSingle();
+### 3. Eliminar botón "Cuenta" del layout
+**Problema**: La 5ª pestaña en la barra inferior solo abre `LogoutDialog`. Ya existe logout en Configuración.
 
-if (!data) {
-  toast.error('Este email no está autorizado. Contacta con el administrador.');
-  setLoading(false);
-  return;
-}
-```
+**Solución**: Eliminar el bloque del botón usuario (líneas 65-83 de `AppLayout.tsx`) y la importación de `LogoutDialog` del layout. Mover el indicador "Local" (modo offline) a un badge sutil en el icono de Config cuando `isOfflineMode` sea true.
 
-### 3. `src/pages/SettingsPage.tsx` — gestión de lista blanca (solo admin)
+**Archivos**: `src/components/AppLayout.tsx` — eliminar botón + `LogoutDialog`, añadir indicador offline en icono Config.
 
-Añadir una sección en Configuración visible solo para el usuario admin (comprobando el `role` del perfil) que permita:
-- Ver emails autorizados
-- Añadir nuevos emails
-- Eliminar emails de la lista
+**Riesgo**: Perder visibilidad del modo offline. Se mitiga con el badge en Config.
 
-Para esto se necesita una política RLS de INSERT/DELETE para admins:
+---
 
-```sql
-CREATE POLICY "Admins manage allowed_emails"
-  ON public.allowed_emails FOR ALL
-  TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'));
-```
+### 4. Aumentar caché de teselas a 5000 entradas
+**Problema**: Límite actual de 2000 teselas puede quedarse corto para zonas extensas.
 
-### 4. Asignar rol admin a tu usuario
+**Solución**: Cambiar `maxEntries: 2000` a `maxEntries: 5000` en `vite.config.ts` (línea ~75).
 
-```sql
-INSERT INTO public.user_roles (user_id, role)
-SELECT id, 'admin'::app_role FROM auth.users 
-WHERE email = 'ernestorru@gmail.com';
-```
+**Archivos**: `vite.config.ts` — 1 línea.
 
-Esto requiere primero crear la tabla `user_roles` según las instrucciones de seguridad del sistema:
+**Riesgo**: Ninguno. ~250MB máximo en caché, asumible.
 
-```sql
-CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
--- Nota: app_role ya existe en el proyecto (admin, supervisor, operator)
--- Se usará la función has_role existente o se creará si no existe
+---
 
-CREATE TABLE public.user_roles (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  role app_role NOT NULL,
-  UNIQUE (user_id, role)
-);
+### 5. Selector de tema claro/oscuro para mapa
+**Problema**: El tema `dark_all` de CartoDB no se ve bien con sol directo.
 
-ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
-```
+**Solución**: Nuevo selector en Configuración con 2 opciones:
+- **Claro**: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`
+- **Oscuro**: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png` (actual)
 
-## Resumen de archivos afectados
+El valor se guarda en `localStorage` (`vialroute_map_theme`). `MapDisplay.tsx` lee la preferencia al crear el `tileLayer` (línea 275) y escucha cambios via evento custom para actualizar sin recargar.
 
-| Archivo | Cambio |
-|---------|--------|
-| Migración SQL | Tabla `allowed_emails`, tabla `user_roles`, políticas RLS, seed admin |
-| `src/pages/AuthPage.tsx` | Validación email antes de registro |
-| `src/pages/SettingsPage.tsx` | Sección admin para gestionar lista blanca |
+Sin opción satélite (descartada por el usuario).
+
+**Archivos**:
+- `src/pages/SettingsPage.tsx` — nueva sección "Tema de mapa" con toggle/selector
+- `src/components/MapDisplay.tsx` — leer preferencia en init + listener para cambio en caliente
+- `src/components/GoogleMapDisplay.tsx` — aplicar estilo equivalente si aplica
+
+**Riesgo**: Las teselas claras y oscuras son URLs distintas, así que la caché de un tema no sirve para el otro. Se avisará al usuario en la UI: "Al cambiar de tema, la caché offline se reconstruirá con las nuevas teselas al navegar con conexión".
+
+---
+
+### 6. Contador de caché — refrescar y hacer útil
+**Problema**: `getTileCacheInfo()` se ejecuta una sola vez al montar `OfflineMapsManager`. El SW solo existe en producción (PWA instalada), no en preview.
+
+**Solución**:
+- Refrescar el contador cada 30 segundos con `setInterval`
+- Si no hay SW registrado, mostrar "Caché disponible solo en la app instalada" en vez de un "0" confuso
+- Añadir botón "Actualizar" manual junto al contador
+
+**Archivos**: `src/components/OfflineMapsManager.tsx` — sección de caché (~15 líneas).
+
+---
 
 ## Qué NO se toca
 
 - `useAuth.ts`, `AuthGuard.tsx` — sin cambios
-- Persistencia local, campaña, esquemas — intactos
-- Flujo de login — sin cambios (solo se restringe el registro)
+- Persistencia SQLite / campaña local — intacta
+- Copiloto / navegación — sin cambios
+- Lógica RST — sin cambios (salvo el pre-cálculo de track en `closeBlockEndPrompt`)
+- `src/integrations/supabase/*` — intacto
+
+## Riesgos globales
+
+| Área | Riesgo | Mitigación |
+|------|--------|------------|
+| Track pre-creado | Duplicar número si `confirmStart` no detecta sesión inactiva | `getMaxTrack` ya incluye `trackSession.trackNumber` |
+| Desactivar PMTiles | Usuario con PMTiles activo pierde mapa sin aviso | Degradación limpia: al desactivar, se restaura tile layer online |
+| Cambio tema mapa | Caché del tema anterior inutilizada | Aviso en UI + la caché se reconstruye al navegar |
+| Eliminar botón Cuenta | Pérdida indicador offline | Badge en icono Config |
+
+## Propuesta de implementación
+
+**Bloque 1** (una iteración): puntos 1, 2, 3, 4 — correcciones críticas de confianza y estabilidad.
+
+**Bloque 2** (siguiente iteración): puntos 5, 6 — mejoras de usabilidad en campo.
 
