@@ -233,16 +233,7 @@ export function GoogleMapDisplay({
           zoom: 6,
           disableDefaultUI: true,
           zoomControl: true,
-          styles: [
-            { elementType: 'geometry', stylers: [{ color: '#1a1d23' }] },
-            { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1d23' }] },
-            { elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
-            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3038' }] },
-            { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8f98' }] },
-            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-            { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-            { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-          ],
+          styles: getMapTheme() === 'dark' ? DARK_STYLES : LIGHT_STYLES,
         });
 
         setTimeout(() => {
