@@ -91,7 +91,25 @@ function AppRoutes() {
 
   const isMapRoute = location.pathname === '/map';
 
+  const handleRecoveryRestore = useCallback(() => setRecoveryInfo(null), []);
+  const handleRecoveryCancelSegments = useCallback(() => {
+    if (!state.route) { setRecoveryInfo(null); return; }
+    const inProgressIds = state.route.segments
+      .filter(s => s.status === 'en_progreso')
+      .map(s => s.id);
+    inProgressIds.forEach(id => cancelStartSegment(id));
+    setRecoveryInfo(null);
+  }, [state.route, cancelStartSegment]);
+
   return (
+    <>
+    <RecoveryDialog
+      open={recoveryInfo !== null}
+      inProgressCount={recoveryInfo?.count ?? 0}
+      hadNavigation={recoveryInfo?.hadNav ?? false}
+      onRestore={handleRecoveryRestore}
+      onCancelSegments={handleRecoveryCancelSegments}
+    />
     <AppLayout
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
