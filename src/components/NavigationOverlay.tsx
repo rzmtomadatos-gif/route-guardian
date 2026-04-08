@@ -30,6 +30,7 @@ interface Props {
   onStartSegment: () => void;
   onCompleteSegment: () => void;
   onSkipSegment: () => void;
+  onCancelStart: () => void;
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
   onInvertSegment?: () => void;
@@ -119,6 +120,7 @@ export function NavigationOverlay({
   onStartSegment,
   onCompleteSegment,
   onSkipSegment,
+  onCancelStart,
   onPostpone,
   onAddIncident,
   onInvertSegment,

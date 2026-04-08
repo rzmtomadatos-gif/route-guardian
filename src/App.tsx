@@ -59,6 +59,7 @@ function AppRoutes() {
     setRstGroupSize, markPosibleRepetir, repeatSegment, finalizeTrack,
     skipSegment, closeBlockEndPrompt, setWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
+    cancelStartSegment,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -181,6 +182,7 @@ function AppRoutes() {
           onRepeatSegment={repeatSegment}
           onFinalizeTrack={finalizeTrack}
           onSkipSegment={skipSegment}
+          onCancelStartSegment={cancelStartSegment}
           onCloseBlockEndPrompt={closeBlockEndPrompt}
           onSetWorkDay={setWorkDay}
           onReverseSegment={reverseSegment}
