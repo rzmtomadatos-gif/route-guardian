@@ -51,6 +51,7 @@ interface Props {
   onSetRstGroupSize: (size: number) => void;
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
+  onCancelStartSegment: (segmentId: string) => void;
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
@@ -84,6 +85,7 @@ export default function MapPage({
   onSetRstGroupSize,
   onFinalizeTrack,
   onSkipSegment,
+  onCancelStartSegment,
   onCloseBlockEndPrompt,
   onSetWorkDay,
   onReverseSegment,
@@ -1122,6 +1124,7 @@ export default function MapPage({
         distanceToNextSegment={navTracker.distanceToNextSegment}
         acquisitionMode={state.acquisitionMode}
         trackStartTime={state.trackSession?.trackStartTime}
+        onCancelStart={() => onCancelStartSegment(activeSegment.id)}
         onInvertSegment={() => {
           if (activeSegment) {
             onReverseSegment(activeSegment.id);
