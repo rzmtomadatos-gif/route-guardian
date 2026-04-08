@@ -21,6 +21,7 @@ export type EventType =
   | 'SEGMENT_SKIPPED'
   | 'SEGMENT_RESET'
   | 'SEGMENT_REPEATED'
+  | 'SEGMENT_CANCELLED'
   | 'SEGMENT_STATUS_CHANGED'
   | 'INCIDENT_RECORDED'
   | 'NAV_STARTED'
@@ -30,7 +31,6 @@ export type EventType =
   | 'HW_CONFIRM_F7'
   | 'HW_CONFIRM_F9'
   | 'NAV_STATE_CHANGED'
-  | 'TRACK_OPENED'
   | 'MIGRATION_FROM_LOCALSTORAGE';
 
 export interface PersistentEvent {
