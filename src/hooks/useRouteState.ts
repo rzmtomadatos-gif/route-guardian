@@ -1308,5 +1308,6 @@ export function useRouteState() {
     setAcquisitionMode,
     applyRouteOrder,
     restoreState,
+    cancelStartSegment,
   };
 }
