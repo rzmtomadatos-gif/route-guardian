@@ -162,6 +162,8 @@ export function useRouteState() {
       if (!s.route) return s;
       // Guard: block if end-of-video prompt is open
       if (s.blockEndPrompt.isOpen) return s;
+      // Guard: block if navigation is not active
+      if (!s.navigationActive) return s;
 
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
@@ -184,16 +186,31 @@ export function useRouteState() {
 
       // Create or update track session
       if (!trackSession || !trackSession.active) {
-        trackSession = {
-          active: true,
-          trackNumber: nextTrack,
-          capacity: groupLimit,
-          segmentIds: [segmentId],
-          startedAt: now,
-          endedAt: null,
-          closedManually: false,
-          trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
-        };
+        // If there's a pre-created inactive session (from closeBlockEndPrompt), activate it
+        if (trackSession && !trackSession.active && trackSession.segmentIds.length === 0) {
+          trackSession = {
+            ...trackSession,
+            active: true,
+            trackNumber: trackSession.trackNumber,
+            capacity: groupLimit,
+            segmentIds: [segmentId],
+            startedAt: now,
+            endedAt: null,
+            closedManually: false,
+            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
+          };
+        } else {
+          trackSession = {
+            active: true,
+            trackNumber: nextTrack,
+            capacity: groupLimit,
+            segmentIds: [segmentId],
+            startedAt: now,
+            endedAt: null,
+            closedManually: false,
+            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
+          };
+        }
       } else {
         trackSession = {
           ...trackSession,
