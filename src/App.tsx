@@ -35,12 +35,21 @@ function AppRoutes() {
   const geo = useGeolocation(gpsEnabled);
   const copilot = useCopilotOperator();
 
+  // Recovery dialog state
+  const [recoveryInfo, setRecoveryInfo] = useState<{ count: number; hadNav: boolean } | null>(null);
+
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
+        // Detect if recovery is needed before restoreState sanitizes
+        const inProgressSegs = restored.route?.segments.filter(s => s.status === 'en_progreso') ?? [];
+        const hadNav = restored.navigationActive;
         routeState.restoreState(restored);
         setDbStatus(didStartDegraded() ? 'degraded' : 'ready');
+        if (inProgressSegs.length > 0) {
+          setRecoveryInfo({ count: inProgressSegs.length, hadNav });
+        }
       })
       .catch((e) => {
         console.error('Persistence restoration failed:', e);
