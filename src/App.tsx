@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +19,7 @@ import DriverMiniPage from "@/pages/DriverMiniPage";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
+import { RecoveryDialog } from "@/components/RecoveryDialog";
 
 const queryClient = new QueryClient();
 
