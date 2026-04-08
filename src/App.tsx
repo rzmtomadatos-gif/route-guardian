@@ -224,6 +224,7 @@ function AppRoutes() {
         />
       </div>
     </AppLayout>
+    </>
   );
 }
 
