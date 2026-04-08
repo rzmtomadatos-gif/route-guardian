@@ -162,6 +162,8 @@ export function useRouteState() {
       if (!s.route) return s;
       // Guard: block if end-of-video prompt is open
       if (s.blockEndPrompt.isOpen) return s;
+      // Guard: block if navigation is not active
+      if (!s.navigationActive) return s;
 
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
@@ -184,16 +186,31 @@ export function useRouteState() {
 
       // Create or update track session
       if (!trackSession || !trackSession.active) {
-        trackSession = {
-          active: true,
-          trackNumber: nextTrack,
-          capacity: groupLimit,
-          segmentIds: [segmentId],
-          startedAt: now,
-          endedAt: null,
-          closedManually: false,
-          trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
-        };
+        // If there's a pre-created inactive session (from closeBlockEndPrompt), activate it
+        if (trackSession && !trackSession.active && trackSession.segmentIds.length === 0) {
+          trackSession = {
+            ...trackSession,
+            active: true,
+            trackNumber: trackSession.trackNumber,
+            capacity: groupLimit,
+            segmentIds: [segmentId],
+            startedAt: now,
+            endedAt: null,
+            closedManually: false,
+            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
+          };
+        } else {
+          trackSession = {
+            active: true,
+            trackNumber: nextTrack,
+            capacity: groupLimit,
+            segmentIds: [segmentId],
+            startedAt: now,
+            endedAt: null,
+            closedManually: false,
+            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
+          };
+        }
       } else {
         trackSession = {
           ...trackSession,
@@ -722,7 +739,15 @@ export function useRouteState() {
           invalidatedByTrack: null,
         };
       });
-      return { ...s, route: { ...s.route, segments } };
+      // Clean segmentId from trackSession if present
+      let trackSession = s.trackSession;
+      if (trackSession && trackSession.segmentIds.includes(segmentId)) {
+        const newIds = trackSession.segmentIds.filter((id) => id !== segmentId);
+        trackSession = newIds.length === 0 && trackSession.active
+          ? { ...trackSession, segmentIds: newIds, active: false, endedAt: new Date().toISOString(), closedManually: true }
+          : { ...trackSession, segmentIds: newIds };
+      }
+      return { ...s, route: { ...s.route, segments }, trackSession };
     }, true);
     logEvent('SEGMENT_RESET', { segmentId });
   }, [setState]);
@@ -1163,10 +1188,80 @@ export function useRouteState() {
     setState((s) => ({ ...s, acquisitionMode: mode }));
   }, [setState]);
 
-  /** Restore full state from async persistence (IndexedDB) */
+  /** Restore full state from async persistence (IndexedDB) — sanitizes navigation state */
   const restoreState = useCallback((restored: AppState) => {
-    setStateRaw(restored);
+    // R3: Always start with navigation off — operator must re-enable explicitly
+    const sanitized: AppState = {
+      ...restored,
+      navigationActive: false,
+      activeSegmentId: null,
+      // Close any active track session — will be re-opened on next segment start
+      trackSession: restored.trackSession && restored.trackSession.active
+        ? { ...restored.trackSession, active: false, endedAt: new Date().toISOString() }
+        : restored.trackSession,
+    };
+    setStateRaw(sanitized);
+    if (restored.navigationActive) {
+      logEvent('NAV_STATE_CHANGED', { payload: { recovery: true, reason: 'app_restart' } });
+    }
   }, []);
+
+  /** Cancel a segment that was started by error — clean revert to pendiente */
+  const cancelStartSegment = useCallback((segmentId: string) => {
+    setState((s) => {
+      if (!s.route) return s;
+      const seg = s.route.segments.find((seg) => seg.id === segmentId);
+      if (!seg || seg.status !== 'en_progreso') return s;
+
+      const cancelledTrack = seg.trackNumber;
+
+      // Revert segment to pendiente
+      const segments = s.route.segments.map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        const newHistory = seg.trackNumber !== null
+          ? [...seg.trackHistory, seg.trackNumber]
+          : seg.trackHistory;
+        return {
+          ...seg,
+          status: 'pendiente' as const,
+          trackNumber: null,
+          plannedTrackNumber: null,
+          plannedBy: undefined,
+          trackHistory: newHistory,
+          segmentOrder: undefined,
+          timestampInicio: undefined,
+          startedAt: null,
+          segmentStartSeconds: null,
+        };
+      });
+
+      // Clean trackSession
+      let trackSession = s.trackSession;
+      if (trackSession && trackSession.segmentIds.includes(segmentId)) {
+        const newIds = trackSession.segmentIds.filter((id) => id !== segmentId);
+        if (newIds.length === 0) {
+          // Track is now empty — close it
+          trackSession = { ...trackSession, segmentIds: newIds, active: false, endedAt: new Date().toISOString(), closedManually: true };
+        } else {
+          trackSession = { ...trackSession, segmentIds: newIds };
+        }
+      }
+
+      // Find next pending segment
+      const remaining = s.route.optimizedOrder.filter((id) => {
+        const seg = segments.find((seg) => seg.id === id);
+        return seg?.status === 'pendiente' && !seg.nonRecordable;
+      });
+
+      return {
+        ...s,
+        route: { ...s.route, segments },
+        activeSegmentId: remaining[0] || null,
+        trackSession,
+      };
+    }, true);
+    logEvent('SEGMENT_CANCELLED', { segmentId, payload: { reason: 'operator_cancel' } });
+  }, [setState]);
 
   return {
     state,
@@ -1213,5 +1308,6 @@ export function useRouteState() {
     setAcquisitionMode,
     applyRouteOrder,
     restoreState,
+    cancelStartSegment,
   };
 }

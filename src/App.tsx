@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +19,7 @@ import DriverMiniPage from "@/pages/DriverMiniPage";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
+import { RecoveryDialog } from "@/components/RecoveryDialog";
 
 const queryClient = new QueryClient();
 
@@ -34,12 +35,21 @@ function AppRoutes() {
   const geo = useGeolocation(gpsEnabled);
   const copilot = useCopilotOperator();
 
+  // Recovery dialog state
+  const [recoveryInfo, setRecoveryInfo] = useState<{ count: number; hadNav: boolean } | null>(null);
+
   // Single async load from SQLite on mount — NO localStorage fallback
   useEffect(() => {
     migrateAndLoad()
       .then((restored) => {
+        // Detect if recovery is needed before restoreState sanitizes
+        const inProgressSegs = restored.route?.segments.filter(s => s.status === 'en_progreso') ?? [];
+        const hadNav = restored.navigationActive;
         routeState.restoreState(restored);
         setDbStatus(didStartDegraded() ? 'degraded' : 'ready');
+        if (inProgressSegs.length > 0) {
+          setRecoveryInfo({ count: inProgressSegs.length, hadNav });
+        }
       })
       .catch((e) => {
         console.error('Persistence restoration failed:', e);
@@ -59,6 +69,7 @@ function AppRoutes() {
     setRstGroupSize, markPosibleRepetir, repeatSegment, finalizeTrack,
     skipSegment, closeBlockEndPrompt, setWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
+    cancelStartSegment,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -80,7 +91,25 @@ function AppRoutes() {
 
   const isMapRoute = location.pathname === '/map';
 
+  const handleRecoveryRestore = useCallback(() => setRecoveryInfo(null), []);
+  const handleRecoveryCancelSegments = useCallback(() => {
+    if (!state.route) { setRecoveryInfo(null); return; }
+    const inProgressIds = state.route.segments
+      .filter(s => s.status === 'en_progreso')
+      .map(s => s.id);
+    inProgressIds.forEach(id => cancelStartSegment(id));
+    setRecoveryInfo(null);
+  }, [state.route, cancelStartSegment]);
+
   return (
+    <>
+    <RecoveryDialog
+      open={recoveryInfo !== null}
+      inProgressCount={recoveryInfo?.count ?? 0}
+      hadNavigation={recoveryInfo?.hadNav ?? false}
+      onRestore={handleRecoveryRestore}
+      onCancelSegments={handleRecoveryCancelSegments}
+    />
     <AppLayout
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
@@ -181,6 +210,7 @@ function AppRoutes() {
           onRepeatSegment={repeatSegment}
           onFinalizeTrack={finalizeTrack}
           onSkipSegment={skipSegment}
+          onCancelStartSegment={cancelStartSegment}
           onCloseBlockEndPrompt={closeBlockEndPrompt}
           onSetWorkDay={setWorkDay}
           onReverseSegment={reverseSegment}
@@ -194,6 +224,7 @@ function AppRoutes() {
         />
       </div>
     </AppLayout>
+    </>
   );
 }
 

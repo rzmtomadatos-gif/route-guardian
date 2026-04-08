@@ -30,6 +30,7 @@ interface Props {
   onStartSegment: () => void;
   onCompleteSegment: () => void;
   onSkipSegment: () => void;
+  onCancelStart: () => void;
   onPostpone: () => void;
   onAddIncident: (cat: IncidentCategory, impact: IncidentImpact, note?: string, nonRec?: boolean) => void;
   onInvertSegment?: () => void;
@@ -119,6 +120,7 @@ export function NavigationOverlay({
   onStartSegment,
   onCompleteSegment,
   onSkipSegment,
+  onCancelStart,
   onPostpone,
   onAddIncident,
   onInvertSegment,
@@ -692,6 +694,30 @@ export function NavigationOverlay({
               <p className="text-[10px] font-bold text-amber-400">Prealerta — {Math.round(deviationMeters)}m del eje</p>
               <p className="text-[9px] text-amber-400/70">Corrige trayectoria o el tramo será invalidado.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* === CANCEL START — segment started by error === */}
+      {segment.status === 'en_progreso' && (operationalState === 'idle' || operationalState === 'approaching') && (
+        <div className="mx-2 mt-2 pointer-events-auto">
+          <div className="bg-card border-2 border-amber-500/60 rounded-xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-foreground">Tramo iniciado por error</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Puedes cancelar el inicio y devolver el tramo a pendiente sin generar trazabilidad falsa.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={onCancelStart}
+              className="w-full h-12 text-sm font-bold bg-amber-500 text-amber-950"
+            >
+              <RotateCcw className="w-4 h-4 mr-1.5" />
+              Cancelar inicio de tramo
+            </Button>
           </div>
         </div>
       )}
