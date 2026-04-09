@@ -426,19 +426,29 @@ export function LayerPanel({
                               </span>
                             )}
                             <p className="text-xs font-medium text-foreground truncate">{seg.name}</p>
+                            {seg.kmlMeta?.carretera && (
+                              <span className="text-[9px] bg-muted text-muted-foreground px-1 py-0.5 rounded flex-shrink-0 truncate max-w-[80px]">
+                                {seg.kmlMeta.carretera}
+                              </span>
+                            )}
                             {isRecommended && (
                               <span className="text-[8px] bg-primary/20 text-primary px-1 py-0.5 rounded font-semibold">
                                 REC
                               </span>
                             )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
                             {seg.trackNumber !== null && (
                               <span className="text-[9px] bg-primary/15 text-primary px-1 py-0.5 rounded font-mono">
-                                T{seg.trackNumber}
+                                T{seg.trackNumber}{seg.segmentOrder ? `.${seg.segmentOrder}` : ''}
                               </span>
                             )}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
+                            {seg.workDay != null && seg.workDay > 0 && (
+                              <span className="text-[9px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono">
+                                D{seg.workDay}
+                              </span>
+                            )}
                             {vehDist !== undefined && (
                               <span className="text-[9px] text-accent-foreground/70 font-mono">
                                 {formatDistanceLabel(vehDist)}
@@ -449,12 +459,23 @@ export function LayerPanel({
                                 PK {seg.kmlMeta.pkInicial}→{seg.kmlMeta.pkFinal}
                               </span>
                             )}
-                            {incCount > 0 && (
-                              <span className="text-[9px] text-destructive flex items-center gap-0.5">
-                                <AlertTriangle className="w-2.5 h-2.5" />
-                                {incCount}
-                              </span>
-                            )}
+                            {(() => {
+                              const segIncs = getSegmentIncidents(seg.id);
+                              if (segIncs.length === 0) return null;
+                              // Show most critical first
+                              const sorted = [...segIncs].sort((a, b) => {
+                                const order = { critica_invalida_bloque: 0, critica_no_grabable: 1, informativa: 2 };
+                                return (order[a.impact] ?? 3) - (order[b.impact] ?? 3);
+                              });
+                              const top = sorted[0];
+                              return (
+                                <span className="text-[9px] text-destructive flex items-center gap-0.5">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  {incidentCategoryLabel[top.category] || top.category}
+                                  {segIncs.length > 1 && ` +${segIncs.length - 1}`}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                         <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
