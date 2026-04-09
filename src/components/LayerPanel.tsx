@@ -209,6 +209,17 @@ export function LayerPanel({
   const getIncidentCount = (segId: string) =>
     incidents.filter((i) => i.segmentId === segId).length;
 
+  const getSegmentIncidents = (segId: string) =>
+    incidents.filter((i) => i.segmentId === segId);
+
+  const incidentCategoryLabel: Record<string, string> = {
+    lluvia: 'Lluvia', niebla: 'Niebla', bache: 'Bache', obra: 'Obra',
+    carretera_cortada: 'Cortada', inundacion: 'Inundación', accidente: 'Accidente',
+    obstaculo: 'Obstáculo', acceso_imposible: 'Sin acceso', trafico_extremo: 'Tráfico',
+    error_sistema_pc360: 'Err PC360', error_sistema_pc2: 'Err PC2',
+    error_sistema_linux: 'Err Linux', otro: 'Otro',
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header toolbar */}
