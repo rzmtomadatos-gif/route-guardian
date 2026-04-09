@@ -155,7 +155,8 @@ export default function SegmentsPage({
           s.name.toLowerCase().includes(q) ||
           s.kmlId.toLowerCase().includes(q) ||
           String(s.trackNumber).includes(q) ||
-          (s.layer || '').toLowerCase().includes(q)
+          (s.layer || '').toLowerCase().includes(q) ||
+          (s.companySegmentId || '').toLowerCase().includes(q)
       );
     }
     if (sortByProximity && geo.position) {
