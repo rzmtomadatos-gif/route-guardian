@@ -284,7 +284,7 @@ export function MapControlPanel({
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-9 flex-1 p-0" title="Anterior">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {navigationActive ? (
+              {canNavigateProp && (navigationActive ? (
                 <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-9 flex-1 p-0 border-destructive/40 text-destructive">
                   <Square className="w-4 h-4" />
                 </Button>
@@ -292,7 +292,7 @@ export function MapControlPanel({
                 <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-9 flex-1 p-0 bg-primary text-primary-foreground">
                   <Navigation className="w-4 h-4" />
                 </Button>
-              )}
+              ))}
               <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-9 flex-1 p-0" title="Siguiente">
                 <ChevronRight className="w-4 h-4" />
               </Button>
