@@ -43,18 +43,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
+  const { canManageUsers, role } = useUserRole();
 
   const handleExportCampaign = async () => {
     try {
