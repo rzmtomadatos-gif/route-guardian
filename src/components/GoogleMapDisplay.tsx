@@ -196,16 +196,14 @@ export function GoogleMapDisplay({
   useEffect(() => {
     if (!isOnline && !fallbackToLeaflet) {
       // Going offline — remember we had Google and switch to Leaflet
-      if (mapReady || hadGoogleRef.current) {
-        hadGoogleRef.current = true;
-      }
+      hadGoogleRef.current = hadGoogleRef.current || mapReady;
       setOfflineSwitch(true);
-    } else if (isOnline && wasOffline && offlineSwitch) {
+    } else if (isOnline && wasOffline) {
       // Coming back online — restore Google Maps if we had it
-      if (hadGoogleRef.current && !fallbackToLeaflet) {
+      if (hadGoogleRef.current && !fallbackToLeaflet && offlineSwitch) {
         setOfflineSwitch(false);
       }
-      ackRecovery();
+      ackRecovery(); // Always clear wasOffline
     }
   }, [isOnline, wasOffline, fallbackToLeaflet, mapReady, offlineSwitch, ackRecovery]);
 
@@ -216,7 +214,7 @@ export function GoogleMapDisplay({
 
   // --- Initialize map ---
   useEffect(() => {
-    if (fallbackToLeaflet) return;
+    if (fallbackToLeaflet || offlineSwitch) return;
     if (!containerRef.current || mapRef.current) return;
 
     const apiKey = getGoogleMapsApiKey();
@@ -248,7 +246,7 @@ export function GoogleMapDisplay({
       .catch(() => { if (!cancelled) setFallbackToLeaflet(true); });
 
     return () => { cancelled = true; mapRef.current = null; setMapReady(false); };
-  }, [fallbackToLeaflet]);
+  }, [fallbackToLeaflet, offlineSwitch]);
 
   // --- Zoom listener (for arrow/number visibility) ---
   useEffect(() => {
