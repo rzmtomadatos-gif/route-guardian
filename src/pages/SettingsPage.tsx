@@ -162,7 +162,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <div className="space-y-1">
                   <p className="text-sm text-foreground font-medium">{user.user_metadata?.full_name || 'Operador'}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">Rol: {isAdmin ? 'administrador' : 'operador'}</p>
+                  <p className="text-xs text-muted-foreground">Rol: {role === 'admin' ? 'administrador' : role === 'gabinete' ? 'gabinete' : role === 'supervisor' ? 'supervisor' : 'operador'}</p>
                 </div>
                 <Button
                   onClick={() => setShowLogoutDialog(true)}
@@ -188,7 +188,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         </div>
 
         {/* Admin: Allowed Emails */}
-        {isAdmin && <AllowedEmailsManager />}
+        {canManageUsers && <AllowedEmailsManager />}
 
         {/* Retroactive IDs */}
         {route && (
