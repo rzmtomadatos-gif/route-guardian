@@ -1,53 +1,75 @@
 
 
-# Gestión de roles de usuario desde admin
+# Bug: Google Maps no se restaura al volver online
 
-## Situación actual
+## Causa raíz
 
-- La tabla `user_roles` existe pero el admin no puede insertar, actualizar ni eliminar registros (RLS lo bloquea).
-- La tabla `profiles` solo permite leer el perfil propio — el admin no puede ver la lista de usuarios.
-- No hay ningún componente en la UI para gestionar roles.
+En `GoogleMapDisplay.tsx`, líneas 196-210, la lógica de restauración tiene un fallo crítico:
 
-## Cambios necesarios
-
-### 1. Migración SQL — Abrir RLS para admin
-
-```sql
--- Admin puede ver todos los perfiles
-CREATE POLICY "Admins read all profiles"
-ON public.profiles FOR SELECT TO authenticated
-USING (public.has_role(auth.uid(), 'admin'));
-
--- Admin gestiona user_roles (CRUD completo)
-CREATE POLICY "Admins manage user_roles"
-ON public.user_roles FOR ALL TO authenticated
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
+```typescript
+useEffect(() => {
+  if (!isOnline && !fallbackToLeaflet) {
+    if (mapReady || hadGoogleRef.current) {
+      hadGoogleRef.current = true;
+    }
+    setOfflineSwitch(true);                    // ← OK: cambia a Leaflet
+  } else if (isOnline && wasOffline && offlineSwitch) {
+    if (hadGoogleRef.current && !fallbackToLeaflet) {
+      setOfflineSwitch(false);                 // ← PROBLEMA
+    }
+    ackRecovery();
+  }
+}, [isOnline, wasOffline, ...]);
 ```
 
-Esto no afecta a usuarios normales — solo amplía acceso para admin.
+**Problema 1**: Cuando `offlineSwitch` pasa a `false`, el componente deja de renderizar `<MapDisplay>` (Leaflet) y renderiza el `<div ref={containerRef}>` (Google Maps). Pero el `useEffect` de inicialización (línea 218) tiene la guarda `if (!containerRef.current || mapRef.current) return;`. Como `mapRef.current` fue limpiado en el cleanup (`mapRef.current = null` en línea 250) al desmontar, el mapa necesita re-inicializarse. Sin embargo, el efecto depende de `[fallbackToLeaflet]` — que NO cambió. `offlineSwitch` no está en sus dependencias. **El mapa Google nunca se re-inicializa.**
 
-### 2. Nuevo componente `src/components/UserRolesManager.tsx`
+**Problema 2**: Incluso si se re-inicializara, los tramos no se repintan porque el efecto de pintar polylines (que depende de `mapReady`) arranca con `mapReady = false` y el efecto de inicialización necesita que el `containerRef.current` exista — pero durante el render con `offlineSwitch = true`, el div no está montado.
 
-- Carga todos los perfiles (`profiles`) con sus roles correspondientes (`user_roles`)
-- Muestra lista: email, nombre, rol actual
-- Selector desplegable por usuario con opciones: admin, operator, gabinete, supervisor
-- Al cambiar: upsert en `user_roles` (insertar si no existe, actualizar si ya tiene rol)
-- El admin no puede cambiarse el rol a sí mismo (protección contra auto-degradación)
+**Problema 3**: La variable `offlineSwitch` dentro de `GoogleMapDisplay` es independiente de `offlineSwitchActive` en `MapPage`. Son dos estados duplicados que pueden desincronizarse.
 
-### 3. Integrar en `src/pages/SettingsPage.tsx`
+## Solución
 
-- Añadir `<UserRolesManager />` debajo de `AllowedEmailsManager`, visible solo si `canManageUsers`
+Añadir `offlineSwitch` como dependencia del efecto de inicialización del mapa, y asegurar que al volver online se re-cree la instancia de Google Maps correctamente.
 
-### Archivos afectados
+### Cambios en `src/components/GoogleMapDisplay.tsx`
+
+1. **Efecto de inicialización** (línea 218): Añadir `offlineSwitch` a las dependencias para que al volver a `false` se re-inicialice el mapa:
+
+```typescript
+useEffect(() => {
+  if (fallbackToLeaflet || offlineSwitch) return;  // ← añadir offlineSwitch
+  if (!containerRef.current || mapRef.current) return;
+  // ... resto igual
+  return () => { cancelled = true; mapRef.current = null; setMapReady(false); };
+}, [fallbackToLeaflet, offlineSwitch]);  // ← añadir offlineSwitch
+```
+
+2. **Cleanup del efecto**: Ya hace `mapRef.current = null` y `setMapReady(false)`, lo que permite la re-inicialización correcta.
+
+3. **Efecto de recuperación** (línea 196): Simplificar para que `ackRecovery()` se llame siempre al volver online, evitando que `wasOffline` quede `true` indefinidamente si las condiciones no se alinean:
+
+```typescript
+useEffect(() => {
+  if (!isOnline && !fallbackToLeaflet) {
+    hadGoogleRef.current = hadGoogleRef.current || mapReady;
+    setOfflineSwitch(true);
+  } else if (isOnline && wasOffline) {
+    if (hadGoogleRef.current && !fallbackToLeaflet && offlineSwitch) {
+      setOfflineSwitch(false);
+    }
+    ackRecovery();  // ← siempre limpiar wasOffline
+  }
+}, [isOnline, wasOffline, fallbackToLeaflet, mapReady, offlineSwitch, ackRecovery]);
+```
+
+### Archivo afectado
 
 | Archivo | Cambio |
 |---------|--------|
-| Migración SQL | Políticas RLS para admin en profiles y user_roles |
-| `src/components/UserRolesManager.tsx` | Nuevo — lista usuarios + selector de rol |
-| `src/pages/SettingsPage.tsx` | Añadir UserRolesManager bajo canManageUsers |
+| `src/components/GoogleMapDisplay.tsx` | Corregir dependencias del efecto de init + lógica de recuperación |
 
 ### Riesgo
 
-Bajo. Las políticas usan `has_role` (SECURITY DEFINER) que ya existe y funciona. No se tocan datos existentes.
+Bajo. Solo se corrigen dependencias de efectos y se asegura la re-inicialización. No afecta al modo offline ni a Leaflet.
 
