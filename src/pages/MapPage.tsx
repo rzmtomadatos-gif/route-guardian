@@ -99,6 +99,7 @@ export default function MapPage({
   visible = true,
 }: Props) {
   const navigate = useNavigate();
+  const { canNavigate } = useUserRole();
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
