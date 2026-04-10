@@ -1,71 +1,53 @@
 
 
-# Implementación de roles: admin, operator, gabinete
+# Gestión de roles de usuario desde admin
 
-## Resumen
+## Situación actual
 
-Añadir el rol `gabinete` al enum existente, crear un hook `useUserRole` para consultar el rol del usuario actual, y aplicar restricciones en la UI según el rol.
+- La tabla `user_roles` existe pero el admin no puede insertar, actualizar ni eliminar registros (RLS lo bloquea).
+- La tabla `profiles` solo permite leer el perfil propio — el admin no puede ver la lista de usuarios.
+- No hay ningún componente en la UI para gestionar roles.
 
-## Definición de permisos
+## Cambios necesarios
 
-| Capacidad | Admin | Operator | Gabinete |
-|-----------|-------|----------|----------|
-| Cargar KML / importar campaña | ✓ | ✓ | ✓ |
-| Ver mapa, buscar tramos | ✓ | ✓ | ✓ |
-| Gestionar capas, mover tramos | ✓ | ✓ | ✓ |
-| Crear/unir/editar tramos | ✓ | ✓ | ✓ |
-| Iniciar/detener navegación | ✓ | ✓ | ✗ |
-| Iniciar/completar/cancelar tramos | ✓ | ✓ | ✗ |
-| Añadir incidencias | ✓ | ✓ | ✗ |
-| Gestionar emails autorizados | ✓ | ✗ | ✗ |
-| Exportar campaña / KML | ✓ | ✓ | ✓ |
-| Configuración general | ✓ | ✓ | ✓ |
-
-## Cambios
-
-### 1. Migración SQL — añadir `gabinete` al enum `app_role`
+### 1. Migración SQL — Abrir RLS para admin
 
 ```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'gabinete';
+-- Admin puede ver todos los perfiles
+CREATE POLICY "Admins read all profiles"
+ON public.profiles FOR SELECT TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+-- Admin gestiona user_roles (CRUD completo)
+CREATE POLICY "Admins manage user_roles"
+ON public.user_roles FOR ALL TO authenticated
+USING (public.has_role(auth.uid(), 'admin'))
+WITH CHECK (public.has_role(auth.uid(), 'admin'));
 ```
 
-Una sola sentencia. No rompe datos existentes ni políticas RLS actuales.
+Esto no afecta a usuarios normales — solo amplía acceso para admin.
 
-### 2. Nuevo hook `src/hooks/useUserRole.ts`
+### 2. Nuevo componente `src/components/UserRolesManager.tsx`
 
-- Consulta `user_roles` al montar (si hay usuario autenticado)
-- Cachea en `sessionStorage` para no repetir consultas
-- Expone: `role: 'admin' | 'operator' | 'gabinete' | 'supervisor' | null`, `loading`, `canNavigate` (admin/operator), `canManageUsers` (admin), `isFieldOperator` (admin/operator)
-- En modo offline devuelve el rol cacheado
+- Carga todos los perfiles (`profiles`) con sus roles correspondientes (`user_roles`)
+- Muestra lista: email, nombre, rol actual
+- Selector desplegable por usuario con opciones: admin, operator, gabinete, supervisor
+- Al cambiar: upsert en `user_roles` (insertar si no existe, actualizar si ya tiene rol)
+- El admin no puede cambiarse el rol a sí mismo (protección contra auto-degradación)
 
-### 3. Restricciones en UI
+### 3. Integrar en `src/pages/SettingsPage.tsx`
 
-**`src/pages/MapPage.tsx`**:
-- Si `!canNavigate`: ocultar botón "Iniciar navegación", botón de GPS, y no renderizar `NavigationOverlay`
-- El mapa sigue visible y funcional (buscar tramos, ver capas, crear tramos)
+- Añadir `<UserRolesManager />` debajo de `AllowedEmailsManager`, visible solo si `canManageUsers`
 
-**`src/components/MapControlPanel.tsx`**:
-- Si `!canNavigate`: ocultar controles de navegación (Start/Stop nav)
-
-**`src/pages/SettingsPage.tsx`**:
-- Ya tiene `isAdmin` — se reemplaza por `useUserRole().canManageUsers`
-
-**`src/components/AppLayout.tsx`**:
-- Sin cambios (gabinete tiene acceso a todas las pestañas)
-
-### 4. Archivos afectados
+### Archivos afectados
 
 | Archivo | Cambio |
 |---------|--------|
-| Migración SQL | `ALTER TYPE app_role ADD VALUE 'gabinete'` |
-| `src/hooks/useUserRole.ts` | Nuevo — hook de rol con helpers |
-| `src/pages/MapPage.tsx` | Condicionar navegación a `canNavigate` |
-| `src/components/MapControlPanel.tsx` | Ocultar controles de nav si `!canNavigate` |
-| `src/pages/SettingsPage.tsx` | Usar `useUserRole` en vez de consulta directa |
+| Migración SQL | Políticas RLS para admin en profiles y user_roles |
+| `src/components/UserRolesManager.tsx` | Nuevo — lista usuarios + selector de rol |
+| `src/pages/SettingsPage.tsx` | Añadir UserRolesManager bajo canManageUsers |
 
-### 5. Riesgos
+### Riesgo
 
-- Ninguno sobre datos o lógica existente. El enum acepta `ADD VALUE` sin romper filas existentes.
-- Los usuarios actuales (admin, operator) no cambian de comportamiento.
-- Gabinete es puramente restrictivo en UI — no añade rutas nuevas ni modifica persistencia.
+Bajo. Las políticas usan `has_role` (SECURITY DEFINER) que ya existe y funciona. No se tocan datos existentes.
 
