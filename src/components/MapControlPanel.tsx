@@ -254,7 +254,7 @@ export function MapControlPanel({
         {!expanded && (
           <div className="px-2 pb-1.5 space-y-1">
             {/* Pinned segment */}
-            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
               <div className="flex items-center gap-1">
                 <p className="flex-1 min-w-0 text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
                 <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-9 flex-1 text-xs bg-success text-success-foreground font-bold">
@@ -268,7 +268,7 @@ export function MapControlPanel({
                 </IncidentDialog>
               </div>
             )}
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="flex items-center gap-1">
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-[10px] text-foreground truncate">{pinnedSegment.name}</p>
