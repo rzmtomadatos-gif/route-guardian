@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
@@ -98,6 +99,7 @@ export default function MapPage({
   visible = true,
 }: Props) {
   const navigate = useNavigate();
+  const { canNavigate } = useUserRole();
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
@@ -1081,7 +1083,7 @@ export default function MapPage({
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
-      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
+      {canNavigate && state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
       <NavigationOverlay
         segment={activeSegment}
         operationalState={navTracker.operationalState}
@@ -1376,7 +1378,8 @@ export default function MapPage({
         copilotActive={copilot.active}
         onCopilotStart={copilot.createSession}
         onCopilotEnd={copilot.endSession}
-        onForceSendBatch={handleForceSendBatch} />
+        onForceSendBatch={handleForceSendBatch}
+        canNavigate={canNavigate} />
 
       }
     </div>);

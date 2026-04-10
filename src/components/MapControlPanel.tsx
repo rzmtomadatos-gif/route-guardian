@@ -84,6 +84,8 @@ interface Props {
   onCopilotStart: () => Promise<import('@/hooks/useCopilotSession').CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
   onForceSendBatch?: () => void;
+  /** Whether the current user can navigate/operate segments (admin/operator only) */
+  canNavigate?: boolean;
 }
 
 export function MapControlPanel({
@@ -128,6 +130,7 @@ export function MapControlPanel({
   copilotSession,
   copilotActive,
   onCopilotStart,
+  canNavigate: canNavigateProp = true,
   onCopilotEnd,
   onForceSendBatch,
   acquisitionMode,
@@ -251,7 +254,7 @@ export function MapControlPanel({
         {!expanded && (
           <div className="px-2 pb-1.5 space-y-1">
             {/* Pinned segment */}
-            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
               <div className="flex items-center gap-1">
                 <p className="flex-1 min-w-0 text-[10px] text-primary font-medium truncate">● {pinnedSegment.name}</p>
                 <Button size="sm" onClick={() => handleComplete(pinnedSegment.id)} className="h-9 flex-1 text-xs bg-success text-success-foreground font-bold">
@@ -265,7 +268,7 @@ export function MapControlPanel({
                 </IncidentDialog>
               </div>
             )}
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="flex items-center gap-1">
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-[10px] text-foreground truncate">{pinnedSegment.name}</p>
@@ -281,7 +284,7 @@ export function MapControlPanel({
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-9 flex-1 p-0" title="Anterior">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {navigationActive ? (
+              {canNavigateProp && (navigationActive ? (
                 <Button onClick={onStopNavigation} variant="outline" size="sm" className="h-9 flex-1 p-0 border-destructive/40 text-destructive">
                   <Square className="w-4 h-4" />
                 </Button>
@@ -289,7 +292,7 @@ export function MapControlPanel({
                 <Button onClick={onStartNavigation} disabled={noVisiblePending || noVisibleSegments} size="sm" className="h-9 flex-1 p-0 bg-primary text-primary-foreground">
                   <Navigation className="w-4 h-4" />
                 </Button>
-              )}
+              ))}
               <Button variant="outline" disabled={!canGoNext} onClick={handleNext} size="sm" className="h-9 flex-1 p-0" title="Siguiente">
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -342,7 +345,7 @@ export function MapControlPanel({
         {expanded && (
           <div className="px-3 pb-2 space-y-1.5 max-h-[30vh] overflow-y-auto">
             {/* === PINNED: Active/Next Segment === */}
-            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
               <div className="bg-primary/10 border border-primary/30 rounded-lg p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
@@ -377,7 +380,7 @@ export function MapControlPanel({
                   <p className="text-[10px] text-muted-foreground">Siguiente tramo</p>
                   <p className="text-xs font-medium text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
-                {pinnedSegment.id === activeSegmentId && (
+                {canNavigateProp && pinnedSegment.id === activeSegmentId && (
                   <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
                     Iniciar
@@ -403,7 +406,7 @@ export function MapControlPanel({
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {navigationActive ? (
+              {canNavigateProp && (navigationActive ? (
                 <Button onClick={onStopNavigation} variant="outline" className="flex-1 h-12 text-sm font-bold border-destructive/40 text-destructive">
                   <Square className="w-4 h-4 mr-1.5" />
                   Detener
@@ -413,7 +416,7 @@ export function MapControlPanel({
                   <Navigation className="w-4 h-4 mr-1.5" />
                   {noVisibleSegments ? 'Sin tramos' : 'Navegar'}
                 </Button>
-              )}
+              ))}
               <Button
                 variant="outline"
                 disabled={!canGoNext}

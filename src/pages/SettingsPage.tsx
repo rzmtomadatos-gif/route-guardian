@@ -6,12 +6,13 @@ import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { LogoutDialog } from '@/components/LogoutDialog';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
-import { supabase } from '@/integrations/supabase/client';
+
 import { toast } from 'sonner';
 import type { Route, AppState } from '@/types/route';
 
@@ -43,18 +44,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
   });
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
+  const { canManageUsers, role } = useUserRole();
 
   const handleExportCampaign = async () => {
     try {
@@ -172,7 +162,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <div className="space-y-1">
                   <p className="text-sm text-foreground font-medium">{user.user_metadata?.full_name || 'Operador'}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">Rol: {isAdmin ? 'administrador' : 'operador'}</p>
+                  <p className="text-xs text-muted-foreground">Rol: {role === 'admin' ? 'administrador' : role === 'gabinete' ? 'gabinete' : role === 'supervisor' ? 'supervisor' : 'operador'}</p>
                 </div>
                 <Button
                   onClick={() => setShowLogoutDialog(true)}
@@ -198,7 +188,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         </div>
 
         {/* Admin: Allowed Emails */}
-        {isAdmin && <AllowedEmailsManager />}
+        {canManageUsers && <AllowedEmailsManager />}
 
         {/* Retroactive IDs */}
         {route && (
