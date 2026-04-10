@@ -12,7 +12,7 @@ import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directi
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { exportCampaign, importCampaign } from '@/utils/persistence';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
-import { supabase } from '@/integrations/supabase/client';
+
 import { toast } from 'sonner';
 import type { Route, AppState } from '@/types/route';
 
