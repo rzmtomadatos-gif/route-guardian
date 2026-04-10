@@ -84,6 +84,8 @@ interface Props {
   onCopilotStart: () => Promise<import('@/hooks/useCopilotSession').CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
   onForceSendBatch?: () => void;
+  /** Whether the current user can navigate/operate segments (admin/operator only) */
+  canNavigate?: boolean;
 }
 
 export function MapControlPanel({
@@ -128,6 +130,7 @@ export function MapControlPanel({
   copilotSession,
   copilotActive,
   onCopilotStart,
+  canNavigate: canNavigateProp = true,
   onCopilotEnd,
   onForceSendBatch,
   acquisitionMode,
