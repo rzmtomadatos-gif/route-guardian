@@ -406,7 +406,7 @@ export function MapControlPanel({
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {navigationActive ? (
+              {canNavigateProp && (navigationActive ? (
                 <Button onClick={onStopNavigation} variant="outline" className="flex-1 h-12 text-sm font-bold border-destructive/40 text-destructive">
                   <Square className="w-4 h-4 mr-1.5" />
                   Detener
@@ -416,7 +416,7 @@ export function MapControlPanel({
                   <Navigation className="w-4 h-4 mr-1.5" />
                   {noVisibleSegments ? 'Sin tramos' : 'Navegar'}
                 </Button>
-              )}
+              ))}
               <Button
                 variant="outline"
                 disabled={!canGoNext}
