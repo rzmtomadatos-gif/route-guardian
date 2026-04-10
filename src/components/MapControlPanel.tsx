@@ -345,7 +345,7 @@ export function MapControlPanel({
         {expanded && (
           <div className="px-3 pb-2 space-y-1.5 max-h-[30vh] overflow-y-auto">
             {/* === PINNED: Active/Next Segment === */}
-            {pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
               <div className="bg-primary/10 border border-primary/30 rounded-lg p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
@@ -380,7 +380,7 @@ export function MapControlPanel({
                   <p className="text-[10px] text-muted-foreground">Siguiente tramo</p>
                   <p className="text-xs font-medium text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
-                {pinnedSegment.id === activeSegmentId && (
+                {canNavigateProp && pinnedSegment.id === activeSegmentId && (
                   <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
                     Iniciar
