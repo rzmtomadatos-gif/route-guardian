@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
+import { UserRolesManager } from '@/components/UserRolesManager';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LogoutDialog } from '@/components/LogoutDialog';
@@ -188,7 +189,12 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         </div>
 
         {/* Admin: Allowed Emails */}
-        {canManageUsers && <AllowedEmailsManager />}
+        {canManageUsers && (
+          <>
+            <UserRolesManager />
+            <AllowedEmailsManager />
+          </>
+        )}
 
         {/* Retroactive IDs */}
         {route && (
