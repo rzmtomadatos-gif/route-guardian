@@ -1083,7 +1083,7 @@ export default function MapPage({
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
-      {state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
+      {canNavigate && state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
       <NavigationOverlay
         segment={activeSegment}
         operationalState={navTracker.operationalState}
@@ -1378,7 +1378,8 @@ export default function MapPage({
         copilotActive={copilot.active}
         onCopilotStart={copilot.createSession}
         onCopilotEnd={copilot.endSession}
-        onForceSendBatch={handleForceSendBatch} />
+        onForceSendBatch={handleForceSendBatch}
+        canNavigate={canNavigate} />
 
       }
     </div>);
