@@ -6,6 +6,7 @@ import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { LogoutDialog } from '@/components/LogoutDialog';
 import { getGoogleMapsApiKey, setGoogleMapsApiKey } from '@/utils/google-directions';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
