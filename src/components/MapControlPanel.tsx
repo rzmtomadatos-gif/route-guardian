@@ -16,6 +16,7 @@ import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession, AcquisitionMode } from '@/types/route';
 import {
   Collapsible,
@@ -86,6 +87,7 @@ interface Props {
   onForceSendBatch?: () => void;
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
+  onReorder?: (id: string, dir: 'up' | 'down') => void;
 }
 
 export function MapControlPanel({
@@ -135,6 +137,7 @@ export function MapControlPanel({
   onForceSendBatch,
   acquisitionMode,
   onSetAcquisitionMode,
+  onReorder,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -154,6 +157,8 @@ export function MapControlPanel({
         !s.needsRepeat
     ).length;
   }, [rstMode, trackSession, segments]);
+
+  const displayOrderMap = useMemo(() => buildDisplayOrderMap(optimizedOrder), [optimizedOrder]);
 
   const isBlocked = !!videoEndBlocking;
 
@@ -613,10 +618,11 @@ export function MapControlPanel({
                 .filter((seg) => seg.id !== pinnedSegment?.id) // Don't duplicate pinned
                 .map((seg) => {
                   const isSelected = selectedSegmentIds.has(seg.id);
+                  const displayPos = displayOrderMap.get(seg.id);
                   return (
                     <div
                       key={seg.id}
-                      className={`w-full flex items-center gap-1.5 p-1.5 rounded-lg text-left transition-colors ${
+                      className={`w-full flex items-center gap-1 p-1.5 rounded-lg text-left transition-colors ${
                         seg.id === activeSegmentId
                           ? 'bg-primary/10 border border-primary/30'
                           : isSelected
@@ -624,6 +630,10 @@ export function MapControlPanel({
                             : 'bg-secondary/50 border border-transparent hover:border-border'
                       }`}
                     >
+                      {/* Position badge */}
+                      <span className="flex-shrink-0 w-5 text-center text-[9px] font-bold text-muted-foreground">
+                        {displayPos ?? '—'}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -654,7 +664,28 @@ export function MapControlPanel({
                         </div>
                         <StatusBadge status={seg.status} nonRecordable={seg.nonRecordable} needsRepeat={seg.needsRepeat} />
                       </button>
-                      {/* Incident button – available on any status */}
+                      {/* Reorder arrows */}
+                      {onReorder && displayPos !== undefined && (
+                        <div className="flex flex-col flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => onReorder(seg.id, 'up')}
+                            disabled={displayPos <= 1}
+                            className="p-0 leading-none text-[10px] text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                            title="Subir"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => onReorder(seg.id, 'down')}
+                            disabled={displayPos >= optimizedOrder.length}
+                            className="p-0 leading-none text-[10px] text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                            title="Bajar"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                      {/* Incident button */}
                       <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(seg.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                         <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-6 px-1 text-muted-foreground hover:text-destructive" title="Incidencia">
                           <AlertTriangle className="w-3 h-3" />

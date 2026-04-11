@@ -214,6 +214,7 @@ function AppRoutes() {
           onCloseBlockEndPrompt={closeBlockEndPrompt}
           onSetWorkDay={setWorkDay}
           onReverseSegment={reverseSegment}
+          onReorderSegment={reorderSegment}
           onSetAcquisitionMode={setAcquisitionMode}
           onApplyRouteOrder={applyRouteOrder}
           geo={geo}
