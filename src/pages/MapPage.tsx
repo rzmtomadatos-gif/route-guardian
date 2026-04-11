@@ -56,6 +56,7 @@ interface Props {
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
+  onReorderSegment: (segmentId: string, direction: 'up' | 'down') => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
   onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
   geo: ReturnType<typeof useGeolocation>;
@@ -90,6 +91,7 @@ export default function MapPage({
   onCloseBlockEndPrompt,
   onSetWorkDay,
   onReverseSegment,
+  onReorderSegment,
   onSetAcquisitionMode,
   onApplyRouteOrder,
   geo,
@@ -1379,6 +1381,7 @@ export default function MapPage({
         onCopilotStart={copilot.createSession}
         onCopilotEnd={copilot.endSession}
         onForceSendBatch={handleForceSendBatch}
+        onReorder={onReorderSegment}
         canNavigate={canNavigate} />
 
       }
