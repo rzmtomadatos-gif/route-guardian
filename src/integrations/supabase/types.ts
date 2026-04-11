@@ -162,6 +162,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_email_allowed: { Args: { p_email: string }; Returns: boolean }
       create_copilot_session: { Args: never; Returns: Json }
       delete_copilot_session: { Args: { p_token: string }; Returns: undefined }
       has_role: {
