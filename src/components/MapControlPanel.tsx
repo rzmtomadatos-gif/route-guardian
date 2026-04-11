@@ -86,6 +86,7 @@ interface Props {
   onForceSendBatch?: () => void;
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
+  onReorder?: (id: string, dir: 'up' | 'down') => void;
 }
 
 export function MapControlPanel({
