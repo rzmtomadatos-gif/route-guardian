@@ -50,10 +50,7 @@ export default function AuthPage() {
 
     // Verificar si el email está en la lista de autorizados
     const { data: allowed } = await supabase
-      .from('allowed_emails')
-      .select('email')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
+      .rpc('check_email_allowed', { p_email: email.toLowerCase().trim() });
 
     if (!allowed) {
       toast.error('Este email no está autorizado. Contacta con el administrador.');
