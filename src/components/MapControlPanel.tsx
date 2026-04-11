@@ -158,6 +158,8 @@ export function MapControlPanel({
     ).length;
   }, [rstMode, trackSession, segments]);
 
+  const displayOrderMap = useMemo(() => buildDisplayOrderMap(optimizedOrder), [optimizedOrder]);
+
   const isBlocked = !!videoEndBlocking;
 
   const handleFilterChange = (f: FilterType) => {
