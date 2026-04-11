@@ -631,7 +631,7 @@ export function MapControlPanel({
                       }`}
                     >
                       {/* Position badge */}
-                      <span className="flex-shrink-0 w-5 text-center text-[9px] font-bold text-muted-foreground">
+                      <span className="flex-shrink-0 min-w-[22px] text-center text-[11px] font-bold bg-primary/20 text-primary rounded px-1 py-0.5">
                         {displayPos ?? '—'}
                       </span>
                       <button
@@ -666,22 +666,22 @@ export function MapControlPanel({
                       </button>
                       {/* Reorder arrows */}
                       {onReorder && displayPos !== undefined && (
-                        <div className="flex flex-col flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-col flex-shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => onReorder(seg.id, 'up')}
                             disabled={displayPos <= 1}
-                            className="p-0 leading-none text-[10px] text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                            className="p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded-full text-muted-foreground hover:text-primary hover:bg-muted active:bg-muted/80 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             title="Subir"
                           >
-                            <ChevronUp className="w-3 h-3" />
+                            <ChevronUp className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => onReorder(seg.id, 'down')}
                             disabled={displayPos >= optimizedOrder.length}
-                            className="p-0 leading-none text-[10px] text-muted-foreground hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
+                            className="p-1 min-h-[28px] min-w-[28px] flex items-center justify-center rounded-full text-muted-foreground hover:text-primary hover:bg-muted active:bg-muted/80 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             title="Bajar"
                           >
-                            <ChevronDown className="w-3 h-3" />
+                            <ChevronDown className="w-5 h-5" />
                           </button>
                         </div>
                       )}
