@@ -16,6 +16,7 @@ import { BaseLocationDialog } from '@/components/BaseLocationDialog';
 import { CopilotPanel } from '@/components/CopilotPanel';
 import { EndOfVideoDialog } from '@/components/EndOfVideoDialog';
 import { playStartSound, playEndSound } from '@/utils/sounds';
+import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession, AcquisitionMode } from '@/types/route';
 import {
   Collapsible,
