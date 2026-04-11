@@ -1,39 +1,30 @@
 
 
-# Posición visible y reordenación manual en el itinerario del mapa
+# Mejora visual: badges de posición y botones de reordenación
 
-## Resumen
+## Problema
 
-Añadir a cada tramo en la lista de itinerario del `MapControlPanel` un badge con su posición en la ruta (1, 2, 3…) basado en `optimizedOrder`, y botones de subir/bajar para reordenar manualmente. La posición se actualiza automáticamente cuando cambia el orden optimizado.
+Los botones de subir/bajar son demasiado pequeños (w-3 h-3, sin padding) para uso táctil en móvil/tablet. El badge de posición usa text-[9px] y es difícil de leer.
 
-## Cambios
+## Cambios en `src/components/MapControlPanel.tsx`
 
-### 1. `MapControlPanel.tsx` — Props
+### 1. Badge de posición más visible
+- Cambiar de `text-[9px] text-muted-foreground` a `text-[11px] font-bold bg-primary/20 text-primary rounded` con un ancho mínimo (`min-w-[22px]`), para que destaque como etiqueta.
 
-Añadir prop `onReorder: (id: string, dir: 'up' | 'down') => void` al interface `Props`.
+### 2. Botones de subir/bajar más grandes
+- Aumentar los iconos de `w-3 h-3` a `w-5 h-5`.
+- Añadir padding táctil: `p-1` en cada botón y área de toque mínima `min-h-[28px] min-w-[28px]`.
+- Mejorar el hover/active feedback.
 
-### 2. `MapControlPanel.tsx` — Badge de posición + flechas
+### 3. Verificación de actualización tras re-optimización
+- El `displayOrderMap` ya se recalcula con `useMemo(() => buildDisplayOrderMap(optimizedOrder), [optimizedOrder])`. Cuando `optimizedOrder` cambia por re-optimización, React recalcula el mapa y los badges se actualizan automáticamente. **No hay bug aquí — funciona correctamente.**
 
-En el bloque de cada tramo del itinerario (líneas 614-674), añadir:
-
-- Un `displayOrderMap` calculado con `buildDisplayOrderMap(optimizedOrder)` via `useMemo`
-- Antes del nombre del tramo: un badge compacto con el número de posición (ej. `#3`)
-- Al final de cada fila: dos botones pequeños ▲/▼ que llaman a `onReorder(seg.id, 'up'|'down')`, deshabilitados en los extremos
-
-La posición mostrada refleja siempre el `optimizedOrder` actual, por lo que cualquier cambio (optimización, reordenación manual) se refleja automáticamente.
-
-### 3. `MapPage.tsx` — Pasar prop
-
-Pasar `onReorder={reorderSegment}` al `MapControlPanel`. La función `reorderSegment` ya existe en `useRouteState` y mueve el segmento en `optimizedOrder`.
-
-### Archivos afectados
+### Archivo afectado
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/MapControlPanel.tsx` | Añadir badge posición, flechas reorden, import `buildDisplayOrderMap` |
-| `src/pages/MapPage.tsx` | Pasar prop `onReorder` |
+| `src/components/MapControlPanel.tsx` | Agrandar botones ▲/▼, mejorar badge de posición |
 
 ### Riesgo
-
-Mínimo. Usa `reorderSegment` y `buildDisplayOrderMap` ya existentes. Solo cambios visuales en el panel.
+Ninguno. Solo cambios de estilo CSS en elementos existentes.
 
