@@ -136,6 +136,7 @@ export function MapControlPanel({
   onForceSendBatch,
   acquisitionMode,
   onSetAcquisitionMode,
+  onReorder,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
