@@ -1379,7 +1379,7 @@ export default function MapPage({
         onRepeatSegment={onRepeatSegment}
         onReoptimize={handleReoptimize}
         onStartNavigation={handleStartNavigation}
-        onStopNavigation={onStopNavigation}
+        onStopNavigation={handleStopRequest}
         onExportToGoogleMaps={handleExportToGoogleMaps}
         onSegmentSelect={onSetActiveSegment}
         onSetBase={onSetBase}
