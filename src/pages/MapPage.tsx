@@ -89,6 +89,7 @@ export default function MapPage({
   onFinalizeTrack,
   onSkipSegment,
   onCancelStartSegment,
+  onCancelAllInProgress,
   onCloseBlockEndPrompt,
   onSetWorkDay,
   onReverseSegment,
