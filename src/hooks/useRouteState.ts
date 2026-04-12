@@ -1313,58 +1313,38 @@ export function useRouteState() {
   /** Cancel a segment that was started by error — clean revert to pendiente */
   const cancelStartSegment = useCallback((segmentId: string) => {
     setState((s) => {
-      if (!s.route) return s;
-      const seg = s.route.segments.find((seg) => seg.id === segmentId);
-      if (!seg || seg.status !== 'en_progreso') return s;
+      let newState = revertSegmentToPending(s, segmentId);
+      if (newState === s) return s; // no-op if segment wasn't en_progreso
 
-      const cancelledTrack = seg.trackNumber;
-
-      // Revert segment to pendiente
-      const segments = s.route.segments.map((seg) => {
-        if (seg.id !== segmentId) return seg;
-        const newHistory = seg.trackNumber !== null
-          ? [...seg.trackHistory, seg.trackNumber]
-          : seg.trackHistory;
-        return {
-          ...seg,
-          status: 'pendiente' as const,
-          trackNumber: null,
-          plannedTrackNumber: null,
-          plannedBy: undefined,
-          trackHistory: newHistory,
-          segmentOrder: undefined,
-          timestampInicio: undefined,
-          startedAt: null,
-          segmentStartSeconds: null,
-        };
-      });
-
-      // Clean trackSession
-      let trackSession = s.trackSession;
-      if (trackSession && trackSession.segmentIds.includes(segmentId)) {
-        const newIds = trackSession.segmentIds.filter((id) => id !== segmentId);
-        if (newIds.length === 0) {
-          // Track is now empty — close it
-          trackSession = { ...trackSession, segmentIds: newIds, active: false, endedAt: new Date().toISOString(), closedManually: true };
-        } else {
-          trackSession = { ...trackSession, segmentIds: newIds };
-        }
+      // Recalculate activeSegmentId to next pending (navigation stays active)
+      if (newState.route) {
+        const remaining = newState.route.optimizedOrder.filter((id) => {
+          const seg = newState.route!.segments.find((seg) => seg.id === id);
+          return seg?.status === 'pendiente' && !seg.nonRecordable;
+        });
+        newState = { ...newState, activeSegmentId: remaining[0] || null };
       }
 
-      // Find next pending segment
-      const remaining = s.route.optimizedOrder.filter((id) => {
-        const seg = segments.find((seg) => seg.id === id);
-        return seg?.status === 'pendiente' && !seg.nonRecordable;
-      });
-
-      return {
-        ...s,
-        route: { ...s.route, segments },
-        activeSegmentId: remaining[0] || null,
-        trackSession,
-      };
+      return newState;
     }, true);
     logEvent('SEGMENT_CANCELLED', { segmentId, payload: { reason: 'operator_cancel' } });
+  }, [setState]);
+
+  /** Cancel ALL en_progreso segments in a single setState — batch operation */
+  const cancelAllInProgress = useCallback((reason: CancelReason) => {
+    let revertedIds: string[] = [];
+    setState((s) => {
+      const result = revertAllInProgress(s);
+      revertedIds = result.revertedIds;
+      if (revertedIds.length === 0) return s;
+      return { ...result.state, activeSegmentId: null };
+    }, true);
+    // Emit one event per reverted segment (after setState)
+    setTimeout(() => {
+      for (const id of revertedIds) {
+        logEvent('SEGMENT_CANCELLED', { segmentId: id, payload: { reason } });
+      }
+    }, 0);
   }, [setState]);
 
   return {
@@ -1413,5 +1393,6 @@ export function useRouteState() {
     applyRouteOrder,
     restoreState,
     cancelStartSegment,
+    cancelAllInProgress,
   };
 }
