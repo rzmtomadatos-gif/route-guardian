@@ -3,6 +3,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
+import { StopNavigationDialog } from '@/components/StopNavigationDialog';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
 import { useMapState } from '@/hooks/useMapState';
 import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound, playF7Sound, playF9Sound } from '@/utils/sounds';
