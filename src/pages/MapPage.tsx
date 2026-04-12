@@ -113,6 +113,7 @@ export default function MapPage({
   const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
+  const [showStopDialog, setShowStopDialog] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Stable callback for offline state changes (must NOT be inline in JSX)

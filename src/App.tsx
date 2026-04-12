@@ -207,6 +207,7 @@ function AppRoutes() {
           onFinalizeTrack={finalizeTrack}
           onSkipSegment={skipSegment}
           onCancelStartSegment={cancelStartSegment}
+          onCancelAllInProgress={cancelAllInProgress}
           onCloseBlockEndPrompt={closeBlockEndPrompt}
           onSetWorkDay={setWorkDay}
           onReverseSegment={reverseSegment}
