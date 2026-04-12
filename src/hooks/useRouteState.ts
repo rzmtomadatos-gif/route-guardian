@@ -7,6 +7,66 @@ import { logEvent } from '@/utils/persistence';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
 
+/** Valid reasons for cancelling segments — closed set for event log traceability */
+type CancelReason = 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel';
+
+/**
+ * Pure helper: revert a single en_progreso segment back to pendiente.
+ * Does NOT touch trackHistory, activeSegmentId, or emit events.
+ */
+function revertSegmentToPending(s: AppState, segmentId: string): AppState {
+  if (!s.route) return s;
+  const seg = s.route.segments.find((seg) => seg.id === segmentId);
+  if (!seg || seg.status !== 'en_progreso') return s;
+
+  const segments = s.route.segments.map((seg) => {
+    if (seg.id !== segmentId) return seg;
+    return {
+      ...seg,
+      status: 'pendiente' as const,
+      trackNumber: null,
+      plannedTrackNumber: null,
+      plannedBy: undefined,
+      segmentOrder: undefined,
+      timestampInicio: undefined,
+      startedAt: null,
+      segmentStartSeconds: null,
+    };
+  });
+
+  // Clean trackSession
+  let trackSession = s.trackSession;
+  if (trackSession && trackSession.segmentIds.includes(segmentId)) {
+    const newIds = trackSession.segmentIds.filter((id) => id !== segmentId);
+    if (newIds.length === 0) {
+      // Track is now empty — close it
+      trackSession = { ...trackSession, segmentIds: newIds, active: false, endedAt: new Date().toISOString(), closedManually: true };
+    } else {
+      trackSession = { ...trackSession, segmentIds: newIds };
+    }
+  }
+
+  return { ...s, route: { ...s.route, segments }, trackSession };
+}
+
+/**
+ * Pure helper: revert ALL en_progreso segments back to pendiente.
+ * Does NOT touch activeSegmentId or emit events.
+ */
+function revertAllInProgress(s: AppState): { state: AppState; revertedIds: string[] } {
+  if (!s.route) return { state: s, revertedIds: [] };
+  const inProgressIds = s.route.segments
+    .filter((seg) => seg.status === 'en_progreso')
+    .map((seg) => seg.id);
+  if (inProgressIds.length === 0) return { state: s, revertedIds: [] };
+
+  let result = s;
+  for (const id of inProgressIds) {
+    result = revertSegmentToPending(result, id);
+  }
+  return { state: result, revertedIds: inProgressIds };
+}
+
 /** Categories that are "Critica NO grabable" by default */
 const NON_RECORDABLE_CATEGORIES = new Set<IncidentCategory>([
   'carretera_cortada', 'acceso_imposible', 'inundacion', 'lluvia',
