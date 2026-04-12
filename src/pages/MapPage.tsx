@@ -3,6 +3,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
+import { StopNavigationDialog } from '@/components/StopNavigationDialog';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
 import { useMapState } from '@/hooks/useMapState';
 import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound, playF7Sound, playF9Sound } from '@/utils/sounds';
@@ -53,6 +54,7 @@ interface Props {
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCancelStartSegment: (segmentId: string) => void;
+  onCancelAllInProgress: (reason: 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel') => void;
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
@@ -88,6 +90,7 @@ export default function MapPage({
   onFinalizeTrack,
   onSkipSegment,
   onCancelStartSegment,
+  onCancelAllInProgress,
   onCloseBlockEndPrompt,
   onSetWorkDay,
   onReverseSegment,
@@ -111,6 +114,7 @@ export default function MapPage({
   const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
+  const [showStopDialog, setShowStopDialog] = useState(false);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Stable callback for offline state changes (must NOT be inline in JSX)
@@ -360,14 +364,31 @@ export default function MapPage({
     if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
 
+  // Stop navigation request — intercept if there are en_progreso segments
+  const handleStopRequest = useCallback(() => {
+    if (!state.route) { onStopNavigation(); return; }
+    const inProgressCount = state.route.segments.filter((s) => s.status === 'en_progreso').length;
+    if (inProgressCount > 0) {
+      setShowStopDialog(true);
+    } else {
+      onStopNavigation();
+    }
+  }, [state.route, onStopNavigation]);
+
+  const handleCancelAndStop = useCallback(() => {
+    onCancelAllInProgress('stop_navigation_cancel');
+    onStopNavigation();
+    setShowStopDialog(false);
+  }, [onCancelAllInProgress, onStopNavigation]);
+
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
     if (!activeSegment || !state.navigationActive) return;
     if (activeSegment.layer && hiddenLayers.has(activeSegment.layer)) {
       toast.warning('El tramo activo pertenece a una capa oculta. Selecciona una capa visible para continuar.');
-      onStopNavigation();
+      handleStopRequest();
     }
-  }, [activeSegment, hiddenLayers, state.navigationActive, onStopNavigation]);
+  }, [activeSegment, hiddenLayers, state.navigationActive, handleStopRequest]);
 
   // Auto-calculate route when both points are set
   const [creationRoadInfo, setCreationRoadInfo] = useState<{name: string;highway: string;oneway: boolean;} | null>(null);
@@ -1358,7 +1379,7 @@ export default function MapPage({
         onRepeatSegment={onRepeatSegment}
         onReoptimize={handleReoptimize}
         onStartNavigation={handleStartNavigation}
-        onStopNavigation={onStopNavigation}
+        onStopNavigation={handleStopRequest}
         onExportToGoogleMaps={handleExportToGoogleMaps}
         onSegmentSelect={onSetActiveSegment}
         onSetBase={onSetBase}
@@ -1385,6 +1406,13 @@ export default function MapPage({
         canNavigate={canNavigate} />
 
       }
+
+      <StopNavigationDialog
+        open={showStopDialog}
+        inProgressCount={state.route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0}
+        onCancelAndStop={handleCancelAndStop}
+        onGoBack={() => setShowStopDialog(false)}
+      />
     </div>);
 
 }
