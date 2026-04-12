@@ -173,15 +173,59 @@ export function useRouteState() {
   }, [setState]);
 
   const stopNavigation = useCallback(() => {
-    setState((s) => ({
-      ...s,
-      navigationActive: false,
-      activeSegmentId: null,
-      trackSession: s.trackSession
-        ? { ...s.trackSession, trackStartTime: null }
-        : null,
-    }));
-    logEvent('NAV_STOPPED');
+    setState((s) => {
+      const now = new Date().toISOString();
+      let newState: AppState = {
+        ...s,
+        navigationActive: false,
+        activeSegmentId: null,
+      };
+
+      // Close trackSession only if still active (avoid double TRACK_CLOSED)
+      let trackClosed = false;
+      let trackNum: number | null = null;
+      if (newState.trackSession && newState.trackSession.active) {
+        trackNum = newState.trackSession.trackNumber;
+        newState = {
+          ...newState,
+          trackSession: { ...newState.trackSession, active: false, endedAt: now, closedManually: true },
+        };
+        trackClosed = true;
+      } else if (newState.trackSession) {
+        // Clear trackStartTime but don't re-close
+        newState = {
+          ...newState,
+          trackSession: { ...newState.trackSession, trackStartTime: null },
+        };
+      }
+
+      // Defensive safety net: sanear tramos en_progreso residuales
+      let defensiveCleaned: string[] = [];
+      if (newState.route) {
+        const residual = newState.route.segments.filter((seg) => seg.status === 'en_progreso');
+        if (residual.length > 0) {
+          const result = revertAllInProgress(newState);
+          newState = { ...result.state, activeSegmentId: null };
+          defensiveCleaned = result.revertedIds;
+        }
+      }
+
+      // Emit events after state update
+      setTimeout(() => {
+        if (trackClosed && trackNum !== null) {
+          logEvent('TRACK_CLOSED', { trackNumber: trackNum, payload: { reason: 'navigation_stopped' } });
+        }
+        logEvent('NAV_STOPPED', {
+          payload: {
+            reason: 'operator_stop',
+            trackNumber: trackNum,
+            ...(defensiveCleaned.length > 0 ? { defensiveCleaned } : {}),
+          },
+        });
+      }, 0);
+
+      return newState;
+    }, true);
   }, [setState]);
 
   /** Allocate the next track number based on mode. Resets per workDay. */
