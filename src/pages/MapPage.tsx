@@ -53,6 +53,7 @@ interface Props {
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCancelStartSegment: (segmentId: string) => void;
+  onCancelAllInProgress: (reason: 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel') => void;
   onCloseBlockEndPrompt: () => void;
   onSetWorkDay: (day: number) => void;
   onReverseSegment: (segmentId: string) => void;
