@@ -364,14 +364,31 @@ export default function MapPage({
     if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
 
+  // Stop navigation request — intercept if there are en_progreso segments
+  const handleStopRequest = useCallback(() => {
+    if (!state.route) { onStopNavigation(); return; }
+    const inProgressCount = state.route.segments.filter((s) => s.status === 'en_progreso').length;
+    if (inProgressCount > 0) {
+      setShowStopDialog(true);
+    } else {
+      onStopNavigation();
+    }
+  }, [state.route, onStopNavigation]);
+
+  const handleCancelAndStop = useCallback(() => {
+    onCancelAllInProgress('stop_navigation_cancel');
+    onStopNavigation();
+    setShowStopDialog(false);
+  }, [onCancelAllInProgress, onStopNavigation]);
+
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
     if (!activeSegment || !state.navigationActive) return;
     if (activeSegment.layer && hiddenLayers.has(activeSegment.layer)) {
       toast.warning('El tramo activo pertenece a una capa oculta. Selecciona una capa visible para continuar.');
-      onStopNavigation();
+      handleStopRequest();
     }
-  }, [activeSegment, hiddenLayers, state.navigationActive, onStopNavigation]);
+  }, [activeSegment, hiddenLayers, state.navigationActive, handleStopRequest]);
 
   // Auto-calculate route when both points are set
   const [creationRoadInfo, setCreationRoadInfo] = useState<{name: string;highway: string;oneway: boolean;} | null>(null);
