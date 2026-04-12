@@ -69,7 +69,7 @@ function AppRoutes() {
     setRstGroupSize, markPosibleRepetir, repeatSegment, finalizeTrack,
     skipSegment, closeBlockEndPrompt, setWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
-    cancelStartSegment,
+    cancelStartSegment, cancelAllInProgress,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -93,13 +93,9 @@ function AppRoutes() {
 
   const handleRecoveryRestore = useCallback(() => setRecoveryInfo(null), []);
   const handleRecoveryCancelSegments = useCallback(() => {
-    if (!state.route) { setRecoveryInfo(null); return; }
-    const inProgressIds = state.route.segments
-      .filter(s => s.status === 'en_progreso')
-      .map(s => s.id);
-    inProgressIds.forEach(id => cancelStartSegment(id));
+    cancelAllInProgress('recovery_cancel');
     setRecoveryInfo(null);
-  }, [state.route, cancelStartSegment]);
+  }, [cancelAllInProgress]);
 
   return (
     <>
