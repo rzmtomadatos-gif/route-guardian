@@ -1406,6 +1406,13 @@ export default function MapPage({
         canNavigate={canNavigate} />
 
       }
+
+      <StopNavigationDialog
+        open={showStopDialog}
+        inProgressCount={state.route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0}
+        onCancelAndStop={handleCancelAndStop}
+        onGoBack={() => setShowStopDialog(false)}
+      />
     </div>);
 
 }
