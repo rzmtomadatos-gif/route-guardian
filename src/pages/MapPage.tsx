@@ -1448,7 +1448,12 @@ export default function MapPage({
         onCopilotEnd={copilot.endSession}
         onForceSendBatch={handleForceSendBatch}
         onReorder={onReorderSegment}
-        canNavigate={canNavigate} />
+        canNavigate={canNavigate}
+        canCancelStart={
+          !!(activeSegment && activeSegment.status === 'en_progreso' &&
+            (navTracker.operationalState === 'idle' || navTracker.operationalState === 'approaching'))
+        }
+        onCancelStart={activeSegment ? () => onCancelStartSegment(activeSegment.id) : undefined} />
 
       }
 
