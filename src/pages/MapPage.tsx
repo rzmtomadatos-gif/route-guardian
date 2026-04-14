@@ -56,7 +56,7 @@ interface Props {
   onCancelStartSegment: (segmentId: string) => void;
   onCancelAllInProgress: (reason: 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel') => void;
   onCloseBlockEndPrompt: () => void;
-  onSetWorkDay: (day: number) => void;
+  onChangeWorkDay: (targetDay: number, options?: { force?: boolean }) => import('@/hooks/useRouteState').WorkDayChangeResult;
   onReverseSegment: (segmentId: string) => void;
   onReorderSegment: (segmentId: string, direction: 'up' | 'down') => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
@@ -92,7 +92,7 @@ export default function MapPage({
   onCancelStartSegment,
   onCancelAllInProgress,
   onCloseBlockEndPrompt,
-  onSetWorkDay,
+  onChangeWorkDay,
   onReverseSegment,
   onReorderSegment,
   onSetAcquisitionMode,
