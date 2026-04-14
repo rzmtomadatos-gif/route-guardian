@@ -4,6 +4,7 @@ import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 import { logEvent } from '@/utils/persistence';
+import { toast } from 'sonner';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
 
@@ -420,6 +421,13 @@ export function useRouteState() {
           workDay: current.workDay,
           trackNumber: current.trackSession.trackNumber,
           payload: { capacity: current.trackSession.capacity },
+        });
+      }
+      // Show toast notification for track start
+      if (current.trackSession && current.trackSession.segmentIds.length === 1) {
+        toast(`Día ${current.workDay} · Track ${current.trackSession.trackNumber} iniciado`, {
+          duration: 8000,
+          position: 'top-center',
         });
       }
       return current; // no mutation, just reading

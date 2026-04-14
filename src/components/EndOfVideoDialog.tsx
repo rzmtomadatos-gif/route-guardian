@@ -13,6 +13,7 @@ import { useState } from 'react';
 interface Props {
   open: boolean;
   trackNumber: number;
+  workDay: number;
   rstGroupSize?: number;
   onContinue: () => void;
 }
@@ -40,7 +41,7 @@ const STEPS = [
   },
 ];
 
-export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContinue }: Props) {
+export function EndOfVideoDialog({ open, trackNumber, workDay, rstGroupSize = 9, onContinue }: Props) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
 
   const allChecked = checked.size === STEPS.length;
@@ -69,9 +70,9 @@ export function EndOfVideoDialog({ open, trackNumber, rstGroupSize = 9, onContin
             </div>
             <div>
               <AlertDialogTitle className="text-base leading-tight">
-                BLOQUE COMPLETADO ({rstGroupSize}/{rstGroupSize})
+                Finalizado Día {workDay} · Track {trackNumber}
               </AlertDialogTitle>
-              <p className="text-sm text-muted-foreground mt-0.5">Preparar nueva medición</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Prepara nuevo archivo para Día {workDay} · Track {trackNumber + 1}</p>
             </div>
           </div>
 
