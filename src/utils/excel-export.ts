@@ -144,7 +144,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const trackOrderMap = new Map<string, number>();
   const trackSegGroups = new Map<string, string[]>();
   validatedSegments.forEach((seg) => {
-    if (seg.trackNumber !== null) {
+    if (seg.trackNumber !== null && seg.status === 'completado') {
       const key = `${seg.workDay ?? 0}_${seg.trackNumber}`;
       if (!trackSegGroups.has(key)) trackSegGroups.set(key, []);
       trackSegGroups.get(key)!.push(seg.id);
@@ -165,9 +165,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'NOMBRE_TRAMO': seg.name,
       'Ident. Tramo': seg.kmlId || seg.companySegmentId || seg.kmlMeta?.identtramo || '',
       'CAPA': seg.layer || 'Sin capa',
-      'DIA': seg.workDay ?? '',
-      'TRACK': trackReal,
-      'ORDEN_EN_TRACK': seg.segmentOrder ?? trackOrderMap.get(seg.id) ?? '',
+      'DIA': seg.status === 'completado' ? (seg.workDay ?? '') : '',
+      'TRACK': seg.status === 'completado' ? trackReal : '',
+      'ORDEN_EN_TRACK': seg.status === 'completado' ? (seg.segmentOrder ?? trackOrderMap.get(seg.id) ?? '') : '',
       'ESTADO': STATUS_LABELS[seg.status] || seg.status,
       'INCIDENCIA': segIncidents.length > 0 ? segIncidents.map(i => i.category).join(', ') : '',
       'HORA_INICIO': seg.startedAt || seg.timestampInicio || '',
