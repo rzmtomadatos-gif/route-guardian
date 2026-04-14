@@ -411,6 +411,21 @@ export default function MapPage({
     setDayChangeTarget(null);
   }, [dayChangeTarget, onCancelAllInProgress, onChangeWorkDay]);
 
+  // Wrapper for rstGroupSize with toast on blocked change
+  const handleSetRstGroupSize = useCallback((size: number) => {
+    if (state.trackSession?.active && state.route) {
+      const completedInTrack = state.route.segments.filter(
+        (seg) => seg.trackNumber === state.trackSession!.trackNumber &&
+          seg.status === 'completado' && !seg.nonRecordable
+      ).length;
+      if (completedInTrack > 0) {
+        toast.error(`No se puede cambiar el tamaño del bloque: el track T${state.trackSession!.trackNumber} ya tiene ${completedInTrack} tramo${completedInTrack > 1 ? 's' : ''} completado${completedInTrack > 1 ? 's' : ''}`);
+        return;
+      }
+    }
+    onSetRstGroupSize(size);
+  }, [state.trackSession, state.route, onSetRstGroupSize]);
+
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
     if (!activeSegment || !state.navigationActive) return;
@@ -1417,7 +1432,7 @@ export default function MapPage({
         onSelectedSegmentsChange={setSelectedSegmentIds}
         onMergeSegments={onMergeSegments}
         onSetRstMode={onSetRstMode}
-        onSetRstGroupSize={onSetRstGroupSize}
+        onSetRstGroupSize={handleSetRstGroupSize}
         onFinalizeTrack={onFinalizeTrack}
         onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
         workDay={state.workDay}
