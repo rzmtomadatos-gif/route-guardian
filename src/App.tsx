@@ -67,7 +67,7 @@ function AppRoutes() {
     bulkDeleteSegments, bulkMoveToLayer, bulkSetColor, duplicateSegments,
     reorderSegment, reverseSegment, simplifySegments, setRstMode,
     setRstGroupSize, markPosibleRepetir, repeatSegment, finalizeTrack,
-    skipSegment, closeBlockEndPrompt, setWorkDay, updateRouteContext,
+    skipSegment, closeBlockEndPrompt, changeWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
     cancelStartSegment, cancelAllInProgress,
   } = routeState;
@@ -209,7 +209,7 @@ function AppRoutes() {
           onCancelStartSegment={cancelStartSegment}
           onCancelAllInProgress={cancelAllInProgress}
           onCloseBlockEndPrompt={closeBlockEndPrompt}
-          onSetWorkDay={setWorkDay}
+          onChangeWorkDay={changeWorkDay}
           onReverseSegment={reverseSegment}
           onReorderSegment={reorderSegment}
           onSetAcquisitionMode={setAcquisitionMode}
