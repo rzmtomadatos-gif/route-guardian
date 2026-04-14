@@ -1391,7 +1391,7 @@ export default function MapPage({
         onFinalizeTrack={onFinalizeTrack}
         onSkipSegment={(segId) => onSkipSegment(segId, hiddenLayers)}
         workDay={state.workDay}
-        onSetWorkDay={onSetWorkDay}
+        onChangeWorkDay={handleChangeWorkDay}
         activeRouteBlock={activeRouteBlock}
         videoEndBlocking={videoEndBlocking}
         onVideoEndContinue={handleVideoEndContinue}
