@@ -8,7 +8,16 @@ import { logEvent } from '@/utils/persistence';
 const MAX_SEGMENTS_PER_TRACK = 9;
 
 /** Valid reasons for cancelling segments — closed set for event log traceability */
-type CancelReason = 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel';
+type CancelReason = 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel' | 'day_change_cancel';
+
+/** Structured result from changeWorkDay validation/execution */
+export interface WorkDayChangeResult {
+  allowed: boolean;
+  reason?: string;
+  requiresConfirmation?: boolean;
+  hasInProgress?: boolean;
+  inProgressCount?: number;
+}
 
 /**
  * Pure helper: revert a single en_progreso segment back to pendiente.
@@ -158,15 +167,15 @@ export function useRouteState() {
         if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
         return true;
       });
+      // No pre-session: trackSession stays null until first confirmStartSegment
+      // GARMIN mode only sets trackStartTime if a session already exists
       return {
         ...s,
         navigationActive: true,
         activeSegmentId: pendingSegments[0] || null,
         trackSession: s.trackSession
           ? { ...s.trackSession, trackStartTime: s.acquisitionMode === 'GARMIN' ? Date.now() : s.trackSession.trackStartTime }
-          : s.acquisitionMode === 'GARMIN'
-            ? { active: false, trackNumber: 0, capacity: 9, segmentIds: [], startedAt: null, endedAt: null, closedManually: false, trackStartTime: Date.now() }
-            : null,
+          : null,
       };
     });
     logEvent('NAV_STARTED', { payload: { mode: 'navigation' } });
@@ -1231,26 +1240,102 @@ export function useRouteState() {
   }, [setState]);
 
   const setRstGroupSize = useCallback((size: number) => {
-    setState((s) => ({ ...s, rstGroupSize: size }));
+    setState((s) => {
+      // Guard: block if active track already has completed segments
+      if (s.trackSession && s.trackSession.active && s.route) {
+        const completedInTrack = s.route.segments.filter(
+          (seg) => seg.trackNumber === s.trackSession!.trackNumber &&
+            seg.status === 'completado' && !seg.nonRecordable
+        ).length;
+        if (completedInTrack > 0) {
+          // Cannot change — toast will be triggered by caller
+          return s;
+        }
+      }
+      return { ...s, rstGroupSize: size };
+    });
   }, [setState]);
 
-  /** Set the current work day. Resets track numbering for the new day. */
-  const setWorkDay = useCallback((day: number) => {
+  /**
+   * Controlled work day change — Opción A.
+   * Without force: validates only, returns structured result, NO state mutation.
+   * With force: true: executes the change (closes track, resets blockEndPrompt).
+   * Caller must handle cancelAllInProgress('day_change_cancel') BEFORE calling with force.
+   */
+  const changeWorkDay = useCallback((targetDay: number, options?: { force?: boolean }): WorkDayChangeResult => {
+    // Read current state synchronously
+    let currentState: AppState | null = null;
+    setStateRaw((s) => { currentState = s; return s; });
+    if (!currentState) return { allowed: false, reason: 'Estado no disponible' };
+
+    const s = currentState as AppState;
+    const current = s.workDay;
+
+    // Same day — no-op
+    if (targetDay === current) return { allowed: true };
+
+    // Only allow ±1
+    if (targetDay !== current + 1 && targetDay !== current - 1) {
+      return { allowed: false, reason: `Solo se permite cambiar ±1 día (actual: ${current})` };
+    }
+
+    // Count completed and in-progress for current day
+    const completedInDay = s.route?.segments.filter(
+      (seg) => seg.workDay === current && seg.status === 'completado'
+    ).length ?? 0;
+
+    const inProgressInDay = s.route?.segments.filter(
+      (seg) => seg.status === 'en_progreso'
+    ) ?? [];
+
+    // Advance: N → N+1
+    if (targetDay === current + 1) {
+      if (completedInDay === 0) {
+        return { allowed: false, reason: 'No hay trabajo completado en el día actual' };
+      }
+      if (inProgressInDay.length > 0 && !options?.force) {
+        return {
+          allowed: true,
+          requiresConfirmation: true,
+          hasInProgress: true,
+          inProgressCount: inProgressInDay.length,
+        };
+      }
+      // Confirm without in-progress still needs confirmation
+      if (!options?.force) {
+        return { allowed: true, requiresConfirmation: true, hasInProgress: false };
+      }
+    }
+
+    // Regress: N → N-1
+    if (targetDay === current - 1) {
+      if (completedInDay > 0) {
+        return { allowed: false, reason: 'Ya hay tramos completados en el día actual — no se puede retroceder' };
+      }
+      if (inProgressInDay.length > 0) {
+        return { allowed: false, reason: 'Hay tramos en progreso — cancélalos antes de retroceder' };
+      }
+      if (!options?.force) {
+        return { allowed: true, requiresConfirmation: true, hasInProgress: false };
+      }
+    }
+
+    // Force execution — mutate state
     setState((s) => {
-      // Close any active track session when changing day
       let trackSession = s.trackSession;
       if (trackSession && trackSession.active) {
         trackSession = { ...trackSession, active: false, endedAt: new Date().toISOString(), closedManually: true };
       }
       return {
         ...s,
-        workDay: day,
+        workDay: targetDay,
         trackSession: null,
         blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
       };
     }, true);
-    logEvent('WORK_DAY_CHANGED', { workDay: day });
-  }, [setState]);
+    logEvent('WORK_DAY_CHANGED', { workDay: targetDay, payload: { from: current, to: targetDay } });
+    return { allowed: true };
+  }, [setState, setStateRaw]);
 
   /** Update route context fields (operator, vehicle, weather) */
   const updateRouteContext = useCallback((updates: { operator?: string; vehicle?: string; weather?: string }) => {
@@ -1386,7 +1471,7 @@ export function useRouteState() {
     finalizeTrack,
     skipSegment,
     closeBlockEndPrompt,
-    setWorkDay,
+    changeWorkDay,
     updateRouteContext,
     applyRetroactiveIds,
     setAcquisitionMode,
