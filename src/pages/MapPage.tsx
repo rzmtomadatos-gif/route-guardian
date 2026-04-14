@@ -55,7 +55,7 @@ interface Props {
   onFinalizeTrack: () => void;
   onSkipSegment: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onCancelStartSegment: (segmentId: string) => void;
-  onCancelAllInProgress: (reason: 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel') => void;
+  onCancelAllInProgress: (reason: 'operator_cancel' | 'recovery_cancel' | 'stop_navigation_cancel' | 'day_change_cancel') => void;
   onCloseBlockEndPrompt: () => void;
   onChangeWorkDay: (targetDay: number, options?: { force?: boolean }) => import('@/hooks/useRouteState').WorkDayChangeResult;
   onReverseSegment: (segmentId: string) => void;
