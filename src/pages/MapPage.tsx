@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { StopNavigationDialog } from '@/components/StopNavigationDialog';
+import { WorkDayChangeDialog } from '@/components/WorkDayChangeDialog';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
 import { useMapState } from '@/hooks/useMapState';
 import { playApproachSound, playDeviationAlertSound, playRecoverySound, playWrongDirectionSound, playPreAlertSound, playRef300Sound, playRef150Sound, playRef30Sound, playF5ReadySound, playInvalidationSound, playContiguousTransitionSound, playGpsUnstableSound, playF7Sound, playF9Sound } from '@/utils/sounds';
@@ -115,6 +116,7 @@ export default function MapPage({
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const [showStopDialog, setShowStopDialog] = useState(false);
+  const [dayChangeTarget, setDayChangeTarget] = useState<{ target: number; hasInProgress: boolean; inProgressCount: number } | null>(null);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
   // Stable callback for offline state changes (must NOT be inline in JSX)
@@ -380,6 +382,34 @@ export default function MapPage({
     onStopNavigation();
     setShowStopDialog(false);
   }, [onCancelAllInProgress, onStopNavigation]);
+
+  // Work day change — controlled flow with validation + dialog
+  const handleChangeWorkDay = useCallback((targetDay: number) => {
+    const result = onChangeWorkDay(targetDay);
+    if (!result.allowed) {
+      if (result.reason) toast.error(result.reason);
+      return;
+    }
+    if (result.requiresConfirmation) {
+      setDayChangeTarget({
+        target: targetDay,
+        hasInProgress: result.hasInProgress ?? false,
+        inProgressCount: result.inProgressCount ?? 0,
+      });
+      return;
+    }
+    // Allowed without confirmation (shouldn't happen with current rules, but safe)
+    onChangeWorkDay(targetDay, { force: true });
+  }, [onChangeWorkDay]);
+
+  const handleConfirmDayChange = useCallback(() => {
+    if (!dayChangeTarget) return;
+    if (dayChangeTarget.hasInProgress) {
+      onCancelAllInProgress('day_change_cancel');
+    }
+    onChangeWorkDay(dayChangeTarget.target, { force: true });
+    setDayChangeTarget(null);
+  }, [dayChangeTarget, onCancelAllInProgress, onChangeWorkDay]);
 
   // Warn and stop navigation if active segment becomes hidden due to layer filter change
   useEffect(() => {
@@ -1412,6 +1442,16 @@ export default function MapPage({
         inProgressCount={state.route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0}
         onCancelAndStop={handleCancelAndStop}
         onGoBack={() => setShowStopDialog(false)}
+      />
+
+      <WorkDayChangeDialog
+        open={dayChangeTarget !== null}
+        targetDay={dayChangeTarget?.target ?? state.workDay}
+        currentDay={state.workDay}
+        hasInProgress={dayChangeTarget?.hasInProgress ?? false}
+        inProgressCount={dayChangeTarget?.inProgressCount ?? 0}
+        onConfirm={handleConfirmDayChange}
+        onCancel={() => setDayChangeTarget(null)}
       />
     </div>);
 
