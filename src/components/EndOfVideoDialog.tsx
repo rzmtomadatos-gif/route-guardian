@@ -24,8 +24,8 @@ const STEPS = [
     code: 'MEDICIÓN PARADA',
   },
   {
-    label: 'Verificar que el equipo está preparado',
-    detail: 'El sistema debe estar en estado:',
+    label: 'Preparar el siguiente archivo de grabación',
+    detail: 'El equipo debe estar listo para un nuevo vídeo. El sistema debe indicar:',
     code: 'MEDICIÓN PARADA\nPULSA INSERT PARA INICIAR UNA NUEVA MEDIDA',
   },
   {
@@ -35,7 +35,7 @@ const STEPS = [
   },
   {
     label: 'Cuando todo esté listo, iniciar nueva medición',
-    detail: 'Pulsar INSERT en el sistema del equipo multifunción',
+    detail: 'Pulsar INSERT en el sistema del equipo multifunción para comenzar el siguiente archivo',
     code: null,
   },
 ];
