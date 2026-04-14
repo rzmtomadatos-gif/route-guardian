@@ -114,9 +114,9 @@ export function useRouteState() {
     return all.length > 0 ? Math.max(...all) : 0;
   };
 
-  /** Count how many segments are assigned to a given track number (real, valid) */
+  /** Count how many segments are assigned to a given track number (real, valid — only completed) */
   const countSegmentsInTrack = (segments: Segment[], trackNum: number): number => {
-    return segments.filter((seg) => seg.trackNumber === trackNum && (seg.status === 'en_progreso' || seg.status === 'completado')).length;
+    return segments.filter((seg) => seg.trackNumber === trackNum && seg.status === 'completado').length;
   };
 
   const setRoute = useCallback(async (route: Route) => {
@@ -244,9 +244,14 @@ export function useRouteState() {
       const maxTrack = getMaxTrack(segments, trackSession, workDay);
       return maxTrack + 1;
     }
-    // RST ON: reuse current track if session active and has room
-    if (trackSession && trackSession.active && trackSession.segmentIds.length < trackSession.capacity) {
-      return trackSession.trackNumber;
+    // RST ON: reuse current track if session active and has room (count only completed)
+    if (trackSession && trackSession.active) {
+      const completedInSession = segments.filter(
+        (seg) => trackSession!.segmentIds.includes(seg.id) && seg.status === 'completado'
+      ).length;
+      if (completedInSession < trackSession.capacity) {
+        return trackSession.trackNumber;
+      }
     }
     // Otherwise new track
     const maxTrack = getMaxTrack(segments, trackSession, workDay);
@@ -286,9 +291,14 @@ export function useRouteState() {
 
       let trackSession = s.trackSession;
 
-      // Close full session if needed
-      if (trackSession && trackSession.active && trackSession.segmentIds.length >= trackSession.capacity) {
-        trackSession = { ...trackSession, active: false, endedAt: now };
+      // Close full session if needed (count only completed segments for capacity)
+      if (trackSession && trackSession.active) {
+        const completedInSession = s.route.segments.filter(
+          (seg) => trackSession!.segmentIds.includes(seg.id) && seg.status === 'completado'
+        ).length;
+        if (completedInSession >= trackSession.capacity) {
+          trackSession = { ...trackSession, active: false, endedAt: now };
+        }
       }
       // Close session if not in RST mode (each segment = new track)
       if (!s.rstMode && trackSession && trackSession.active) {
@@ -331,16 +341,18 @@ export function useRouteState() {
         };
       }
 
-      // Compute segmentOrder: count only segments in the SAME workDay + trackNumber
-      const existingInTrack = s.route.segments.filter(
+      // Compute segmentOrder: count only COMPLETED segments in the SAME workDay + trackNumber
+      // NOTE: This value is PROVISIONAL while segment is en_progreso.
+      // Definitive segmentOrder is reconsolidated in completeSegment.
+      const existingCompletedInTrack = s.route.segments.filter(
         (seg) =>
           seg.id !== segmentId &&
           seg.workDay === s.workDay &&
           seg.trackNumber === nextTrack &&
-          (seg.status === 'en_progreso' || seg.status === 'completado') &&
+          seg.status === 'completado' &&
           !seg.nonRecordable
       ).length;
-      const segmentOrder = existingInTrack + 1;
+      const segmentOrder = existingCompletedInTrack + 1;
 
       // Hard guard: in RST mode, segmentOrder must not exceed block capacity
       if (s.rstMode && segmentOrder > groupLimit) {

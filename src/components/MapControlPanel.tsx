@@ -88,6 +88,9 @@ interface Props {
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
+  /** Cancel start props */
+  canCancelStart?: boolean;
+  onCancelStart?: () => void;
 }
 
 export function MapControlPanel({
@@ -138,6 +141,8 @@ export function MapControlPanel({
   acquisitionMode,
   onSetAcquisitionMode,
   onReorder,
+  canCancelStart = false,
+  onCancelStart,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
@@ -367,6 +372,11 @@ export function MapControlPanel({
                   <Button disabled={isBlocked} variant="outline" onClick={() => onSkipSegment(pinnedSegment.id)} className="h-14 px-3 border-amber-500/40 text-amber-400 hover:bg-amber-500/10" title="Saltar tramo">
                     <SkipForward className="w-5 h-5" />
                   </Button>
+                  {canCancelStart && onCancelStart && (
+                    <Button disabled={isBlocked} variant="outline" onClick={onCancelStart} className="h-14 px-3 border-amber-500/40 text-amber-400 hover:bg-amber-500/10" title="Cancelar inicio de tramo">
+                      <RotateCcw className="w-5 h-5" />
+                    </Button>
+                  )}
                   <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(pinnedSegment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                     <Button variant="outline" className="h-14 px-4 border-destructive/40 text-destructive">
                       <AlertTriangle className="w-5 h-5" />
@@ -593,7 +603,7 @@ export function MapControlPanel({
                   <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-2 py-1.5">
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-medium text-primary">
-                        Track {trackSession.trackNumber} · {trackSession.segmentIds.length}/{trackSession.capacity} tramos
+                        Track {trackSession.trackNumber} · {segments.filter(s => trackSession!.segmentIds.includes(s.id) && s.status === 'completado').length}/{trackSession.capacity} tramos
                       </p>
                     </div>
                     <Button
