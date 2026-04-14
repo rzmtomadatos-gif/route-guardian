@@ -745,6 +745,7 @@ export function MapControlPanel({
       <EndOfVideoDialog
         open={!!videoEndBlocking}
         trackNumber={trackSession?.trackNumber ?? 0}
+        workDay={workDay}
         rstGroupSize={rstGroupSize}
         onContinue={() => onVideoEndContinue?.()}
       />
