@@ -134,6 +134,7 @@ export function MapControlPanel({
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
+  blockEndReason,
   copilotSession,
   copilotActive,
   onCopilotStart,
@@ -749,6 +750,7 @@ export function MapControlPanel({
         trackNumber={trackSession?.trackNumber ?? 0}
         workDay={workDay}
         rstGroupSize={rstGroupSize}
+        reason={blockEndReason}
         onContinue={() => onVideoEndContinue?.()}
       />
     </div>
