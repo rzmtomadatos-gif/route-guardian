@@ -159,7 +159,7 @@ export interface TrackSession {
 export interface BlockEndPrompt {
   isOpen: boolean;
   trackNumber: number | null;
-  reason: 'capacity' | 'manual';
+  reason: 'capacity' | 'manual' | 'invalidated';
 }
 
 export interface AppState {

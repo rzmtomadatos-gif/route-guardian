@@ -15,6 +15,7 @@ interface Props {
   trackNumber: number;
   workDay: number;
   rstGroupSize?: number;
+  reason?: 'capacity' | 'manual' | 'invalidated';
   onContinue: () => void;
 }
 
@@ -41,7 +42,8 @@ const STEPS = [
   },
 ];
 
-export function EndOfVideoDialog({ open, trackNumber, workDay, rstGroupSize = 9, onContinue }: Props) {
+export function EndOfVideoDialog({ open, trackNumber, workDay, rstGroupSize = 9, reason, onContinue }: Props) {
+  const isInvalidated = reason === 'invalidated';
   const [checked, setChecked] = useState<Set<number>>(new Set());
 
   const allChecked = checked.size === STEPS.length;
@@ -70,7 +72,7 @@ export function EndOfVideoDialog({ open, trackNumber, workDay, rstGroupSize = 9,
             </div>
             <div>
               <AlertDialogTitle className="text-base leading-tight">
-                Finalizado Día {workDay} · Track {trackNumber}
+                {isInvalidated ? 'Invalidado' : 'Finalizado'} Día {workDay} · Track {trackNumber}
               </AlertDialogTitle>
               <p className="text-sm text-muted-foreground mt-0.5">Prepara nuevo archivo para Día {workDay} · Track {trackNumber + 1}</p>
             </div>
@@ -117,7 +119,9 @@ export function EndOfVideoDialog({ open, trackNumber, workDay, rstGroupSize = 9,
         </AlertDialogHeader>
 
         <p className="text-xs text-destructive font-medium text-center">
-          El siguiente tramo no puede iniciarse hasta confirmar que el equipo está preparado.
+          {isInvalidated
+            ? `El Track ${trackNumber} ha sido invalidado por incidencia crítica. Prepara el siguiente archivo.`
+            : 'El siguiente tramo no puede iniciarse hasta confirmar que el equipo está preparado.'}
         </p>
 
         <AlertDialogFooter className="mt-3">

@@ -76,6 +76,8 @@ interface Props {
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
   onVideoEndCancel?: () => void;
+  /** Reason for block end prompt */
+  blockEndReason?: 'capacity' | 'manual' | 'invalidated';
   /** Acquisition mode */
   acquisitionMode: AcquisitionMode;
   onSetAcquisitionMode: (mode: AcquisitionMode) => void;
