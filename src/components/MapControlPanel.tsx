@@ -76,6 +76,8 @@ interface Props {
   videoEndBlocking?: boolean;
   onVideoEndContinue?: () => void;
   onVideoEndCancel?: () => void;
+  /** Reason for block end prompt */
+  blockEndReason?: 'capacity' | 'manual' | 'invalidated';
   /** Acquisition mode */
   acquisitionMode: AcquisitionMode;
   onSetAcquisitionMode: (mode: AcquisitionMode) => void;
@@ -132,6 +134,7 @@ export function MapControlPanel({
   videoEndBlocking,
   onVideoEndContinue,
   onVideoEndCancel,
+  blockEndReason,
   copilotSession,
   copilotActive,
   onCopilotStart,
@@ -747,6 +750,7 @@ export function MapControlPanel({
         trackNumber={trackSession?.trackNumber ?? 0}
         workDay={workDay}
         rstGroupSize={rstGroupSize}
+        reason={blockEndReason}
         onContinue={() => onVideoEndContinue?.()}
       />
     </div>

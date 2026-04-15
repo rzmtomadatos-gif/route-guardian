@@ -1439,6 +1439,7 @@ export default function MapPage({
         onChangeWorkDay={handleChangeWorkDay}
         activeRouteBlock={activeRouteBlock}
         videoEndBlocking={videoEndBlocking}
+        blockEndReason={state.blockEndPrompt.reason}
         onVideoEndContinue={handleVideoEndContinue}
         acquisitionMode={state.acquisitionMode}
         onSetAcquisitionMode={onSetAcquisitionMode}

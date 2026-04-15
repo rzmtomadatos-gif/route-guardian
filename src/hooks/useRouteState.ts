@@ -783,6 +783,23 @@ export function useRouteState() {
         return seg?.status === 'pendiente' && !seg.nonRecordable;
       });
 
+      // If block was invalidated, open blockEndPrompt to force track change
+      if (impact === 'critica_invalida_bloque' && trackSession) {
+        const invalidatedTrackNum = trackSession.trackNumber;
+        return {
+          ...s,
+          route: { ...s.route, segments },
+          incidents: [...s.incidents, newIncident],
+          activeSegmentId: remaining[0] || null,
+          trackSession,
+          blockEndPrompt: {
+            isOpen: true,
+            trackNumber: invalidatedTrackNum,
+            reason: 'invalidated',
+          },
+        };
+      }
+
       return {
         ...s,
         route: { ...s.route, segments },
@@ -792,6 +809,17 @@ export function useRouteState() {
       };
     }, true);
     logEvent('INCIDENT_RECORDED', { segmentId, payload: { category, impact, note: note || '' } });
+    // Emit TRACK_CLOSED if block was invalidated (side effect outside updater)
+    setStateRaw((current) => {
+      if (current.blockEndPrompt.isOpen && current.blockEndPrompt.reason === 'invalidated') {
+        logEvent('TRACK_CLOSED', {
+          workDay: current.workDay,
+          trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
+          payload: { reason: 'invalidated' },
+        });
+      }
+      return current;
+    });
   }, [setState]);
 
   const reoptimize = useCallback((currentPos?: LatLng | null, hiddenLayers?: Set<string>) => {
@@ -892,7 +920,10 @@ export function useRouteState() {
     setState((s) => {
       const segments = s.route?.segments ?? [];
       const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
-      const nextTrack = getMaxTrack(segments, s.trackSession, s.workDay) + 1;
+      const nextTrack = Math.max(
+        getMaxTrack(segments, s.trackSession, s.workDay),
+        s.blockEndPrompt.trackNumber ?? 0
+      ) + 1;
       return {
         ...s,
         blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
