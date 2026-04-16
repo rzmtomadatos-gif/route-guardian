@@ -1,57 +1,89 @@
 
 
-# Corrección — Emisión de TRACK_CLOSED fuera del updater en addIncident
+# Plan — Navegación OFF + activeSegmentId null al cerrar track
 
-## Problema identificado
+## Diagnóstico
 
-El plan anterior colocaba `logEvent('TRACK_CLOSED', ...)` dentro del updater de `setState` en `addIncident`. Eso introduce side effects dentro del updater, rompiendo el patrón de la repo.
+Los tres puntos que cierran track y abren `blockEndPrompt` ya tienen `navigationActive: false` (implementación anterior), pero **no** ponen `activeSegmentId: null`. Además, ninguno emite `NAV_STOPPED`.
 
-## Patrón existente en la repo
+El `stopNavigation` existente (L185-238) ya establece el patrón correcto:
+- `navigationActive: false`
+- `activeSegmentId: null`
+- Emite `NAV_STOPPED` vía `setTimeout` con `reason` + `trackNumber`
 
-Hay dos variantes ya usadas:
+## Cambios
 
-1. **`finalizeTrack` (L569)**: emite `logEvent` directamente después del `setState(...)`, sin leer estado resultante.
-2. **`completeSegment` (L526-538)**: usa `setStateRaw` con callback de solo lectura para inspeccionar el estado resultante y emitir condicionalmente.
+### Archivo único: `src/hooks/useRouteState.ts`
 
-## Solución propuesta
-
-Usar el **patrón de `completeSegment`** (variante 2), porque necesitamos leer el estado resultante para extraer `workDay` y `trackNumber` del `blockEndPrompt` recién abierto.
-
-Después del `setState(...)` en `addIncident`, añadir:
+**En los 3 returns que abren `blockEndPrompt`**, el estado final incluirá:
 
 ```typescript
-// Después del setState existente (L793) y del logEvent INCIDENT_RECORDED (L794):
+navigationActive: false,
+activeSegmentId: null,
+```
+
+Los 3 puntos son:
+1. `completeSegment` — cierre por capacidad
+2. `finalizeTrack` — cierre manual
+3. `addIncident` — invalidación crítica
+
+### Emisión de NAV_STOPPED
+
+**Sí se emitirá**, usando el mismo patrón `setStateRaw` (lectura sin mutación) que ya se usa para `TRACK_CLOSED` en `addIncident`.
+
+Después del `setState` de cada cierre, se añadirá:
+
+```typescript
 setStateRaw((current) => {
-  if (current.blockEndPrompt.isOpen && current.blockEndPrompt.reason === 'invalidated') {
-    logEvent('TRACK_CLOSED', {
-      workDay: current.workDay,
-      trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
-      payload: { reason: 'invalidated' },
+  if (!current.navigationActive && current.blockEndPrompt.isOpen) {
+    logEvent('NAV_STOPPED', {
+      payload: {
+        reason: 'track_closed_capacity',  // o 'track_closed_manual' o 'track_closed_invalidated'
+        trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
+      },
     });
   }
-  return current; // no mutation
+  return current;
 });
 ```
 
-Esto:
-- mantiene el updater de `addIncident` libre de side effects
-- emite `TRACK_CLOSED` solo cuando la invalidación realmente ocurrió
-- usa el mismo patrón exacto que `completeSegment` (L526-538)
-- lee `workDay` y `trackNumber` del estado real, no de variables capturadas
+Cada punto usará su reason específico:
+- `completeSegment` → `track_closed_capacity`
+- `finalizeTrack` → `track_closed_manual`
+- `addIncident` → `track_closed_invalidated`
 
-## Orden de emisión
+### Justificación de emitir NAV_STOPPED
+
+1. **Coherencia con `stopNavigation`**: la parada manual ya emite `NAV_STOPPED`. Si la navegación se apaga automáticamente sin emitirlo, el event log queda con un `NAV_STARTED` sin su cierre correspondiente.
+2. **Trazabilidad completa**: el event log mostrará la secuencia `TRACK_CLOSED` + `NAV_STOPPED` (o `INCIDENT_RECORDED` + `TRACK_CLOSED` + `NAV_STOPPED` en invalidación), dejando claro qué ocurrió.
+3. **El `reason` diferenciado** permite distinguir en auditoría si la parada fue por operador, por capacidad, por cierre manual o por invalidación.
+
+### Orden de emisión por caso
 
 ```text
-setState(...)           → muta estado, abre blockEndPrompt
-logEvent(INCIDENT_RECORDED)  → ya existente (L794)
-setStateRaw(...)        → lee estado, emite TRACK_CLOSED si invalidación
+Capacidad:   setState → setStateRaw(TRACK_CLOSED) → setStateRaw(NAV_STOPPED reason:track_closed_capacity)
+Manual:      setState → logEvent(TRACK_CLOSED) → setStateRaw(NAV_STOPPED reason:track_closed_manual)  
+Invalidación: setState → logEvent(INCIDENT_RECORDED) → setStateRaw(TRACK_CLOSED) → setStateRaw(NAV_STOPPED reason:track_closed_invalidated)
 ```
 
-## Resto del plan
+## Estado final garantizado en los 3 casos
 
-Sin cambios respecto al plan aprobado:
-- `src/types/route.ts`: añadir `'invalidated'` a `BlockEndPrompt.reason`
-- `src/hooks/useRouteState.ts`: `addIncident` abre `blockEndPrompt` con `reason: 'invalidated'`; `closeBlockEndPrompt` usa `Math.max(getMaxTrack(...), blockEndPrompt.trackNumber ?? 0) + 1`
-- `src/components/EndOfVideoDialog.tsx`: texto diferenciado para `reason === 'invalidated'`
-- `src/components/MapControlPanel.tsx` y `src/pages/MapPage.tsx`: pasar `reason`
+| Campo | Valor |
+|---|---|
+| `navigationActive` | `false` |
+| `activeSegmentId` | `null` |
+| `blockEndPrompt.isOpen` | `true` |
+| Event log | `TRACK_CLOSED` + `NAV_STOPPED` emitidos |
+
+## Riesgos
+
+Bajo. Se añade `activeSegmentId: null` a 3 returns existentes y un `setStateRaw` de solo lectura para `NAV_STOPPED`. No se modifica ningún otro flujo.
+
+## Plan de pruebas
+
+**Capacidad**: completar hasta cierre → verificar `navigationActive === false`, `activeSegmentId === null`, event log tiene `NAV_STOPPED { reason: track_closed_capacity }`.
+
+**Manual**: cerrar track → misma verificación con `reason: track_closed_manual`.
+
+**Invalidación**: lanzar `critica_invalida_bloque` → misma verificación con `reason: track_closed_invalidated`, Track N+1 preparado, navegación sigue OFF.
 
