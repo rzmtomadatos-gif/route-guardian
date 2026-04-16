@@ -130,7 +130,7 @@ const trackSessionSchema = z.object({
 const blockEndPromptSchema = z.object({
   isOpen: z.boolean(),
   trackNumber: z.number().nullable(),
-  reason: z.enum(['capacity', 'manual']),
+  reason: z.enum(['capacity', 'manual', 'invalidated']),
 }).strict();
 
 // ── App State — strict ──
