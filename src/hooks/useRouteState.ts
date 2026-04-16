@@ -516,7 +516,8 @@ export function useRouteState() {
       return {
         ...s,
         route: { ...s.route, segments },
-        activeSegmentId: remaining[0] || null,
+        activeSegmentId: blockEndPrompt.isOpen ? null : (remaining[0] || null),
+        navigationActive: blockEndPrompt.isOpen ? false : s.navigationActive,
         trackSession,
         blockEndPrompt,
       };
@@ -525,7 +526,6 @@ export function useRouteState() {
     // Emit TRACK_CLOSED if auto-close happened (capacity reached)
     setStateRaw((current) => {
       if (current.trackSession && !current.trackSession.active && current.trackSession.endedAt) {
-        // Only emit if the prompt is open (signals just-closed track)
         if (current.blockEndPrompt.isOpen) {
           logEvent('TRACK_CLOSED', {
             workDay: current.workDay,
@@ -533,6 +533,18 @@ export function useRouteState() {
             payload: { reason: current.blockEndPrompt.reason },
           });
         }
+      }
+      return current;
+    });
+    // Emit NAV_STOPPED if navigation was auto-stopped due to track closure
+    setStateRaw((current) => {
+      if (!current.navigationActive && current.blockEndPrompt.isOpen && current.blockEndPrompt.reason === 'capacity') {
+        logEvent('NAV_STOPPED', {
+          payload: {
+            reason: 'track_closed_capacity',
+            trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
+          },
+        });
       }
       return current;
     });
@@ -557,6 +569,8 @@ export function useRouteState() {
       return {
         ...s,
         route: s.route ? { ...s.route, segments } : null,
+        navigationActive: false,
+        activeSegmentId: null,
         trackSession: {
           ...s.trackSession,
           active: false,
@@ -567,6 +581,18 @@ export function useRouteState() {
       };
     }, true);
     logEvent('TRACK_CLOSED', { payload: { reason: 'manual' } });
+    // Emit NAV_STOPPED after manual track closure
+    setStateRaw((current) => {
+      if (!current.navigationActive && current.blockEndPrompt.isOpen && current.blockEndPrompt.reason === 'manual') {
+        logEvent('NAV_STOPPED', {
+          payload: {
+            reason: 'track_closed_manual',
+            trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
+          },
+        });
+      }
+      return current;
+    });
   }, [setState]);
 
   /** Mark segment as posible_repetir (called when adding an incident) */
@@ -790,7 +816,8 @@ export function useRouteState() {
           ...s,
           route: { ...s.route, segments },
           incidents: [...s.incidents, newIncident],
-          activeSegmentId: remaining[0] || null,
+          activeSegmentId: null,
+          navigationActive: false,
           trackSession,
           blockEndPrompt: {
             isOpen: true,
@@ -816,6 +843,18 @@ export function useRouteState() {
           workDay: current.workDay,
           trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
           payload: { reason: 'invalidated' },
+        });
+      }
+      return current;
+    });
+    // Emit NAV_STOPPED after invalidation track closure
+    setStateRaw((current) => {
+      if (!current.navigationActive && current.blockEndPrompt.isOpen && current.blockEndPrompt.reason === 'invalidated') {
+        logEvent('NAV_STOPPED', {
+          payload: {
+            reason: 'track_closed_invalidated',
+            trackNumber: current.blockEndPrompt.trackNumber ?? undefined,
+          },
         });
       }
       return current;
