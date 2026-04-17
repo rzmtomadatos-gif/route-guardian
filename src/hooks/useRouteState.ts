@@ -182,8 +182,48 @@ export function useRouteState() {
     logEvent('NAV_STARTED', { payload: { mode: 'navigation' } });
   }, [setState]);
 
-  const stopNavigation = useCallback(() => {
+  /**
+   * Preview no mutante para detener navegación.
+   * Devuelve si requiere confirmación (porque hay track activo o tramos en_progreso)
+   * y los datos para mostrar al operador en el diálogo.
+   */
+  const prepareStopNavigation = useCallback((): {
+    needsConfirmation: boolean;
+    workDay: number;
+    trackNumber: number | null;
+    inProgressCount: number;
+  } => {
+    let snapshot: AppState | null = null;
+    setStateRaw((s) => { snapshot = s; return s; });
+    const s = snapshot as AppState | null;
+    if (!s) return { needsConfirmation: false, workDay: 1, trackNumber: null, inProgressCount: 0 };
+
+    const inProgressCount = s.route
+      ? s.route.segments.filter((seg) => seg.status === 'en_progreso').length
+      : 0;
+    const trackNumber = s.trackSession?.active ? s.trackSession.trackNumber : null;
+    const needsConfirmation = trackNumber !== null || inProgressCount > 0;
+
+    return {
+      needsConfirmation,
+      workDay: s.workDay,
+      trackNumber,
+      inProgressCount,
+    };
+  }, [setStateRaw]);
+
+  /**
+   * Ejecución real del cierre de navegación.
+   * Si hay track activo lo cierra y abre blockEndPrompt (reason 'manual').
+   * Si hay tramos en_progreso los revierte a pendiente.
+   * Solo debe llamarse tras confirmación del operador (o desde el wrapper cuando no hay nada destructivo).
+   */
+  const confirmStopNavigation = useCallback(() => {
+    let trackClosed: number | null = null;
+    let defensiveCleaned: string[] = [];
+
     setState((s) => {
+      if (!s.navigationActive) return s;
       const now = new Date().toISOString();
       let newState: AppState = {
         ...s,
@@ -191,26 +231,22 @@ export function useRouteState() {
         activeSegmentId: null,
       };
 
-      // Close trackSession only if still active (avoid double TRACK_CLOSED)
-      let trackClosed = false;
-      let trackNum: number | null = null;
+      // Cerrar track activo (si existe) — siempre lo consumimos
       if (newState.trackSession && newState.trackSession.active) {
-        trackNum = newState.trackSession.trackNumber;
+        trackClosed = newState.trackSession.trackNumber;
         newState = {
           ...newState,
           trackSession: { ...newState.trackSession, active: false, endedAt: now, closedManually: true },
+          blockEndPrompt: { isOpen: true, trackNumber: trackClosed, reason: 'manual' },
         };
-        trackClosed = true;
       } else if (newState.trackSession) {
-        // Clear trackStartTime but don't re-close
         newState = {
           ...newState,
           trackSession: { ...newState.trackSession, trackStartTime: null },
         };
       }
 
-      // Defensive safety net: sanear tramos en_progreso residuales
-      let defensiveCleaned: string[] = [];
+      // Revertir tramos en_progreso residuales
       if (newState.route) {
         const residual = newState.route.segments.filter((seg) => seg.status === 'en_progreso');
         if (residual.length > 0) {
@@ -220,23 +256,43 @@ export function useRouteState() {
         }
       }
 
-      // Emit events after state update
-      setTimeout(() => {
-        if (trackClosed && trackNum !== null) {
-          logEvent('TRACK_CLOSED', { trackNumber: trackNum, payload: { reason: 'navigation_stopped' } });
-        }
-        logEvent('NAV_STOPPED', {
-          payload: {
-            reason: 'operator_stop',
-            trackNumber: trackNum,
-            ...(defensiveCleaned.length > 0 ? { defensiveCleaned } : {}),
-          },
-        });
-      }, 0);
-
       return newState;
     }, true);
-  }, [setState]);
+
+    // Emitir eventos fuera del updater
+    setStateRaw((current) => {
+      if (trackClosed !== null) {
+        logEvent('TRACK_CLOSED', {
+          workDay: current.workDay,
+          trackNumber: trackClosed,
+          payload: { reason: 'manual_via_stop_navigation' },
+        });
+      }
+      logEvent('NAV_STOPPED', {
+        payload: {
+          reason: trackClosed !== null ? 'track_closed_manual' : 'manual',
+          trackNumber: trackClosed ?? undefined,
+          ...(defensiveCleaned.length > 0 ? { defensiveCleaned } : {}),
+        },
+      });
+      return current;
+    });
+  }, [setState, setStateRaw]);
+
+  /**
+   * Wrapper legacy: para llamadas internas que no pasan por UI.
+   * Si necesita confirmación (track activo o tramos en_progreso), NO ejecuta:
+   * la UI debe usar prepareStopNavigation + confirmStopNavigation.
+   * Solo ejecuta directo cuando no hay nada destructivo que confirmar.
+   */
+  const stopNavigation = useCallback(() => {
+    const preview = prepareStopNavigation();
+    if (preview.needsConfirmation) {
+      // No ejecutar: la UI debe pedir confirmación explícita.
+      return;
+    }
+    confirmStopNavigation();
+  }, [prepareStopNavigation, confirmStopNavigation]);
 
   /** Allocate the next track number based on mode. Resets per workDay. */
   const allocateTrackNumber = (segments: Segment[], rstMode: boolean, groupLimit: number, trackSession: TrackSession | null, workDay?: number): number => {
