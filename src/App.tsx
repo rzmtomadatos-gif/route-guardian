@@ -59,7 +59,7 @@ function AppRoutes() {
   }, []);
 
   const {
-    state, isDirty, markClean, setRoute, startNavigation, stopNavigation,
+    state, isDirty, markClean, setRoute, startNavigation,
     prepareStopNavigation, confirmStopNavigation,
     confirmStartSegment, completeSegment, addIncident, reoptimize,
     resetSegment, clearRoute, setActiveSegment, setBase, updateSegment,
