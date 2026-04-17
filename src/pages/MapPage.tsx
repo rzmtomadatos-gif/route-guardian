@@ -36,7 +36,8 @@ const DEVIATION_THRESHOLD = 100;
 interface Props {
   state: AppState;
   onStartNavigation: (hiddenLayers?: Set<string>) => void;
-  onStopNavigation: () => void;
+  onPrepareStopNavigation: () => { needsConfirmation: boolean; workDay: number; trackNumber: number | null; inProgressCount: number };
+  onConfirmStopNavigation: () => void;
   onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
