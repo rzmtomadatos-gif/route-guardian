@@ -73,7 +73,8 @@ interface Props {
 export default function MapPage({
   state,
   onStartNavigation,
-  onStopNavigation,
+  onPrepareStopNavigation,
+  onConfirmStopNavigation,
   onConfirmStart,
   onComplete,
   onResetSegment,
