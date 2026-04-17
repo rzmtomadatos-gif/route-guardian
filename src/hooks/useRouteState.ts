@@ -1585,6 +1585,8 @@ export function useRouteState() {
     setRoute,
     startNavigation,
     stopNavigation,
+    prepareStopNavigation,
+    confirmStopNavigation,
     confirmStartSegment,
     completeSegment,
     addIncident,
