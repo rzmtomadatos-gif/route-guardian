@@ -370,22 +370,25 @@ export default function MapPage({
     if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
 
-  // Stop navigation request — intercept if there are en_progreso segments
+  // Stop navigation request — preview from hook decides if confirmation is needed
   const handleStopRequest = useCallback(() => {
-    if (!state.route) { onStopNavigation(); return; }
-    const inProgressCount = state.route.segments.filter((s) => s.status === 'en_progreso').length;
-    if (inProgressCount > 0) {
-      setShowStopDialog(true);
-    } else {
-      onStopNavigation();
+    const preview = onPrepareStopNavigation();
+    if (!preview.needsConfirmation) {
+      // Caso 3: nada destructivo, ejecutar directamente
+      onConfirmStopNavigation();
+      return;
     }
-  }, [state.route, onStopNavigation]);
+    setStopDialogState({
+      workDay: preview.workDay,
+      trackNumber: preview.trackNumber,
+      inProgressCount: preview.inProgressCount,
+    });
+  }, [onPrepareStopNavigation, onConfirmStopNavigation]);
 
   const handleCancelAndStop = useCallback(() => {
-    onCancelAllInProgress('stop_navigation_cancel');
-    onStopNavigation();
-    setShowStopDialog(false);
-  }, [onCancelAllInProgress, onStopNavigation]);
+    onConfirmStopNavigation();
+    setStopDialogState(null);
+  }, [onConfirmStopNavigation]);
 
   // Work day change — controlled flow with validation + dialog
   const handleChangeWorkDay = useCallback((targetDay: number) => {
