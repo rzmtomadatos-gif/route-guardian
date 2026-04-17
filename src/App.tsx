@@ -59,7 +59,8 @@ function AppRoutes() {
   }, []);
 
   const {
-    state, isDirty, markClean, setRoute, startNavigation, stopNavigation,
+    state, isDirty, markClean, setRoute, startNavigation,
+    prepareStopNavigation, confirmStopNavigation,
     confirmStartSegment, completeSegment, addIncident, reoptimize,
     resetSegment, clearRoute, setActiveSegment, setBase, updateSegment,
     updateIncident, deleteIncident, addLayer, renameLayer, deleteLayer,
@@ -188,7 +189,8 @@ function AppRoutes() {
         <MapPage
           state={state}
           onStartNavigation={startNavigation}
-          onStopNavigation={stopNavigation}
+          onPrepareStopNavigation={prepareStopNavigation}
+          onConfirmStopNavigation={confirmStopNavigation}
           onConfirmStart={confirmStartSegment}
           onComplete={completeSegment}
           onResetSegment={resetSegment}

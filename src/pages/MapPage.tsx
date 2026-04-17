@@ -36,7 +36,8 @@ const DEVIATION_THRESHOLD = 100;
 interface Props {
   state: AppState;
   onStartNavigation: (hiddenLayers?: Set<string>) => void;
-  onStopNavigation: () => void;
+  onPrepareStopNavigation: () => { needsConfirmation: boolean; workDay: number; trackNumber: number | null; inProgressCount: number };
+  onConfirmStopNavigation: () => void;
   onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onComplete: (segmentId: string, hiddenLayers?: Set<string>) => void;
   onResetSegment: (segmentId: string) => void;
@@ -72,7 +73,8 @@ interface Props {
 export default function MapPage({
   state,
   onStartNavigation,
-  onStopNavigation,
+  onPrepareStopNavigation,
+  onConfirmStopNavigation,
   onConfirmStart,
   onComplete,
   onResetSegment,
@@ -115,7 +117,9 @@ export default function MapPage({
   const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
-  const [showStopDialog, setShowStopDialog] = useState(false);
+  const [stopDialogState, setStopDialogState] = useState<
+    { workDay: number; trackNumber: number | null; inProgressCount: number } | null
+  >(null);
   const [dayChangeTarget, setDayChangeTarget] = useState<{ target: number; hasInProgress: boolean; inProgressCount: number } | null>(null);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
@@ -366,22 +370,25 @@ export default function MapPage({
     if (curr === 'gps_unstable') playGpsUnstableSound();
   }, [navTracker.operationalState, navTracker.contiguousInfo.isContiguous]);
 
-  // Stop navigation request — intercept if there are en_progreso segments
+  // Stop navigation request — preview from hook decides if confirmation is needed
   const handleStopRequest = useCallback(() => {
-    if (!state.route) { onStopNavigation(); return; }
-    const inProgressCount = state.route.segments.filter((s) => s.status === 'en_progreso').length;
-    if (inProgressCount > 0) {
-      setShowStopDialog(true);
-    } else {
-      onStopNavigation();
+    const preview = onPrepareStopNavigation();
+    if (!preview.needsConfirmation) {
+      // Caso 3: nada destructivo, ejecutar directamente
+      onConfirmStopNavigation();
+      return;
     }
-  }, [state.route, onStopNavigation]);
+    setStopDialogState({
+      workDay: preview.workDay,
+      trackNumber: preview.trackNumber,
+      inProgressCount: preview.inProgressCount,
+    });
+  }, [onPrepareStopNavigation, onConfirmStopNavigation]);
 
   const handleCancelAndStop = useCallback(() => {
-    onCancelAllInProgress('stop_navigation_cancel');
-    onStopNavigation();
-    setShowStopDialog(false);
-  }, [onCancelAllInProgress, onStopNavigation]);
+    onConfirmStopNavigation();
+    setStopDialogState(null);
+  }, [onConfirmStopNavigation]);
 
   // Work day change — controlled flow with validation + dialog
   const handleChangeWorkDay = useCallback((targetDay: number) => {
@@ -1459,10 +1466,12 @@ export default function MapPage({
       }
 
       <StopNavigationDialog
-        open={showStopDialog}
-        inProgressCount={state.route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0}
+        open={stopDialogState !== null}
+        workDay={stopDialogState?.workDay ?? state.workDay}
+        trackNumber={stopDialogState?.trackNumber ?? null}
+        inProgressCount={stopDialogState?.inProgressCount ?? 0}
         onCancelAndStop={handleCancelAndStop}
-        onGoBack={() => setShowStopDialog(false)}
+        onGoBack={() => setStopDialogState(null)}
       />
 
       <WorkDayChangeDialog
