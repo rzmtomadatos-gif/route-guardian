@@ -1466,10 +1466,12 @@ export default function MapPage({
       }
 
       <StopNavigationDialog
-        open={showStopDialog}
-        inProgressCount={state.route?.segments.filter((s) => s.status === 'en_progreso').length ?? 0}
+        open={stopDialogState !== null}
+        workDay={stopDialogState?.workDay ?? state.workDay}
+        trackNumber={stopDialogState?.trackNumber ?? null}
+        inProgressCount={stopDialogState?.inProgressCount ?? 0}
         onCancelAndStop={handleCancelAndStop}
-        onGoBack={() => setShowStopDialog(false)}
+        onGoBack={() => setStopDialogState(null)}
       />
 
       <WorkDayChangeDialog
