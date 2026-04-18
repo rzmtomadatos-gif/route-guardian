@@ -1,149 +1,105 @@
 
 
-# Plan — Confirmación obligatoria al detener navegación con track activo
+# Corrección final — Persistencia de tracks consumidos vacíos
 
-## 1. Diagnóstico del flujo actual
+## 1. Diagnóstico del caso
 
-`StopNavigationDialog` existe ya (`src/components/StopNavigationDialog.tsx`) pero solo se muestra cuando hay tramos `en_progreso`. Props actuales:
-- `open`, `inProgressCount`, `onCancelAndStop`, `onGoBack`
+`getMaxTrack` calcula el máximo `trackNumber` mirando segmentos del día con track asignado y `trackHistory`. Si un track se abre y se cierra **sin asociar ningún tramo**, no deja huella en `route.segments`. Tras `closeBlockEndPrompt` (que pone `trackSession: null`) y un nuevo `prepareNavigationStart`, el cálculo devolvería el mismo número → **Track 1 reaparece**.
 
-El plan anterior hacía que `stopNavigation` cerrase track inmediatamente. Eso permite cierre accidental por pulsación errónea del botón "Detener navegación".
+`blockEndPrompt.trackNumber` ya se usaba como guardia parcial, pero se limpia al cerrar el prompt. No persiste hasta el siguiente inicio.
 
-## 2. Decisión: reutilizar y ampliar `StopNavigationDialog`
+## 2. Fuente de verdad nueva: `lastConsumedTrackByDay`
 
-Se amplía el diálogo existente, no se crea uno nuevo. Nuevas props:
-- `workDay: number`
-- `trackNumber: number | null` — null si no hay track activo
-- `inProgressCount: number` — sigue existiendo
-
-Texto adaptativo según contexto:
-
-| Caso | Título / cuerpo |
-|---|---|
-| Track activo, sin tramo en progreso | "Se va a cerrar **Día X · Track Y**" |
-| Track activo + tramo en progreso | "Se cancelarán los inicios en progreso y se cerrará **Día X · Track Y**" |
-| Sin track activo + tramo en progreso (residual) | Texto actual sobre cancelación de inicios |
-
-Botones: "Volver a navegación" / "Confirmar y detener".
-
-## 3. Separación en dos funciones del hook
-
-Para evitar cierre accidental, se rompe el flujo en preview + ejecución, equivalente al patrón de `prepareNavigationStart` / `confirmNavigationStart`:
-
-### 3a. `prepareStopNavigation()` — no muta
-
-Devuelve:
-```typescript
-{
-  needsConfirmation: boolean;  // true si hay track activo o tramo en progreso
-  workDay: number;
-  trackNumber: number | null;
-  inProgressCount: number;
-}
-```
-
-### 3b. `confirmStopNavigation()` — ejecución real
-
-Solo se llama tras confirmación. Realiza el cierre completo (lógica que estaba propuesta en el plan anterior para `stopNavigation`).
-
-### 3c. `stopNavigation()` legacy
-
-Se mantiene como wrapper que internamente:
-- llama `prepareStopNavigation`
-- si `needsConfirmation === false` → llama directo a `confirmStopNavigation`
-- si `needsConfirmation === true` → no hace nada, MapPage gestiona el diálogo
-
-Esto protege llamadas internas que no pasan por UI (si las hay).
-
-## 4. Flujo exacto por caso
-
-### Caso 1: nav activa + track activo + sin tramo en progreso
-1. Operador pulsa "Detener navegación"
-2. MapPage llama `prepareStopNavigation()` → `{ needsConfirmation: true, trackNumber: Y, inProgressCount: 0 }`
-3. MapPage abre `StopNavigationDialog` con texto "Se va a cerrar Día X · Track Y"
-4. Si **cancela** → cierra diálogo, nada cambia, **cero eventos emitidos**
-5. Si **confirma** → MapPage llama `confirmStopNavigation()`:
-   - `navigationActive: false`
-   - `activeSegmentId: null`
-   - `trackSession`: cerrada (`active: false`, `endedAt`, `closedManually: true`)
-   - `blockEndPrompt: { isOpen: true, trackNumber: Y, reason: 'manual' }`
-   - Vía `setStateRaw`: emite `TRACK_CLOSED` (reason: `manual_via_stop_navigation`) + `NAV_STOPPED` (reason: `track_closed_manual`)
-
-### Caso 2: nav activa + track activo + tramo en progreso
-1. Pulsar "Detener navegación"
-2. `prepareStopNavigation()` → `{ needsConfirmation: true, trackNumber: Y, inProgressCount: N }`
-3. Diálogo muestra: "Se cancelarán {N} inicio(s) en progreso y se cerrará Día X · Track Y"
-4. Cancelar → nada cambia
-5. Confirmar → `confirmStopNavigation()`:
-   - Revierte tramos `en_progreso` → `pendiente`
-   - Cierra track, navegación OFF, prompt abierto
-   - Emite `TRACK_CLOSED` + `NAV_STOPPED`
-
-### Caso 3: nav activa sin track activo
-1. Pulsar "Detener navegación"
-2. `prepareStopNavigation()` → `{ needsConfirmation: false, trackNumber: null, inProgressCount: 0 }`
-3. MapPage llama directamente `confirmStopNavigation()` sin diálogo
-4. Solo: `navigationActive: false`, `activeSegmentId: null`, emite `NAV_STOPPED` (reason: `manual`)
-5. **No** se emite `TRACK_CLOSED` (no hay track que cerrar)
-6. **No** se abre `blockEndPrompt`
-
-Este es el único caso sin confirmación, por coherencia: no hay nada destructivo que confirmar.
-
-## 5. Punto exacto de emisión de eventos
-
-Todos los eventos van **dentro de `confirmStopNavigation`**, vía `setStateRaw` después del `setState`:
+Añadir al `AppState`:
 
 ```typescript
-setStateRaw((current) => {
-  if (trackToClose !== null) {
-    logEvent('TRACK_CLOSED', {
-      workDay: current.workDay,
-      trackNumber: trackToClose,
-      payload: { reason: 'manual_via_stop_navigation' }
-    });
-  }
-  logEvent('NAV_STOPPED', {
-    payload: {
-      reason: trackToClose !== null ? 'track_closed_manual' : 'manual',
-      trackNumber: trackToClose ?? undefined
-    }
-  });
-  return current;
-});
+lastConsumedTrackByDay: Record<number, number>;
+// Ej: { 1: 3, 2: 1 } → día 1 ha consumido hasta Track 3, día 2 hasta Track 1
 ```
 
-Garantía: hasta que `confirmStopNavigation` no se invoca, **cero efectos**: cero mutaciones, cero eventos, cero `blockEndPrompt`.
+Persiste en SQLite igual que el resto del estado. Se inicializa `{}`.
 
-## 6. Garantía contra pulsación accidental
+### Reglas de actualización
 
-| Capa | Protección |
+| Función | Acción sobre `lastConsumedTrackByDay` |
 |---|---|
-| Hook | `prepareStopNavigation` es no mutante; `confirmStopNavigation` solo se llama explícitamente desde MapPage tras confirmación |
-| UI | Diálogo modal sin cierre por overlay; dos botones explícitos |
-| Texto | Muestra Día y Track concretos para que el operador vea qué va a cerrar |
-| Estado | Si el operador pulsa accidentalmente y luego cancela: estado idéntico al anterior, ningún log |
+| `confirmNavigationStart` | Al abrir Track Y en día X: `lastConsumedTrackByDay[X] = max(actual, Y)` |
+| `confirmStopNavigation` | No toca (ya se actualizó al abrir) |
+| `completeSegment` (cierre por capacidad) | No toca (ya se actualizó al abrir) |
+| `closeBlockEndPrompt` | No toca (debe persistir) |
+| Cambio de día (workDay → N+1) | No toca el día anterior (queda como histórico) |
+| Invalidación crítica que cierra track | No toca (ya se actualizó al abrir) |
 
-## 7. Archivos a tocar
+**Clave**: el contador se incrementa al **abrir** el track, no al cerrarlo. Así, aunque el track se cierre vacío inmediatamente, el número ya quedó consumido.
 
-| Archivo | Cambio |
+## 3. Cálculo del siguiente track
+
+`prepareNavigationStart` y la revalidación atómica de `confirmNavigationStart` usarán:
+
+```typescript
+const nextTrack = Math.max(
+  getMaxTrack(s.route.segments, s.trackSession, s.workDay),
+  s.blockEndPrompt.trackNumber ?? 0,
+  s.lastConsumedTrackByDay[s.workDay] ?? 0
+) + 1;
+```
+
+Triple guardia:
+- `getMaxTrack`: tracks con tramos completados
+- `blockEndPrompt.trackNumber`: track recién cerrado pendiente de confirmar prompt
+- `lastConsumedTrackByDay[workDay]`: tracks abiertos del día (incluso vacíos cerrados)
+
+## 4. Impacto por función
+
+| Función | Cambio |
 |---|---|
-| `src/hooks/useRouteState.ts` | +`prepareStopNavigation`, +`confirmStopNavigation`, modificar `stopNavigation` como wrapper |
-| `src/components/StopNavigationDialog.tsx` | Ampliar props (`workDay`, `trackNumber`); texto adaptativo |
-| `src/pages/MapPage.tsx` | Estado del diálogo unificado: en lugar de mostrar diálogo solo si hay tramos en progreso, mostrarlo si `needsConfirmation === true` |
+| `prepareNavigationStart` | Usa la fórmula triple-Math.max |
+| `confirmNavigationStart` | Misma fórmula en revalidación + escribe `lastConsumedTrackByDay[workDay] = expectedTrackNumber` al mutar |
+| `confirmStopNavigation` | Sin cambios (la marca ya existe desde la apertura) |
+| `closeBlockEndPrompt` | Sin cambios sobre `lastConsumedTrackByDay` (debe persistir) |
+| `getDefaultState` | Añadir `lastConsumedTrackByDay: {}` |
+| `campaign-schema.ts` | Añadir campo opcional al schema Zod (default `{}` si falta, para compatibilidad con campañas antiguas) |
 
-## 8. Plan de pruebas
+## 5. Garantía contra Track 1 fantasma
 
-**Caso 1 cancelar**: nav activa, track 1 abierto, sin tramos. Pulsar Detener → diálogo "Día 1 · Track 1". Cancelar → estado idéntico, log sin entradas nuevas.
+Tras el flujo del caso problema:
+1. Abrir Track 1 → `lastConsumedTrackByDay = { 1: 1 }`
+2. Cerrar manual → estado persiste
+3. `closeBlockEndPrompt` → `trackSession: null`, `blockEndPrompt` limpio, **`lastConsumedTrackByDay = { 1: 1 }` intacto**
+4. Nuevo `prepareNavigationStart` → `Math.max(0, 0, 1) + 1 = 2` ✅
 
-**Caso 1 confirmar**: igual setup. Confirmar → nav OFF, `activeSegmentId === null`, track cerrado, prompt abierto, log tiene `TRACK_CLOSED` + `NAV_STOPPED`.
+## 6. Riesgos
 
-**Caso 2 cancelar**: nav activa, tramo en progreso. Pulsar Detener → diálogo menciona inicios e Día/Track. Cancelar → tramo sigue en progreso, track sigue abierto, sin eventos.
+| Riesgo | Mitigación |
+|---|---|
+| Campañas antiguas sin el campo | Schema Zod con default `{}` + migración silenciosa al cargar |
+| Cambio de día retrocede contador | El registro es por día (`Record<number, number>`), días distintos son independientes |
+| Reset manual de día (workDay decrementa) | Fuera del modelo actual (workday es secuencial); no aplica |
+| Importar campaña exportada con contador | Se respeta el estado importado tal cual |
+| Race entre apertura y cierre rápido | La escritura ocurre dentro del mismo `setState` que abre el track: atómica |
 
-**Caso 2 confirmar**: igual. Confirmar → tramo revertido a pendiente, track cerrado, prompt abierto, eventos emitidos.
+## 7. Plan de pruebas
 
-**Caso 3 (sin track)**: estado anómalo de nav activa sin trackSession. Pulsar Detener → no hay diálogo, nav OFF directa, solo `NAV_STOPPED` (sin `TRACK_CLOSED`).
+**Prueba obligatoria del usuario**:
+1. Iniciar navegación → confirmar Track 1
+2. No iniciar ningún tramo
+3. Detener navegación → confirmar cierre
+4. Cerrar `blockEndPrompt`
+5. Iniciar navegación → diálogo debe mostrar **Track 2** ✅
 
-**Pulsación accidental**: pulsar Detener varias veces seguidas → diálogo aparece una vez. Cerrar sin confirmar → cero cambios, cero eventos.
+**Pruebas adicionales**:
+- Track 1 abierto + 3 tramos completados + manual stop → próximo = Track 2 (ya funcionaba, sigue funcionando)
+- Día 1 con Track 5 consumido → cambiar a Día 2 → primer inicio Día 2 ofrece Track 1 (independencia por día)
+- Abrir/cerrar Track 1 vacío 3 veces seguidas → contador llega a Track 4
+- Importar campaña antigua sin `lastConsumedTrackByDay` → no rompe, se inicializa `{}` y `getMaxTrack` cubre los tracks ya completados
+- Cierre por capacidad en Track 2 → próximo Track 3 (ya funcionaba vía `getMaxTrack`, ahora doblemente blindado)
 
-**Coherencia post-cierre**: tras Caso 1/2 confirmado, confirmar prompt → `trackSession: null`. Próximo `prepareNavigationStart` ofrece Track Y+1.
+## 8. Archivos a tocar (añadidos al plan previo)
+
+| Archivo | Cambio adicional |
+|---|---|
+| `src/types/route.ts` | +`lastConsumedTrackByDay: Record<number, number>` en `AppState` |
+| `src/utils/storage.ts` | `getDefaultState`: añadir `lastConsumedTrackByDay: {}` |
+| `src/utils/persistence/campaign-schema.ts` | Campo Zod opcional con default `{}` |
+| `src/hooks/useRouteState.ts` | Fórmula triple-Math.max en preview y revalidación; escritura en `confirmNavigationStart` |
 
