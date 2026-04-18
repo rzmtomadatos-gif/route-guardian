@@ -60,6 +60,7 @@ function AppRoutes() {
 
   const {
     state, isDirty, markClean, setRoute, startNavigation,
+    prepareNavigationStart, confirmNavigationStart,
     prepareStopNavigation, confirmStopNavigation,
     confirmStartSegment, completeSegment, addIncident, reoptimize,
     resetSegment, clearRoute, setActiveSegment, setBase, updateSegment,
