@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { StopNavigationDialog } from '@/components/StopNavigationDialog';
+import { TrackStartDialog } from '@/components/TrackStartDialog';
 import { WorkDayChangeDialog } from '@/components/WorkDayChangeDialog';
 import { useNavigationTracker } from '@/hooks/useNavigationTracker';
 import { useMapState } from '@/hooks/useMapState';
