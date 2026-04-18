@@ -158,9 +158,172 @@ export function useRouteState() {
     }
   }, [setState]);
 
+  /**
+   * Calcula el siguiente número de track para el día activo.
+   * Triple guardia:
+   *  - getMaxTrack: tracks con tramos ya completados/históricos.
+   *  - blockEndPrompt.trackNumber: track recién cerrado pendiente de confirmar prompt.
+   *  - lastConsumedTrackByDay[workDay]: tracks ya abiertos en este día (incluso vacíos).
+   */
+  const computeNextTrackNumber = (s: AppState): number => {
+    const segments = s.route?.segments ?? [];
+    return Math.max(
+      getMaxTrack(segments, s.trackSession, s.workDay),
+      s.blockEndPrompt.trackNumber ?? 0,
+      s.lastConsumedTrackByDay[s.workDay] ?? 0,
+    ) + 1;
+  };
+
+  /**
+   * Preview no mutante para iniciar navegación.
+   * Devuelve si está permitido y los datos para mostrar el diálogo de confirmación.
+   * NO toca estado, NO emite eventos, NO ejecuta side effects.
+   */
+  const prepareNavigationStart = useCallback((hiddenLayers?: Set<string>): {
+    allowed: boolean;
+    reason?: string;
+    workDay: number;
+    trackNumber: number;
+  } => {
+    let snapshot: AppState | null = null;
+    setStateRaw((s) => { snapshot = s; return s; });
+    const s = snapshot as AppState | null;
+    if (!s) return { allowed: false, reason: 'Estado no disponible', workDay: 1, trackNumber: 1 };
+
+    if (!s.route) {
+      return { allowed: false, reason: 'No hay ruta cargada', workDay: s.workDay, trackNumber: 1 };
+    }
+    if (s.navigationActive) {
+      return { allowed: false, reason: 'La navegación ya está activa', workDay: s.workDay, trackNumber: s.trackSession?.trackNumber ?? 1 };
+    }
+    if (s.blockEndPrompt.isOpen) {
+      return { allowed: false, reason: 'Confirma primero el cierre del track anterior', workDay: s.workDay, trackNumber: 1 };
+    }
+
+    const visiblePending = s.route.optimizedOrder.filter((id) => {
+      const seg = s.route!.segments.find((seg) => seg.id === id);
+      if (!seg || seg.status !== 'pendiente') return false;
+      if (seg.nonRecordable) return false;
+      if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
+      return true;
+    });
+    if (visiblePending.length === 0) {
+      return { allowed: false, reason: 'No hay tramos pendientes visibles', workDay: s.workDay, trackNumber: 1 };
+    }
+
+    const trackNumber = computeNextTrackNumber(s);
+    return { allowed: true, workDay: s.workDay, trackNumber };
+  }, [setStateRaw]);
+
+  /**
+   * Ejecución real: activa navegación, abre track y emite eventos.
+   * Solo debe invocarse tras confirmación del operador en TrackStartDialog.
+   * Revalida atómicamente que el track/día esperados siguen siendo correctos.
+   */
+  const confirmNavigationStart = useCallback((
+    expectedTrackNumber: number,
+    expectedWorkDay: number,
+    hiddenLayers?: Set<string>,
+  ): { ok: boolean; reason?: string; trackNumber?: number; workDay?: number } => {
+    let result: { ok: boolean; reason?: string; trackNumber?: number; workDay?: number } = { ok: false };
+
+    setState((s) => {
+      if (!s.route) {
+        result = { ok: false, reason: 'No hay ruta cargada' };
+        return s;
+      }
+      if (s.navigationActive) {
+        result = { ok: false, reason: 'La navegación ya está activa' };
+        return s;
+      }
+      if (s.blockEndPrompt.isOpen) {
+        result = { ok: false, reason: 'Cierre pendiente de un track anterior' };
+        return s;
+      }
+      if (s.workDay !== expectedWorkDay) {
+        result = { ok: false, reason: 'El día ha cambiado, vuelve a iniciar' };
+        return s;
+      }
+
+      // Revalidación atómica del número de track
+      const recomputed = computeNextTrackNumber(s);
+      if (recomputed !== expectedTrackNumber) {
+        result = { ok: false, reason: `Track recalculado a ${recomputed}, vuelve a iniciar` };
+        return s;
+      }
+
+      const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
+      const now = new Date().toISOString();
+
+      // Primer pendiente visible para activar
+      const visiblePending = s.route.optimizedOrder.filter((id) => {
+        const seg = s.route!.segments.find((seg) => seg.id === id);
+        if (!seg || seg.status !== 'pendiente') return false;
+        if (seg.nonRecordable) return false;
+        if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
+        return true;
+      });
+
+      const newTrackSession: TrackSession = {
+        active: true,
+        trackNumber: expectedTrackNumber,
+        capacity: groupLimit,
+        segmentIds: [],
+        startedAt: now,
+        endedAt: null,
+        closedManually: false,
+        trackStartTime: s.acquisitionMode === 'GARMIN' ? Date.now() : null,
+      };
+
+      result = { ok: true, trackNumber: expectedTrackNumber, workDay: s.workDay };
+
+      return {
+        ...s,
+        navigationActive: true,
+        activeSegmentId: visiblePending[0] ?? null,
+        trackSession: newTrackSession,
+        // Marcar el track como consumido por el día — aunque se cierre vacío contará
+        lastConsumedTrackByDay: {
+          ...s.lastConsumedTrackByDay,
+          [s.workDay]: Math.max(s.lastConsumedTrackByDay[s.workDay] ?? 0, expectedTrackNumber),
+        },
+      };
+    }, true);
+
+    if (result.ok) {
+      // Emisión única de TRACK_OPENED + NAV_STARTED
+      setStateRaw((current) => {
+        logEvent('TRACK_OPENED', {
+          workDay: current.workDay,
+          trackNumber: expectedTrackNumber,
+          payload: { capacity: current.trackSession?.capacity ?? null },
+        });
+        logEvent('NAV_STARTED', {
+          workDay: current.workDay,
+          trackNumber: expectedTrackNumber,
+          payload: { mode: 'navigation' },
+        });
+        toast(`Día ${current.workDay} · Track ${expectedTrackNumber} iniciado`, {
+          duration: 8000,
+          position: 'top-center',
+        });
+        return current;
+      });
+    }
+
+    return result;
+  }, [setState, setStateRaw]);
+
+  /**
+   * Wrapper legacy. Mantiene firma anterior pero ya NO abre track ni emite TRACK_OPENED
+   * directamente: solo activa navigation flag para callers internos que no pasan por UI.
+   * La UI debe usar prepareNavigationStart + TrackStartDialog + confirmNavigationStart.
+   */
   const startNavigation = useCallback((hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
+      if (s.navigationActive) return s;
+      if (s.blockEndPrompt.isOpen) return s;
       const pendingSegments = s.route.optimizedOrder.filter((id) => {
         const seg = s.route!.segments.find((seg) => seg.id === id);
         if (!seg || seg.status !== 'pendiente') return false;
@@ -168,18 +331,13 @@ export function useRouteState() {
         if (hiddenLayers && seg.layer && hiddenLayers.has(seg.layer)) return false;
         return true;
       });
-      // No pre-session: trackSession stays null until first confirmStartSegment
-      // GARMIN mode only sets trackStartTime if a session already exists
       return {
         ...s,
         navigationActive: true,
         activeSegmentId: pendingSegments[0] || null,
-        trackSession: s.trackSession
-          ? { ...s.trackSession, trackStartTime: s.acquisitionMode === 'GARMIN' ? Date.now() : s.trackSession.trackStartTime }
-          : null,
       };
     });
-    logEvent('NAV_STARTED', { payload: { mode: 'navigation' } });
+    logEvent('NAV_STARTED', { payload: { mode: 'navigation_legacy' } });
   }, [setState]);
 
   /**
