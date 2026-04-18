@@ -60,6 +60,7 @@ export function getDefaultState(): AppState {
     blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
     workDay: 1,
     acquisitionMode: 'RST' as const,
+    lastConsumedTrackByDay: {},
   };
 }
 
