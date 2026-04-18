@@ -1510,6 +1510,14 @@ export default function MapPage({
         onGoBack={() => setStopDialogState(null)}
       />
 
+      <TrackStartDialog
+        open={trackStartPreview !== null}
+        workDay={trackStartPreview?.workDay ?? state.workDay}
+        trackNumber={trackStartPreview?.trackNumber ?? 1}
+        onConfirm={handleConfirmTrackStart}
+        onCancel={handleCancelTrackStart}
+      />
+
       <WorkDayChangeDialog
         open={dayChangeTarget !== null}
         targetDay={dayChangeTarget?.target ?? state.workDay}
