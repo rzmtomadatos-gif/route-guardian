@@ -125,6 +125,9 @@ export default function MapPage({
   const [stopDialogState, setStopDialogState] = useState<
     { workDay: number; trackNumber: number | null; inProgressCount: number } | null
   >(null);
+  const [trackStartPreview, setTrackStartPreview] = useState<
+    { workDay: number; trackNumber: number } | null
+  >(null);
   const [dayChangeTarget, setDayChangeTarget] = useState<{ target: number; hasInProgress: boolean; inProgressCount: number } | null>(null);
   const videoEndBlocking = state.blockEndPrompt.isOpen;
 
