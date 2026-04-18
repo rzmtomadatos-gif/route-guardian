@@ -22,6 +22,9 @@ function parseAppStateDefaults(parsed: any): AppState {
     parsed.blockEndPrompt = { isOpen: false, trackNumber: null, reason: 'capacity' };
   if (!('workDay' in parsed)) parsed.workDay = 1;
   if (!('acquisitionMode' in parsed)) parsed.acquisitionMode = 'RST';
+  if (!('lastConsumedTrackByDay' in parsed) || !parsed.lastConsumedTrackByDay) {
+    parsed.lastConsumedTrackByDay = {};
+  }
   return parsed as AppState;
 }
 
@@ -38,6 +41,7 @@ const DEFAULT_STATE: AppState = {
   blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
   workDay: 1,
   acquisitionMode: 'RST',
+  lastConsumedTrackByDay: {},
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */
