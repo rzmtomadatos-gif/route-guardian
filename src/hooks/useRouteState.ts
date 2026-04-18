@@ -1050,6 +1050,7 @@ export function useRouteState() {
       blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
       workDay: s.workDay,
       acquisitionMode: s.acquisitionMode,
+      lastConsumedTrackByDay: s.lastConsumedTrackByDay,
     }));
   }, [setState]);
 
