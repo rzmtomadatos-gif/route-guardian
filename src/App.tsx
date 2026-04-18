@@ -190,6 +190,8 @@ function AppRoutes() {
         <MapPage
           state={state}
           onStartNavigation={startNavigation}
+          onPrepareNavigationStart={prepareNavigationStart}
+          onConfirmNavigationStart={confirmNavigationStart}
           onPrepareStopNavigation={prepareStopNavigation}
           onConfirmStopNavigation={confirmStopNavigation}
           onConfirmStart={confirmStartSegment}
