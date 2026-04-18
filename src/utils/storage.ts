@@ -61,6 +61,7 @@ export function getDefaultState(): AppState {
     workDay: 1,
     acquisitionMode: 'RST' as const,
     lastConsumedTrackByDay: {},
+    segmentCorrections: [],
   };
 }
 

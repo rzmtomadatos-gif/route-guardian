@@ -31,6 +31,8 @@ export type EventType =
   | 'HW_CONFIRM_F7'
   | 'HW_CONFIRM_F9'
   | 'NAV_STATE_CHANGED'
+  | 'SEGMENT_CORRECTION_APPLIED'
+  | 'SEGMENT_CORRECTION_REVERTED'
   | 'MIGRATION_FROM_LOCALSTORAGE';
 
 export interface PersistentEvent {
