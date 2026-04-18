@@ -161,6 +161,7 @@ const appStateSchema = z.object({
       }
       return out;
     }),
+  segmentCorrections: z.array(z.lazy(() => segmentCorrectionSchema)).max(100_000).default([]),
 }).strict();
 
 // ── Event Log — real EventType enum ──
@@ -185,8 +186,35 @@ const eventTypeEnum = z.enum([
   'HW_CONFIRM_F7',
   'HW_CONFIRM_F9',
   'NAV_STATE_CHANGED',
+  'SEGMENT_CORRECTION_APPLIED',
+  'SEGMENT_CORRECTION_REVERTED',
   'MIGRATION_FROM_LOCALSTORAGE',
 ]);
+
+const correctableFieldEnum = z.enum([
+  'name', 'notes', 'kmlId', 'companySegmentId', 'direction', 'type',
+  'kmlMeta.carretera', 'kmlMeta.identtramo', 'kmlMeta.tipo',
+  'kmlMeta.calzada', 'kmlMeta.sentido', 'kmlMeta.pkInicial', 'kmlMeta.pkFinal',
+  'workDay', 'trackNumber', 'segmentOrder', 'status',
+  'needsRepeat', 'nonRecordable', 'invalidatedByTrack', 'repeatNumber',
+]);
+
+const segmentCorrectionSchema = z.object({
+  id: z.string().min(1).max(200),
+  segmentId: z.string().min(1).max(100),
+  field: correctableFieldEnum,
+  previousValue: z.unknown(),
+  newValue: z.unknown(),
+  reason: z.string().max(2000).default(''),
+  correctedBy: z.string().max(200).default(''),
+  correctedByRole: z.enum(['gabinete', 'admin']),
+  correctedAt: isoDateString,
+  active: z.boolean(),
+  revertedBy: z.string().max(200).optional(),
+  revertedAt: isoDateString.optional(),
+  revertReason: z.string().max(2000).optional(),
+  supersededBy: z.string().max(200).optional(),
+}).strict();
 
 const eventSchema = z.object({
   eventId: z.string().min(1).max(200),

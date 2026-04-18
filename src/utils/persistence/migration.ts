@@ -25,6 +25,9 @@ function parseAppStateDefaults(parsed: any): AppState {
   if (!('lastConsumedTrackByDay' in parsed) || !parsed.lastConsumedTrackByDay) {
     parsed.lastConsumedTrackByDay = {};
   }
+  if (!('segmentCorrections' in parsed) || !Array.isArray(parsed.segmentCorrections)) {
+    parsed.segmentCorrections = [];
+  }
   return parsed as AppState;
 }
 
@@ -42,6 +45,7 @@ const DEFAULT_STATE: AppState = {
   workDay: 1,
   acquisitionMode: 'RST',
   lastConsumedTrackByDay: {},
+  segmentCorrections: [],
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */

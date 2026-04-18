@@ -184,4 +184,78 @@ export interface AppState {
    * Ej: { 1: 3, 2: 1 } → día 1 ha consumido hasta Track 3, día 2 hasta Track 1.
    */
   lastConsumedTrackByDay: Record<number, number>;
+  /**
+   * Correcciones auditadas y reversibles aplicadas por gabinete.
+   * Append-only. El consolidado se deriva en lectura combinando el dato de
+   * campo con las correcciones activas (active=true), ordenadas por fecha.
+   */
+  segmentCorrections: SegmentCorrection[];
+}
+
+/** Campos editables por gabinete mediante el modelo de correcciones. */
+export type CorrectableField =
+  // Identificación / metadatos KML — no exigen motivo
+  | 'name'
+  | 'notes'
+  | 'kmlId'
+  | 'companySegmentId'
+  | 'direction'
+  | 'type'
+  | 'kmlMeta.carretera'
+  | 'kmlMeta.identtramo'
+  | 'kmlMeta.tipo'
+  | 'kmlMeta.calzada'
+  | 'kmlMeta.sentido'
+  | 'kmlMeta.pkInicial'
+  | 'kmlMeta.pkFinal'
+  // Trazabilidad consolidada — exigen motivo obligatorio
+  | 'workDay'
+  | 'trackNumber'
+  | 'segmentOrder'
+  | 'status'
+  | 'needsRepeat'
+  | 'nonRecordable'
+  | 'invalidatedByTrack'
+  | 'repeatNumber';
+
+/** Campos cuya corrección exige un motivo obligatorio. */
+export const FIELDS_REQUIRING_REASON: ReadonlySet<CorrectableField> = new Set<CorrectableField>([
+  'workDay',
+  'trackNumber',
+  'segmentOrder',
+  'status',
+  'needsRepeat',
+  'nonRecordable',
+  'invalidatedByTrack',
+  'repeatNumber',
+]);
+
+/**
+ * Corrección auditada y reversible aplicada por gabinete sobre un tramo.
+ * Append-only: nunca se borra ni se muta el array. Las reversiones marcan
+ * `active: false` y conservan el rastro completo (quién, cuándo, por qué).
+ */
+export interface SegmentCorrection {
+  /** UUID estable de la corrección. */
+  id: string;
+  segmentId: string;
+  field: CorrectableField;
+  /** Valor anterior tal y como estaba en el consolidado en el momento de aplicar. */
+  previousValue: unknown;
+  /** Valor nuevo aplicado al consolidado. */
+  newValue: unknown;
+  /** Motivo de la corrección. Vacío permitido solo para campos descriptivos. */
+  reason: string;
+  /** Identificador del autor (email o user id). */
+  correctedBy: string;
+  correctedByRole: 'gabinete' | 'admin';
+  /** ISO 8601. */
+  correctedAt: string;
+  /** false si la corrección fue revertida o superseded por una posterior sobre el mismo campo. */
+  active: boolean;
+  revertedBy?: string;
+  revertedAt?: string;
+  revertReason?: string;
+  /** id de la corrección posterior que la dejó obsoleta sobre el mismo campo. */
+  supersededBy?: string;
 }
