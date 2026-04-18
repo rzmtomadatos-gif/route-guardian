@@ -1673,6 +1673,8 @@ export function useRouteState() {
     markClean,
     setRoute,
     startNavigation,
+    prepareNavigationStart,
+    confirmNavigationStart,
     stopNavigation,
     prepareStopNavigation,
     confirmStopNavigation,
