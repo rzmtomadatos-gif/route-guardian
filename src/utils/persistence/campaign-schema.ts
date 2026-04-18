@@ -161,6 +161,7 @@ const appStateSchema = z.object({
       }
       return out;
     }),
+  segmentCorrections: z.array(z.lazy(() => segmentCorrectionSchema)).max(100_000).default([]),
 }).strict();
 
 // ── Event Log — real EventType enum ──

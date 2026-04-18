@@ -1139,6 +1139,7 @@ export function useRouteState() {
       workDay: s.workDay,
       acquisitionMode: s.acquisitionMode,
       lastConsumedTrackByDay: s.lastConsumedTrackByDay,
+      segmentCorrections: s.segmentCorrections,
     }));
   }, [setState]);
 
