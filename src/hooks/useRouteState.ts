@@ -490,111 +490,65 @@ export function useRouteState() {
     logEvent('SEGMENT_SKIPPED', { segmentId });
   }, [setState]);
 
+  /**
+   * Asocia un tramo al track YA ABIERTO. Neutralizado:
+   *  - NO abre track
+   *  - NO cierra track
+   *  - NO emite TRACK_OPENED
+   *  - NO decide capacidad
+   *  - NO lanza toast de inicio
+   *
+   * El cierre por capacidad vive únicamente en `completeSegment`,
+   * usando el conteo de completados válidos.
+   * Si el estado es anómalo (sin track activo), aborta con warning defensivo.
+   */
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
     setState((s) => {
       if (!s.route) return s;
-      // Guard: block if end-of-video prompt is open
       if (s.blockEndPrompt.isOpen) return s;
-      // Guard: block if navigation is not active
       if (!s.navigationActive) return s;
 
       const seg = s.route.segments.find((seg) => seg.id === segmentId);
       if (!seg) return s;
 
+      // Fallback defensivo: requiere track activo abierto por confirmNavigationStart
+      if (!s.trackSession || !s.trackSession.active) {
+        console.warn('[confirmStartSegment] Estado anómalo: no hay track activo. Aborta sin abrir track.');
+        return s;
+      }
+
+      const trackNum = s.trackSession.trackNumber;
       const groupLimit = s.rstMode && s.rstGroupSize > 0 ? s.rstGroupSize : 1;
       const now = new Date().toISOString();
 
-      let trackSession = s.trackSession;
-
-      // Close full session if needed (count only completed segments for capacity)
-      if (trackSession && trackSession.active) {
-        const completedInSession = s.route.segments.filter(
-          (seg) => trackSession!.segmentIds.includes(seg.id) && seg.status === 'completado'
-        ).length;
-        if (completedInSession >= trackSession.capacity) {
-          trackSession = { ...trackSession, active: false, endedAt: now };
-        }
-      }
-      // Close session if not in RST mode (each segment = new track)
-      if (!s.rstMode && trackSession && trackSession.active) {
-        trackSession = { ...trackSession, active: false, endedAt: now };
-      }
-
-      const nextTrack = allocateTrackNumber(s.route.segments, s.rstMode, groupLimit, trackSession && trackSession.active ? trackSession : null, s.workDay);
-
-      // Create or update track session
-      if (!trackSession || !trackSession.active) {
-        // If there's a pre-created inactive session (from closeBlockEndPrompt), activate it
-        if (trackSession && !trackSession.active && trackSession.segmentIds.length === 0) {
-          trackSession = {
-            ...trackSession,
-            active: true,
-            trackNumber: trackSession.trackNumber,
-            capacity: groupLimit,
-            segmentIds: [segmentId],
-            startedAt: now,
-            endedAt: null,
-            closedManually: false,
-            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
-          };
-        } else {
-          trackSession = {
-            active: true,
-            trackNumber: nextTrack,
-            capacity: groupLimit,
-            segmentIds: [segmentId],
-            startedAt: now,
-            endedAt: null,
-            closedManually: false,
-            trackStartTime: s.trackSession?.trackStartTime ?? Date.now(),
-          };
-        }
-      } else {
-        trackSession = {
-          ...trackSession,
-          segmentIds: [...trackSession.segmentIds, segmentId],
-        };
-      }
-
-      // Compute segmentOrder: count only COMPLETED segments in the SAME workDay + trackNumber
-      // NOTE: This value is PROVISIONAL while segment is en_progreso.
-      // Definitive segmentOrder is reconsolidated in completeSegment.
+      // segmentOrder provisional — definitivo en completeSegment
       const existingCompletedInTrack = s.route.segments.filter(
-        (seg) =>
-          seg.id !== segmentId &&
-          seg.workDay === s.workDay &&
-          seg.trackNumber === nextTrack &&
-          seg.status === 'completado' &&
-          !seg.nonRecordable
+        (sg) =>
+          sg.id !== segmentId &&
+          sg.workDay === s.workDay &&
+          sg.trackNumber === trackNum &&
+          sg.status === 'completado' &&
+          !sg.nonRecordable,
       ).length;
       const segmentOrder = existingCompletedInTrack + 1;
 
-      // Hard guard: in RST mode, segmentOrder must not exceed block capacity
       if (s.rstMode && segmentOrder > groupLimit) {
         console.warn('Invalid segmentOrder detected', {
-          workDay: s.workDay,
-          trackNumber: nextTrack,
-          segmentOrder,
-          groupLimit,
-          segmentId,
+          workDay: s.workDay, trackNumber: trackNum, segmentOrder, groupLimit, segmentId,
         });
         return s;
       }
 
-      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
-
-      // Garmin mode: compute segmentStartSeconds relative to track start
-      const garminStart = s.acquisitionMode === 'GARMIN' && trackSession.trackStartTime
-        ? Math.round((Date.now() - trackSession.trackStartTime) / 1000)
+      const garminStart = s.acquisitionMode === 'GARMIN' && s.trackSession.trackStartTime
+        ? Math.round((Date.now() - s.trackSession.trackStartTime) / 1000)
         : null;
 
-      // Start this segment – assign real trackNumber, workDay, segmentOrder
-      let segments = s.route.segments.map((seg) =>
-        seg.id === segmentId
+      let segments = s.route.segments.map((sg) =>
+        sg.id === segmentId
           ? {
-              ...seg,
+              ...sg,
               status: 'en_progreso' as const,
-              trackNumber: nextTrack,
+              trackNumber: trackNum,
               plannedTrackNumber: null,
               plannedBy: undefined,
               timestampInicio: now,
@@ -603,49 +557,42 @@ export function useRouteState() {
               segmentOrder,
               segmentStartSeconds: garminStart,
             }
-          : seg
+          : sg
       );
 
-      // RST: pre-assign plannedTrackNumber to next visible pending (non-nonRecordable) siblings
+      // RST: pre-asignar plannedTrackNumber a hermanos pendientes (preview, no abre nada)
+      const currentIdx = s.route.optimizedOrder.indexOf(segmentId);
       if (s.rstMode && s.rstGroupSize > 1 && currentIdx >= 0) {
         let assigned = 0;
-        const maxToAssign = s.rstGroupSize - 1 - (trackSession.segmentIds.length - 1);
+        const alreadyAssociated = s.trackSession.segmentIds.length;
+        const maxToAssign = s.rstGroupSize - 1 - alreadyAssociated;
         for (let i = currentIdx + 1; i < s.route.optimizedOrder.length && assigned < maxToAssign; i++) {
           const sibId = s.route.optimizedOrder[i];
-          const sib = segments.find((seg) => seg.id === sibId);
+          const sib = segments.find((sg) => sg.id === sibId);
           if (!sib || sib.status !== 'pendiente') continue;
           if (sib.nonRecordable) continue;
           if (hiddenLayers && sib.layer && hiddenLayers.has(sib.layer)) continue;
           if (sib.trackNumber === null && (sib.plannedTrackNumber === null || sib.plannedTrackNumber === undefined)) {
-            segments = segments.map((seg) =>
-              seg.id === sibId ? { ...seg, plannedTrackNumber: nextTrack, plannedBy: 'rst' as const } : seg
+            segments = segments.map((sg) =>
+              sg.id === sibId ? { ...sg, plannedTrackNumber: trackNum, plannedBy: 'rst' as const } : sg
             );
             assigned++;
           }
         }
       }
 
-      return { ...s, route: { ...s.route, segments }, activeSegmentId: segmentId, trackSession };
+      // Asociar el tramo al track ya abierto (sin duplicados)
+      const newSegmentIds = s.trackSession.segmentIds.includes(segmentId)
+        ? s.trackSession.segmentIds
+        : [...s.trackSession.segmentIds, segmentId];
+
+      return {
+        ...s,
+        route: { ...s.route, segments },
+        activeSegmentId: segmentId,
+        trackSession: { ...s.trackSession, segmentIds: newSegmentIds },
+      };
     }, true);
-    // Emit TRACK_OPENED when a new track session was just created
-    // We read the state after mutation to check if a new session started
-    setStateRaw((current) => {
-      if (current.trackSession && current.trackSession.segmentIds.length === 1 && current.trackSession.segmentIds[0] === segmentId) {
-        logEvent('TRACK_OPENED', {
-          workDay: current.workDay,
-          trackNumber: current.trackSession.trackNumber,
-          payload: { capacity: current.trackSession.capacity },
-        });
-      }
-      // Show toast notification for track start
-      if (current.trackSession && current.trackSession.segmentIds.length === 1) {
-        toast(`Día ${current.workDay} · Track ${current.trackSession.trackNumber} iniciado`, {
-          duration: 8000,
-          position: 'top-center',
-        });
-      }
-      return current; // no mutation, just reading
-    });
     logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
   }, [setState]);
 
