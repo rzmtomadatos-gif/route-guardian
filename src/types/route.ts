@@ -177,4 +177,11 @@ export interface AppState {
   workDay: number;
   /** Acquisition mode: RST (F5-based) or GARMIN (time-based) */
   acquisitionMode: AcquisitionMode;
+  /**
+   * Tracks consumidos por día. Se incrementa al ABRIR un track,
+   * de modo que tracks abiertos y cerrados sin tramos siguen contando
+   * para la numeración del siguiente inicio.
+   * Ej: { 1: 3, 2: 1 } → día 1 ha consumido hasta Track 3, día 2 hasta Track 1.
+   */
+  lastConsumedTrackByDay: Record<number, number>;
 }

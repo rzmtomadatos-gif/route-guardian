@@ -60,6 +60,7 @@ function AppRoutes() {
 
   const {
     state, isDirty, markClean, setRoute, startNavigation,
+    prepareNavigationStart, confirmNavigationStart,
     prepareStopNavigation, confirmStopNavigation,
     confirmStartSegment, completeSegment, addIncident, reoptimize,
     resetSegment, clearRoute, setActiveSegment, setBase, updateSegment,
@@ -189,6 +190,8 @@ function AppRoutes() {
         <MapPage
           state={state}
           onStartNavigation={startNavigation}
+          onPrepareNavigationStart={prepareNavigationStart}
+          onConfirmNavigationStart={confirmNavigationStart}
           onPrepareStopNavigation={prepareStopNavigation}
           onConfirmStopNavigation={confirmStopNavigation}
           onConfirmStart={confirmStartSegment}

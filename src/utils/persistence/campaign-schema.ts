@@ -150,6 +150,17 @@ const appStateSchema = z.object({
   blockEndPrompt: blockEndPromptSchema.default({ isOpen: false, trackNumber: null, reason: 'capacity' }),
   workDay: z.number().int().min(0).default(1),
   acquisitionMode: z.enum(['RST', 'GARMIN']).default('RST'),
+  lastConsumedTrackByDay: z.record(z.string(), z.number().int().min(0))
+    .default({})
+    .transform((rec) => {
+      // Normalize string keys to numbers (JSON-safe), preserving values.
+      const out: Record<number, number> = {};
+      for (const [k, v] of Object.entries(rec)) {
+        const n = Number(k);
+        if (Number.isFinite(n)) out[n] = v;
+      }
+      return out;
+    }),
 }).strict();
 
 // ── Event Log — real EventType enum ──
