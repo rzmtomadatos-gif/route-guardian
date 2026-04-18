@@ -869,12 +869,40 @@ export default function MapPage({
     toast.success(`Itinerario optimizado (${visiblePending.length} tramos visibles)`);
   }, [gpsEnabled, geo.position, onReoptimize, recalcBlock, hiddenLayers, state.route]);
 
+  // Inicio de navegación: NO ejecuta side effects.
+  // Solo calcula el preview y abre el diálogo de confirmación.
+  // Hasta que el operador confirme: cero efectos (GPS, audio, bloque, eventos, track).
   const handleStartNavigation = useCallback(() => {
+    const preview = onPrepareNavigationStart(hiddenLayers);
+    if (!preview.allowed) {
+      toast.error(preview.reason ?? 'No se puede iniciar la navegación');
+      return;
+    }
+    setTrackStartPreview({ workDay: preview.workDay, trackNumber: preview.trackNumber });
+  }, [onPrepareNavigationStart, hiddenLayers]);
+
+  // Confirmación: ejecuta el inicio real y los side effects asociados.
+  const handleConfirmTrackStart = useCallback(() => {
+    if (!trackStartPreview) return;
+    const result = onConfirmNavigationStart(
+      trackStartPreview.trackNumber,
+      trackStartPreview.workDay,
+      hiddenLayers,
+    );
+    setTrackStartPreview(null);
+    if (!result.ok) {
+      toast.error(result.reason ?? 'No se pudo iniciar la navegación');
+      return;
+    }
+    // Side effects de inicio REAL — solo aquí, después de confirmar
     if (!gpsEnabled) setGpsEnabled(true);
     primeAudio();
     recalcBlock();
-    onStartNavigation(hiddenLayers);
-  }, [gpsEnabled, onStartNavigation, hiddenLayers, recalcBlock]);
+  }, [trackStartPreview, onConfirmNavigationStart, hiddenLayers, gpsEnabled, setGpsEnabled, recalcBlock]);
+
+  const handleCancelTrackStart = useCallback(() => {
+    setTrackStartPreview(null);
+  }, []);
 
   // Play sound/vibration when blockEndPrompt opens
   const prevBlockOpenRef = useRef(false);
