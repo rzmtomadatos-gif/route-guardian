@@ -36,6 +36,8 @@ const DEVIATION_THRESHOLD = 100;
 interface Props {
   state: AppState;
   onStartNavigation: (hiddenLayers?: Set<string>) => void;
+  onPrepareNavigationStart: (hiddenLayers?: Set<string>) => { allowed: boolean; reason?: string; workDay: number; trackNumber: number };
+  onConfirmNavigationStart: (expectedTrackNumber: number, expectedWorkDay: number, hiddenLayers?: Set<string>) => { ok: boolean; reason?: string; trackNumber?: number; workDay?: number };
   onPrepareStopNavigation: () => { needsConfirmation: boolean; workDay: number; trackNumber: number | null; inProgressCount: number };
   onConfirmStopNavigation: () => void;
   onConfirmStart: (segmentId: string, hiddenLayers?: Set<string>) => void;
