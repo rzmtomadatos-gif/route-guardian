@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
+import { AboutSection } from '@/components/AboutSection';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { UserRolesManager } from '@/components/UserRolesManager';
 import { useAuth } from '@/hooks/useAuth';
