@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
+import { AboutSection } from '@/components/AboutSection';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
 import { UserRolesManager } from '@/components/UserRolesManager';
 import { useAuth } from '@/hooks/useAuth';
@@ -417,20 +418,8 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         {/* Offline Maps */}
         <OfflineMapsManager segments={route?.segments} />
 
-        {/* App info */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Info className="w-4 h-4" />
-            <span className="text-sm font-medium">Acerca de</span>
-          </div>
-          <div className="bg-card rounded-xl p-4 border border-border space-y-2">
-            <p className="text-sm text-foreground font-medium">VialRoute</p>
-            <p className="text-xs text-muted-foreground">
-              Aplicación de auscultación vial para optimización y guía de rutas de grabación.
-            </p>
-            <p className="text-xs text-muted-foreground">Versión 1.1.0</p>
-          </div>
-        </div>
+        {/* App info + actualizaciones PWA */}
+        <AboutSection />
 
         {/* Export KML */}
         {route && (

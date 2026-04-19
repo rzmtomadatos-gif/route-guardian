@@ -1,11 +1,33 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { readFileSync } from "node:fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Lee la versión generada por scripts/generate-version.mjs (script `prebuild`).
+// Si no existe (p.ej. arranque dev sin prebuild), cae a un valor neutro.
+function readVersionInfo() {
+  try {
+    const raw = readFileSync(path.resolve(__dirname, "public/version.json"), "utf-8");
+    const parsed = JSON.parse(raw);
+    return {
+      version: String(parsed.version ?? "dev"),
+      buildTime: String(parsed.buildTime ?? new Date().toISOString()),
+    };
+  } catch {
+    return { version: "dev", buildTime: new Date().toISOString() };
+  }
+}
+
+const versionInfo = readVersionInfo();
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(versionInfo.version),
+    __BUILD_TIME__: JSON.stringify(versionInfo.buildTime),
+  },
   server: {
     host: "::",
     port: 8080,
