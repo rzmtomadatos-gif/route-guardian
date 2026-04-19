@@ -20,6 +20,7 @@ import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import { RecoveryDialog } from "@/components/RecoveryDialog";
+import { UpdateBanner } from "@/components/UpdateBanner";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,7 @@ function AppRoutes() {
       selectedCount={selectedIds.size}
       onClearSelection={() => setSelectedIds(new Set())}
     >
+      <UpdateBanner navigationActive={state.navigationActive} />
       {dbStatus === 'starting' && (
         <div className="flex items-center gap-2 justify-center py-2 bg-muted/50 border-b border-border">
           <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />

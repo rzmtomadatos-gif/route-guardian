@@ -28,6 +28,9 @@ if (isPreviewHost || isInIframe) {
   // We use manual registration (injectRegister: false in vite config)
   // so we have full control over when and where the SW activates.
   import("virtual:pwa-register").then(({ registerSW }) => {
+    // IMPORTANT: registerSW(false) registers the SW WITHOUT auto-applying updates.
+    // The actual `updateSW(true)` call (skipWaiting + reload) is deferred to the
+    // user via the in-app banner (see src/components/UpdateBanner.tsx).
     const updateSW = registerSW({
       immediate: true,
       onRegisteredSW(swUrl, registration) {
@@ -43,9 +46,12 @@ if (isPreviewHost || isInIframe) {
         console.log("[PWA] App is ready for offline use");
       },
       onNeedRefresh() {
-        // Auto-update: apply immediately
-        console.log("[PWA] New content available, updating...");
-        updateSW(true);
+        // New version waiting. DO NOT auto-reload — notify the bus so the
+        // React UI can ask the user for explicit confirmation.
+        console.log("[PWA] New content available — awaiting user confirmation");
+        import("./lib/pwa-update-bus").then(({ pwaUpdateBus }) => {
+          pwaUpdateBus.notifyNeedRefresh(() => updateSW(true));
+        });
       },
       onRegisterError(error) {
         console.error("[PWA] Service Worker registration failed:", error);
