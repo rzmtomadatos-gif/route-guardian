@@ -1,1 +1,7 @@
 project_id = "wpunrbdftfygwkgzifge"
+
+# Auth Hook: validates signup email against the allowed_emails table server-side.
+# Invoked by Supabase Auth (not by the browser) before user creation,
+# so it must not require a JWT.
+[functions.validate-signup-allowlist]
+verify_jwt = false
