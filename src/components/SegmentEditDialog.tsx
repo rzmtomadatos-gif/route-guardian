@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Segment, SegmentDirection, SegmentType } from '@/types/route';
 import { sanitizeTextField } from '@/utils/sanitize';
+import { SegmentCorrectionsPanel } from '@/components/SegmentCorrectionsPanel';
 
 interface Props {
   segment: Segment;
@@ -83,6 +84,9 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
               </div>
             </div>
           )}
+
+          {/* Panel de correcciones de gabinete (solo admin/gabinete, solo si existen) */}
+          <SegmentCorrectionsPanel segmentId={segment.id} />
 
           <div className="grid grid-cols-2 gap-3">
             <div>

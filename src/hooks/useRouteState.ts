@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt } from '@/types/route';
+import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection } from '@/types/route';
 import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
@@ -101,6 +101,24 @@ export function useRouteState() {
       return next;
     });
   }, []);
+
+  /**
+   * Setter atómico para correcciones de gabinete.
+   * - Append-only: el cálculo del resultado vive DENTRO del updater para
+   *   garantizar atomicidad real (dos llamadas en el mismo tick ven el
+   *   resultado de la anterior, no el snapshot inicial).
+   * - immediate=true: las correcciones son críticas auditables y no deben
+   *   quedar a merced del debounce de persistencia.
+   */
+  const setSegmentCorrections = useCallback(
+    (updater: (prev: SegmentCorrection[]) => SegmentCorrection[]) => {
+      setState((s) => ({
+        ...s,
+        segmentCorrections: updater(s.segmentCorrections ?? []),
+      }), true);
+    },
+    [setState],
+  );
 
   /** Get current max track number for a given work day across segments + track session */
   const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null, workDay?: number): number => {
@@ -1719,5 +1737,6 @@ export function useRouteState() {
     restoreState,
     cancelStartSegment,
     cancelAllInProgress,
+    setSegmentCorrections,
   };
 }
