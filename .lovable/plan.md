@@ -1,103 +1,124 @@
 
 
-# Plan final aprobado — Sub-bloque 2 (con correcciones)
+# Plan aprobado — Sub-bloque 2 (implementación final)
 
-## Cambios respecto al plan anterior
+## Vigilancias confirmadas
 
-**Corrección 1 — campo real del modelo**
+1. **`deps.state.segments` siempre disponible**: el wrapper React `useSegmentCorrections()` lee `state.route?.segments ?? []` desde `useRouteState`. Si no hay ruta cargada, pasa `[]` y `applySegmentCorrection` lanza el error claro "Segmento no encontrado en estado". Nunca `undefined`.
 
-`CorrectableField` en `src/types/route.ts` declara `segmentOrder` (no `trackPosition`). El mapa de etiquetas queda:
+2. **Tests de `previousValue` cubren ambos tipos de campo**:
+   - Campo crítico: `workDay` (10 → 20), verifica `previousValue === 10` desde estado, no `1` de `req.segment`.
+   - Campo descriptivo: `name` ("Real" → "Nuevo"), verifica `previousValue === "Real"` desde estado, no `"Viejo"` de `req.segment`.
 
-```typescript
-// src/utils/gabinete/field-labels.ts
-export const FIELD_LABELS: Record<CorrectableField, string> = {
-  trackNumber:        'Track',
-  workDay:            'Día',
-  segmentOrder:       'Posición en track',   // ← nombre real del modelo
-  status:             'Estado',
-  name:               'Nombre',
-  kmlId:              'ID Tramo',
-  direction:          'Dirección',
-  type:               'Tipo',
-  notes:              'Notas',
-  'kmlMeta.carretera':  'Carretera',
-  'kmlMeta.identtramo': 'Identificador tramo',
-  'kmlMeta.tipo':       'Tipo (KML)',
-  'kmlMeta.calzada':    'Calzada',
-  'kmlMeta.sentido':    'Sentido',
-  'kmlMeta.pkInicial':  'PK Inicial',
-  'kmlMeta.pkFinal':    'PK Final',
-};
-```
-
-Si en el futuro se añade un campo nuevo a `CorrectableField`, TypeScript obligará a añadir su etiqueta aquí (Record exhaustivo).
-
-**Corrección 2 — atomicidad real del setter**
-
-`setSegmentCorrections` se implementa siguiendo exactamente el mismo patrón ya validado en `useRouteState` (líneas 96-103):
+3. **`readCommittedState` solo lectura**: la firma fuerza el patrón. El callback recibe `AppState` pero la implementación devuelve `current` sin mutar. TypeScript no permite que el callback retorne nada (firma `(s: AppState) => void`). Documentado en JSDoc:
 
 ```typescript
-// src/hooks/useRouteState.ts (extracto del nuevo setter)
-const setSegmentCorrections = useCallback(
-  (updater: (prev: SegmentCorrection[]) => SegmentCorrection[]) => {
-    setState((s) => ({
-      ...s,
-      segmentCorrections: updater(s.segmentCorrections ?? []),
-    }), true);  // immediate save = true para auditoría
-  },
-  [setState],
-);
-```
-
-Garantías:
-- **No hay lectura previa fuera del updater**. El updater recibe `s.segmentCorrections` actual y devuelve la nueva colección en una sola transición de React.
-- **No hay race con otros setters**. `setState` ya envuelve `setStateRaw` con persistencia atómica.
-- **`immediate=true`** porque las correcciones de gabinete son operaciones críticas auditables que no deben quedar a merced del debounce de 400 ms.
-
-En el hook `useSegmentCorrections`:
-
-```typescript
-const applySegmentCorrection = async (input) => {
-  // 1. Snapshot del estado para calcular el resultado puro
-  let committed: ApplyCorrectionResult | null = null;
-  
-  // 2. Commit atómico — el cálculo vive DENTRO del updater
-  setSegmentCorrections((prev) => {
-    const result = engine.applyCorrection(prev, {
-      segment, field, newValue, reason,
-      correctedBy, correctedByRole,
-    });
-    committed = result;            // capturar para emitir evento después
-    return result.corrections;
+/**
+ * Lee el estado YA comprometido por React tras el último setState pendiente.
+ * Solo lectura: el callback no debe mutar `state`. Para escribir, usar setState.
+ * Útil para emitir eventos de auditoría con datos consolidados post-commit.
+ */
+const readCommittedState = useCallback((cb: (s: AppState) => void) => {
+  setStateRaw((current) => {
+    cb(current);
+    return current;  // ← devuelve la misma referencia, no muta
   });
-  
-  // 3. Esperar al flush del commit
-  await Promise.resolve();
-  
-  // 4. Emitir evento SOLO si el commit produjo resultado real
-  if (committed) {
-    await logEvent('SEGMENT_CORRECTION_APPLIED', { ... });
-  }
-  
-  return committed!.created;
-};
+}, []);
 ```
 
-El cálculo vía `engine.applyCorrection` ocurre dentro del updater (puro y determinista; el engine no tiene side effects). El evento se emite **fuera** y solo tras confirmar el commit, igual que `confirmNavigationStart`/`confirmStopNavigation` en el hook actual.
+## Resumen de implementación
 
-## Resto del plan: sin cambios
+### Archivos
 
-Todo lo demás del plan aprobado se mantiene tal cual:
-- Archivos a crear: `useSegmentCorrections.ts`, `field-labels.ts`, `SegmentCorrectionsPanel.tsx`, `gabinete-corrections.test.ts`.
-- Archivos a modificar: `useRouteState.ts` (añadir el setter), `SegmentEditDialog.tsx` (insertar panel inspección).
-- Panel gated a roles `admin` y `gabinete` (`return null` para `operator`).
-- Eventos `SEGMENT_CORRECTION_APPLIED/REVERTED` post-commit con payload completo.
-- Reglas de supersede / no-reactivación / motivo obligatorio: heredadas del engine puro ya existente.
-- Sin tocar `/gabinete`, Excel, RBAC de ruta ni edición desde la ficha de campo.
+| Archivo | Cambio |
+|---|---|
+| `src/hooks/useRouteState.ts` | +`readCommittedState(cb)` exportado (solo lectura post-commit) |
+| `src/hooks/useSegmentCorrections.ts` | (a) `deps.state.segments` + `deps.afterCommit`; (b) resolver `baseSeg` desde `deps.state.segments` por `segmentId` ANTES del updater, pasarlo al engine en lugar de `req.segment`; (c) error claro si `baseSeg` no existe; (d) reemplazar `await Promise.resolve()` por promesa basada en `afterCommit`; (e) consolidado post-commit desde `committedSegments` para el log; (f) wrapper React conecta `afterCommit` a `readCommittedState` y pasa `segments: state.route?.segments ?? []` |
+| `src/components/SegmentEditDialog.tsx` | Solo claridad visual: nota informativa + mini vista read-only del consolidado para campos con corrección activa. **Sin tocar** `useState`, inputs ni `onSave` |
+| `src/test/gabinete-corrections-hook.test.ts` | +tests de `previousValue` desde estado real (workDay y name) + consolidado post-commit en log + error si segmento no existe + revert con consolidado post-reversión |
 
-## Plan de prueba con verificación de los dos puntos
+### Comportamiento clave
 
-1. Test unitario: el mapa `FIELD_LABELS` cubre los 16 valores de `CorrectableField` (TypeScript exhaustive check + assertion en runtime).
-2. Test del setter: dos `applySegmentCorrection` consecutivos en el mismo tick producen ambas correcciones persistidas con la primera marcada `supersededBy` correctamente — demuestra que no hay lectura/escritura separada.
-3. Test del orden commit→evento: spy sobre `logEvent` confirma que se llama **después** del cambio efectivo en `state.segmentCorrections`.
+```typescript
+// applySegmentCorrection
+const baseSeg = deps.state.segments.find((s) => s.id === req.segment.id);
+if (!baseSeg) throw new Error(`Segmento no encontrado en estado: ${req.segment.id}`);
+
+deps.setSegmentCorrections((prev) => {
+  const result = engineApplyCorrection(prev, {
+    segment: baseSeg,        // ← estado real, no req.segment
+    field: req.field, newValue: req.newValue, reason: req.reason,
+    correctedBy, correctedByRole,
+  });
+  committed = result;
+  return result.corrections;
+});
+
+// Esperar commit real vía afterCommit
+await new Promise<void>((resolve) => {
+  if (deps.afterCommit) {
+    deps.afterCommit((s) => {
+      committedCorrections = s.segmentCorrections;
+      committedSegments = s.segments;
+      resolve();
+    });
+  } else { resolve(); }  // modo test: setter síncrono
+});
+
+// Consolidado para log: SIEMPRE desde committedSegments
+const baseSegAfter = committedSegments.find((s) => s.id === req.segment.id);
+const consolidatedAfter = baseSegAfter
+  ? engineGetConsolidatedSegment(baseSegAfter, committedCorrections)
+  : null;
+
+await log('SEGMENT_CORRECTION_APPLIED', {
+  workDay: consolidatedAfter?.workDay,
+  trackNumber: consolidatedAfter?.trackNumber ?? undefined,
+  segmentId: req.segment.id,
+  payload: { /* ... */ },
+});
+```
+
+### SegmentEditDialog (cambio mínimo)
+
+```tsx
+const { role } = useUserRole();
+const { getActiveCorrections } = useSegmentCorrections();
+const activeCorrections = getActiveCorrections(segment.id);
+const canSee = role === 'admin' || role === 'gabinete';
+const showInfo = canSee && activeCorrections.length > 0;
+
+// Arriba del contenido
+{showInfo && (
+  <p className="text-[11px] text-muted-foreground italic">
+    Campos editables: dato original de campo. Las correcciones activas de gabinete se muestran más abajo.
+  </p>
+)}
+
+// Encima del SegmentCorrectionsPanel
+{showInfo && (
+  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5">
+    <p className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+      Valor consolidado actual
+    </p>
+    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+      {activeCorrections.map((c) => (
+        <div key={c.id}>
+          <span className="text-muted-foreground">{getFieldLabel(c.field)}:</span>{' '}
+          <span className="text-foreground font-medium">{formatCorrectionValue(c.newValue)}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+```
+
+`useState`, inputs y `onSave` quedan intactos: la edición de campo sigue operando sobre el dato base, sin contaminar con consolidado.
+
+## Pendiente para sub-bloques siguientes
+
+- Página `/gabinete` con tabs (Resumen / Tracks / Tramos / Historial).
+- Editor de correcciones con diálogo de motivo.
+- Botón "Revertir" funcional desde UI.
+- Excel enriquecido con hojas "Tramos original" + "Correcciones de gabinete".
 
