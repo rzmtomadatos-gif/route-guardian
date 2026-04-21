@@ -120,6 +120,23 @@ export function useRouteState() {
     [setState],
   );
 
+  /**
+   * Lee el estado YA comprometido por React tras el último setState pendiente.
+   * Solo lectura: el callback recibe el estado pero no debe mutarlo. Se devuelve
+   * la misma referencia desde el updater interno, así que React no programa otro
+   * render. Útil para emitir eventos de auditoría con datos consolidados
+   * post-commit (ej. SEGMENT_CORRECTION_APPLIED tras append en setSegmentCorrections).
+   *
+   * IMPORTANTE: para escribir, usar setState/setSegmentCorrections. Esta función
+   * NO es una vía de escritura.
+   */
+  const readCommittedState = useCallback((cb: (s: AppState) => void) => {
+    setStateRaw((current) => {
+      cb(current);
+      return current; // misma referencia → no triggerea re-render
+    });
+  }, []);
+
   /** Get current max track number for a given work day across segments + track session */
   const getMaxTrack = (segments: Segment[], trackSession: TrackSession | null, workDay?: number): number => {
     const daySegments = workDay != null
@@ -1738,5 +1755,6 @@ export function useRouteState() {
     cancelStartSegment,
     cancelAllInProgress,
     setSegmentCorrections,
+    readCommittedState,
   };
 }

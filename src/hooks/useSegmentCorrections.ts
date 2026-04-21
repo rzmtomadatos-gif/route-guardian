@@ -6,13 +6,17 @@
  * Reglas críticas (ver plan Sub-bloque 2):
  *  1. El dato de campo en `Segment` NO se muta. La consolidación se deriva
  *     en lectura desde `state.segmentCorrections`.
- *  2. El cálculo (engine puro) ocurre DENTRO del updater de
+ *  2. La corrección NACE del segmento real del estado (`deps.state.segments`),
+ *     no de `req.segment` (que puede ser una foto vieja). Esto garantiza que
+ *     `created.previousValue` siempre se calcula contra el estado actual.
+ *  3. El cálculo (engine puro) ocurre DENTRO del updater de
  *     `setSegmentCorrections` para garantizar atomicidad real frente a
  *     llamadas concurrentes en el mismo tick.
- *  3. Los eventos `SEGMENT_CORRECTION_APPLIED` / `_REVERTED` se emiten
- *     SOLO después del commit confirmado, nunca dentro del updater
- *     (evita duplicados por reintentos de React).
- *  4. Solo roles `admin` y `gabinete` pueden aplicar/revertir.
+ *  4. Los eventos `SEGMENT_CORRECTION_APPLIED` / `_REVERTED` se emiten
+ *     SOLO después del commit confirmado vía `afterCommit`, leyendo el
+ *     `committedSegments` real para calcular `workDay` / `trackNumber`
+ *     consolidados (no del `req.segment` de entrada).
+ *  5. Solo roles `admin` y `gabinete` pueden aplicar/revertir.
  *
  * NOTA sobre coexistencia:
  *  - `updateSegment` (en useRouteState) es la vía de campo: muta el Segment
@@ -22,7 +26,6 @@
  *  Ambas escriben colecciones distintas; coexisten sin colisión.
  */
 
-import { useCallback } from 'react';
 import { useRouteState } from '@/hooks/useRouteState';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -40,6 +43,7 @@ import type {
   Segment,
   SegmentCorrection,
   CorrectableField,
+  AppState,
 } from '@/types/route';
 
 export interface ApplyCorrectionRequest {
@@ -65,13 +69,22 @@ interface UseSegmentCorrectionsApi {
   canCorrect: boolean;
 }
 
+/** Snapshot mínimo de estado expuesto al callback `afterCommit`. */
+export interface CommittedSnapshot {
+  segmentCorrections: SegmentCorrection[];
+  segments: Segment[];
+}
+
 /**
  * Inyectable: por defecto consume el hook real de estado.
  * Tests pueden pasar un mock con la misma forma para verificar atomicidad
  * y orden commit→evento sin montar React.
  */
 export interface SegmentCorrectionsDeps {
-  state: { segmentCorrections: SegmentCorrection[] };
+  state: {
+    segmentCorrections: SegmentCorrection[];
+    segments: Segment[];
+  };
   setSegmentCorrections: (
     updater: (prev: SegmentCorrection[]) => SegmentCorrection[],
   ) => void;
@@ -79,6 +92,12 @@ export interface SegmentCorrectionsDeps {
     correctedBy: string;
     correctedByRole: 'gabinete' | 'admin' | null;
   };
+  /**
+   * Promete ejecutar `cb` con el estado ya comprometido tras el último
+   * setState pendiente. Si se omite (modo test con setter síncrono), el
+   * hook resuelve inmediatamente con la lectura sincrónica de `state`.
+   */
+  afterCommit?: (cb: (s: CommittedSnapshot) => void) => void;
   logEventFn?: typeof logEvent;
 }
 
@@ -94,6 +113,24 @@ export function createSegmentCorrectionsApi(
     deps.identity.correctedByRole === 'admin' ||
     deps.identity.correctedByRole === 'gabinete';
 
+  /**
+   * Resuelve el snapshot post-commit. Si `afterCommit` no está disponible
+   * (tests con setter síncrono), devuelve la lectura inmediata del estado
+   * actualizado (que ya es consistente porque el setter de test mutó en
+   * el mismo tick).
+   */
+  const readCommitted = (): Promise<CommittedSnapshot> =>
+    new Promise<CommittedSnapshot>((resolve) => {
+      if (deps.afterCommit) {
+        deps.afterCommit((s) => resolve(s));
+      } else {
+        resolve({
+          segmentCorrections: deps.state.segmentCorrections ?? [],
+          segments: deps.state.segments ?? [],
+        });
+      }
+    });
+
   const applySegmentCorrection = async (
     req: ApplyCorrectionRequest,
   ): Promise<SegmentCorrection> => {
@@ -103,13 +140,23 @@ export function createSegmentCorrectionsApi(
       );
     }
 
+    // 1. Resolver el segmento base REAL desde el estado.
+    //    NO usar req.segment: puede ser una foto vieja capturada al abrir
+    //    un diálogo. La corrección debe nacer del estado actualizado para
+    //    que `previousValue` refleje la realidad.
+    const baseSeg = (deps.state.segments ?? []).find(
+      (s) => s.id === req.segment.id,
+    );
+    if (!baseSeg) {
+      throw new Error(`Segmento no encontrado en estado: ${req.segment.id}`);
+    }
+
     let committed: ApplyCorrectionResult | null = null;
 
-    // Cálculo puro DENTRO del updater → atomicidad real frente a llamadas
-    // concurrentes en el mismo tick (la 2ª lee el resultado de la 1ª).
+    // 2. Commit atómico — el engine recibe baseSeg, no la foto vieja.
     deps.setSegmentCorrections((prev) => {
       const result = engineApplyCorrection(prev, {
-        segment: req.segment,
+        segment: baseSeg,
         field: req.field,
         newValue: req.newValue,
         reason: req.reason,
@@ -120,17 +167,24 @@ export function createSegmentCorrectionsApi(
       return result.corrections;
     });
 
-    // Esperar al flush del commit antes de emitir el evento.
-    await Promise.resolve();
-
     if (!committed) {
       throw new Error('La corrección no se confirmó en el estado.');
     }
     const result = committed as ApplyCorrectionResult;
 
+    // 3. Esperar al commit real y leer el snapshot ya comprometido.
+    const snapshot = await readCommitted();
+
+    // 4. Calcular consolidado para el log SIEMPRE desde committedSegments
+    //    (no desde req.segment ni desde baseSeg, que es del render anterior).
+    const baseSegAfter = snapshot.segments.find((s) => s.id === req.segment.id);
+    const consolidatedAfter = baseSegAfter
+      ? engineGetConsolidatedSegment(baseSegAfter, snapshot.segmentCorrections)
+      : null;
+
     await log('SEGMENT_CORRECTION_APPLIED', {
-      workDay: req.segment.workDay,
-      trackNumber: req.segment.trackNumber ?? undefined,
+      workDay: consolidatedAfter?.workDay,
+      trackNumber: consolidatedAfter?.trackNumber ?? undefined,
       segmentId: req.segment.id,
       payload: {
         correctionId: result.created.id,
@@ -168,14 +222,23 @@ export function createSegmentCorrectionsApi(
       return result.corrections;
     });
 
-    await Promise.resolve();
-
     if (!committed) {
       throw new Error('La reversión no se confirmó en el estado.');
     }
     const result = committed as RevertCorrectionResult;
 
+    // Snapshot post-commit para calcular el consolidado del log.
+    const snapshot = await readCommitted();
+    const baseSegAfter = snapshot.segments.find(
+      (s) => s.id === result.reverted.segmentId,
+    );
+    const consolidatedAfter = baseSegAfter
+      ? engineGetConsolidatedSegment(baseSegAfter, snapshot.segmentCorrections)
+      : null;
+
     await log('SEGMENT_CORRECTION_REVERTED', {
+      workDay: consolidatedAfter?.workDay,
+      trackNumber: consolidatedAfter?.trackNumber ?? undefined,
       segmentId: result.reverted.segmentId,
       payload: {
         correctionId: result.reverted.id,
@@ -220,7 +283,7 @@ export function createSegmentCorrectionsApi(
  * devuelve la API. Los componentes solo usan esto.
  */
 export function useSegmentCorrections(): UseSegmentCorrectionsApi {
-  const { state, setSegmentCorrections } = useRouteState();
+  const { state, setSegmentCorrections, readCommittedState } = useRouteState();
   const { user, isOfflineMode } = useAuth();
   const { role } = useUserRole();
 
@@ -228,17 +291,20 @@ export function useSegmentCorrections(): UseSegmentCorrectionsApi {
   const correctedByRole: 'gabinete' | 'admin' | null =
     role === 'admin' ? 'admin' : role === 'gabinete' ? 'gabinete' : null;
 
-  // Memo de la API según deps; useCallback en cada función sería más ruido
-  // que beneficio porque ya estamos creando un objeto por render.
-  const api = useCallback(
-    () =>
-      createSegmentCorrectionsApi({
-        state: { segmentCorrections: state.segmentCorrections ?? [] },
-        setSegmentCorrections,
-        identity: { correctedBy, correctedByRole },
-      }),
-    [state.segmentCorrections, setSegmentCorrections, correctedBy, correctedByRole],
-  );
-
-  return api();
+  return createSegmentCorrectionsApi({
+    state: {
+      segmentCorrections: state.segmentCorrections ?? [],
+      segments: state.route?.segments ?? [],
+    },
+    setSegmentCorrections,
+    identity: { correctedBy, correctedByRole },
+    afterCommit: (cb) => {
+      readCommittedState((s: AppState) => {
+        cb({
+          segmentCorrections: s.segmentCorrections ?? [],
+          segments: s.route?.segments ?? [],
+        });
+      });
+    },
+  });
 }

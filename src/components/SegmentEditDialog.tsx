@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Segment, SegmentDirection, SegmentType } from '@/types/route';
 import { sanitizeTextField } from '@/utils/sanitize';
 import { SegmentCorrectionsPanel } from '@/components/SegmentCorrectionsPanel';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
+import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 
 interface Props {
   segment: Segment;
