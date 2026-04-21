@@ -26,6 +26,15 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
   const [type, setType] = useState<SegmentType>(segment.type);
   const [notes, setNotes] = useState(segment.notes);
 
+  // Vista informativa para admin/gabinete: muestra el valor consolidado actual
+  // de los campos con corrección activa. Los inputs siguen mostrando el dato
+  // base/original de campo (no se mezcla con el consolidado).
+  const { role } = useUserRole();
+  const { getActiveCorrections } = useSegmentCorrections();
+  const canSeeGabinete = role === 'admin' || role === 'gabinete';
+  const activeCorrections = canSeeGabinete ? getActiveCorrections(segment.id) : [];
+  const showGabineteInfo = canSeeGabinete && activeCorrections.length > 0;
+
   const handleSave = () => {
     onSave({
       name: sanitizeTextField(name, 500),
