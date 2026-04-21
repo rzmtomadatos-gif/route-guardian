@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Segment, SegmentDirection, SegmentType } from '@/types/route';
 import { sanitizeTextField } from '@/utils/sanitize';
 import { SegmentCorrectionsPanel } from '@/components/SegmentCorrectionsPanel';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
+import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 
 interface Props {
   segment: Segment;
@@ -22,6 +25,15 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
   const [direction, setDirection] = useState<SegmentDirection>(segment.direction);
   const [type, setType] = useState<SegmentType>(segment.type);
   const [notes, setNotes] = useState(segment.notes);
+
+  // Vista informativa para admin/gabinete: muestra el valor consolidado actual
+  // de los campos con corrección activa. Los inputs siguen mostrando el dato
+  // base/original de campo (no se mezcla con el consolidado).
+  const { role } = useUserRole();
+  const { getActiveCorrections } = useSegmentCorrections();
+  const canSeeGabinete = role === 'admin' || role === 'gabinete';
+  const activeCorrections = canSeeGabinete ? getActiveCorrections(segment.id) : [];
+  const showGabineteInfo = canSeeGabinete && activeCorrections.length > 0;
 
   const handleSave = () => {
     onSave({
@@ -81,6 +93,33 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
                 {segment.kmlMeta.pkFinal && (
                   <div><span className="text-muted-foreground">PK Final:</span> <span className="text-foreground">{segment.kmlMeta.pkFinal}</span></div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Aviso para admin/gabinete: separa dato base (editable) del consolidado */}
+          {showGabineteInfo && (
+            <p className="text-[11px] text-muted-foreground italic">
+              Los campos editables muestran el dato original de campo. Las correcciones
+              activas de gabinete se listan más abajo y no modifican el dato base.
+            </p>
+          )}
+
+          {/* Vista read-only del valor consolidado actual (solo si hay correcciones activas) */}
+          {showGabineteInfo && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+                Valor consolidado actual
+              </p>
+              <div className="grid grid-cols-1 gap-y-1 text-xs">
+                {activeCorrections.map((c) => (
+                  <div key={c.id}>
+                    <span className="text-muted-foreground">{getFieldLabel(c.field)}:</span>{' '}
+                    <span className="text-foreground font-medium">
+                      {formatCorrectionValue(c.newValue)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
