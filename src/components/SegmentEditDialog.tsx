@@ -97,6 +97,33 @@ export function SegmentEditDialog({ segment, open, onOpenChange, onSave }: Props
             </div>
           )}
 
+          {/* Aviso para admin/gabinete: separa dato base (editable) del consolidado */}
+          {showGabineteInfo && (
+            <p className="text-[11px] text-muted-foreground italic">
+              Los campos editables muestran el dato original de campo. Las correcciones
+              activas de gabinete se listan más abajo y no modifican el dato base.
+            </p>
+          )}
+
+          {/* Vista read-only del valor consolidado actual (solo si hay correcciones activas) */}
+          {showGabineteInfo && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-1.5">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+                Valor consolidado actual
+              </p>
+              <div className="grid grid-cols-1 gap-y-1 text-xs">
+                {activeCorrections.map((c) => (
+                  <div key={c.id}>
+                    <span className="text-muted-foreground">{getFieldLabel(c.field)}:</span>{' '}
+                    <span className="text-foreground font-medium">
+                      {formatCorrectionValue(c.newValue)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Panel de correcciones de gabinete (solo admin/gabinete, solo si existen) */}
           <SegmentCorrectionsPanel segmentId={segment.id} />
 
