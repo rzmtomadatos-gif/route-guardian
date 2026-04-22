@@ -26,7 +26,7 @@
  *  Ambas escriben colecciones distintas; coexisten sin colisión.
  */
 
-import { useRouteState } from '@/hooks/useRouteState';
+import { useRouteStateContext } from '@/context/RouteStateContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { logEvent } from '@/utils/persistence';
