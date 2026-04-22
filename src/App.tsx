@@ -103,7 +103,7 @@ function AppRoutes() {
   }, [cancelAllInProgress]);
 
   return (
-    <>
+    <RouteStateProvider value={routeState}>
     <RecoveryDialog
       open={recoveryInfo !== null}
       inProgressCount={recoveryInfo?.count ?? 0}
@@ -232,7 +232,7 @@ function AppRoutes() {
         />
       </div>
     </AppLayout>
-    </>
+    </RouteStateProvider>
   );
 }
 
