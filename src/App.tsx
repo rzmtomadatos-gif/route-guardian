@@ -22,6 +22,7 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import { RecoveryDialog } from "@/components/RecoveryDialog";
 import { UpdateBanner } from "@/components/UpdateBanner";
+import { RouteStateProvider } from "@/context/RouteStateContext";
 
 const queryClient = new QueryClient();
 
