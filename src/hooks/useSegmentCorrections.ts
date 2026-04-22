@@ -26,7 +26,7 @@
  *  Ambas escriben colecciones distintas; coexisten sin colisión.
  */
 
-import { useRouteState } from '@/hooks/useRouteState';
+import { useRouteStateContext } from '@/context/RouteStateContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { logEvent } from '@/utils/persistence';
@@ -283,7 +283,7 @@ export function createSegmentCorrectionsApi(
  * devuelve la API. Los componentes solo usan esto.
  */
 export function useSegmentCorrections(): UseSegmentCorrectionsApi {
-  const { state, setSegmentCorrections, readCommittedState } = useRouteState();
+  const { state, setSegmentCorrections, readCommittedState } = useRouteStateContext();
   const { user, isOfflineMode } = useAuth();
   const { role } = useUserRole();
 

@@ -1,3 +1,15 @@
+/**
+ * useRouteState — fuente real del estado operativo de la campaña.
+ *
+ * IMPORTANTE: este hook crea estado interno con `useState`. Solo debe
+ * invocarse UNA VEZ en todo el árbol React, dentro de `AppRoutes`
+ * (`src/App.tsx`). El resto del árbol (hooks, diálogos, paneles) debe
+ * consumir la instancia compartida vía `useRouteStateContext()`
+ * (`src/context/RouteStateContext.tsx`).
+ *
+ * Llamarlo desde otro componente crea una instancia paralela vacía y
+ * provoca errores como "Segmento no encontrado en estado".
+ */
 import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection } from '@/types/route';
 import { getDefaultState, saveState } from '@/utils/storage';

@@ -22,6 +22,7 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 import { RecoveryDialog } from "@/components/RecoveryDialog";
 import { UpdateBanner } from "@/components/UpdateBanner";
+import { RouteStateProvider } from "@/context/RouteStateContext";
 
 const queryClient = new QueryClient();
 
@@ -102,7 +103,7 @@ function AppRoutes() {
   }, [cancelAllInProgress]);
 
   return (
-    <>
+    <RouteStateProvider value={routeState}>
     <RecoveryDialog
       open={recoveryInfo !== null}
       inProgressCount={recoveryInfo?.count ?? 0}
@@ -231,7 +232,7 @@ function AppRoutes() {
         />
       </div>
     </AppLayout>
-    </>
+    </RouteStateProvider>
   );
 }
 
