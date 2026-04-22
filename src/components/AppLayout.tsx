@@ -1,13 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, List, Settings, X, WifiOff } from 'lucide-react';
+import { Upload, Map, List, Settings, X, WifiOff, ClipboardEdit } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 
-const navItems = [
+const baseNavItems = [
   { to: '/', icon: Upload, label: 'Cargar' },
   { to: '/map', icon: Map, label: 'Mapa' },
   { to: '/segments', icon: List, label: 'Tramos' },
   { to: '/settings', icon: Settings, label: 'Config' },
 ];
+
+const gabineteNavItem = { to: '/gabinete', icon: ClipboardEdit, label: 'Gabinete' };
 
 interface Props {
   children: React.ReactNode;
@@ -18,6 +21,12 @@ interface Props {
 export function AppLayout({ children, selectedCount = 0, onClearSelection }: Props) {
   const location = useLocation();
   const { isOfflineMode } = useAuth();
+  const { canViewGabinete, loading: roleLoading } = useUserRole();
+
+  // Mostrar la tab Gabinete solo cuando el rol está confirmado (evita flash a operator).
+  const navItems = !roleLoading && canViewGabinete
+    ? [...baseNavItems, gabineteNavItem]
+    : baseNavItems;
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">

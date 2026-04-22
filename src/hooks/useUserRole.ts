@@ -15,6 +15,8 @@ interface UserRoleState {
   canManageUsers: boolean;
   /** Field operator (admin or operator) — full operational capabilities */
   isFieldOperator: boolean;
+  /** Can access the /gabinete page (admin or gabinete) */
+  canViewGabinete: boolean;
 }
 
 export function useUserRole(): UserRoleState {
@@ -70,6 +72,7 @@ export function useUserRole(): UserRoleState {
   const canNavigate = role === 'admin' || role === 'operator';
   const canManageUsers = role === 'admin';
   const isFieldOperator = role === 'admin' || role === 'operator';
+  const canViewGabinete = role === 'admin' || role === 'gabinete';
 
-  return { role, loading, canNavigate, canManageUsers, isFieldOperator };
+  return { role, loading, canNavigate, canManageUsers, isFieldOperator, canViewGabinete };
 }
