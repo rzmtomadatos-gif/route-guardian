@@ -14,6 +14,7 @@ import UploadPage from "@/pages/Index";
 import MapPage from "@/pages/MapPage";
 import SegmentsPage from "@/pages/SegmentsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import GabinetePage from "@/pages/GabinetePage";
 import DriverPage from "@/pages/DriverPage";
 import DriverMiniPage from "@/pages/DriverMiniPage";
 import AuthPage from "@/pages/AuthPage";
@@ -185,6 +186,7 @@ function AppRoutes() {
             />
           }
         />
+        <Route path="/gabinete" element={<GabinetePage state={state} />} />
         <Route path="*" element={isMapRoute ? null : <NotFound />} />
       </Routes>
       {/* Persistent MapPage — never unmounted, hidden via CSS when not on /map */}
