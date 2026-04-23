@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import { RecoveryDialog } from "@/components/RecoveryDialog";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { RouteStateProvider } from "@/context/RouteStateContext";
+import { TrackGpsLogger } from "@/components/TrackGpsLogger";
 
 const queryClient = new QueryClient();
 
