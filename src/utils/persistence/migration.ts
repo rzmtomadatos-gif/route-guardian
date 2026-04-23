@@ -28,6 +28,13 @@ function parseAppStateDefaults(parsed: any): AppState {
   if (!('segmentCorrections' in parsed) || !Array.isArray(parsed.segmentCorrections)) {
     parsed.segmentCorrections = [];
   }
+  if (
+    !('trackGpsLogsByDay' in parsed) ||
+    !parsed.trackGpsLogsByDay ||
+    typeof parsed.trackGpsLogsByDay !== 'object'
+  ) {
+    parsed.trackGpsLogsByDay = {};
+  }
   return parsed as AppState;
 }
 
@@ -46,6 +53,7 @@ const DEFAULT_STATE: AppState = {
   acquisitionMode: 'RST',
   lastConsumedTrackByDay: {},
   segmentCorrections: [],
+  trackGpsLogsByDay: {},
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */
