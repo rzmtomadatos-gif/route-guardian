@@ -11,7 +11,7 @@
  * provoca errores como "Segmento no encontrado en estado".
  */
 import { useState, useCallback } from 'react';
-import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection } from '@/types/route';
+import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection, TrackGpsPoint } from '@/types/route';
 import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
@@ -131,6 +131,34 @@ export function useRouteState() {
     },
     [setState],
   );
+
+  /**
+   * Append atómico y append-only al log GPS del track.
+   * - Escribe únicamente en `trackGpsLogsByDay[workDay][trackNumber]`.
+   * - Nunca reescribe puntos previos.
+   * - Las claves `workDay` y `trackNumber` se toman del PROPIO punto, no del
+   *   estado al ejecutar (evita carreras si `workDay` cambió entre cálculo
+   *   y commit).
+   * - No emite logEvent: la traza GPS es un dato denso que se persiste en
+   *   estado, no en event_log.
+   */
+  const appendTrackGpsPoint = useCallback((point: TrackGpsPoint) => {
+    setState((s) => {
+      const byDay = s.trackGpsLogsByDay ?? {};
+      const byTrack = byDay[point.workDay] ?? {};
+      const prev = byTrack[point.trackNumber] ?? [];
+      return {
+        ...s,
+        trackGpsLogsByDay: {
+          ...byDay,
+          [point.workDay]: {
+            ...byTrack,
+            [point.trackNumber]: [...prev, point],
+          },
+        },
+      };
+    });
+  }, [setState]);
 
   /**
    * Lee el estado YA comprometido por React tras el último setState pendiente.
