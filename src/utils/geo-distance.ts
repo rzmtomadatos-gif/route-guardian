@@ -1,6 +1,10 @@
 import type { LatLng } from '@/types/route';
 
 /** Haversine distance between two points in meters */
+export function haversineMeters(a: LatLng, b: LatLng): number {
+  return haversine(a, b);
+}
+
 function haversine(a: LatLng, b: LatLng): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;

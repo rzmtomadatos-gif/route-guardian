@@ -3,6 +3,10 @@
  *
  * Solo accesible para roles `admin` y `gabinete` (defensa en profundidad:
  * tab oculta en AppLayout + comprobación al montar).
+ *
+ * Contiene dos sub-vistas:
+ *  - "Tramos": tabla principal de tramos con correcciones (existente).
+ *  - "Tracks GPS": resumen por día/track de la traza GPS real (Fase 1 GPS).
  */
 
 import { useMemo, useState } from 'react';
@@ -14,12 +18,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, ShieldOff, ClipboardEdit } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, ShieldOff, ClipboardEdit, Map as MapIcon, List } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
 import type { AppState, Segment, SegmentStatus } from '@/types/route';
 import { GabineteSegmentsTable } from '@/components/gabinete/GabineteSegmentsTable';
 import { GabineteSegmentDetailDialog } from '@/components/gabinete/GabineteSegmentDetailDialog';
+import { GpsTracksTable } from '@/components/gabinete/GpsTracksTable';
+import { GpsTrackDetailDialog } from '@/components/gabinete/GpsTrackDetailDialog';
+import {
+  getTrackPoints,
+  listAvailableDays,
+} from '@/utils/gabinete/track-gps-derived';
 
 interface Props {
   state: AppState;
@@ -42,6 +53,13 @@ export default function GabinetePage({ state }: Props) {
   const [dayFilter, setDayFilter] = useState<string>('all');
   const [trackFilter, setTrackFilter] = useState<string>('all');
   const [openSegment, setOpenSegment] = useState<Segment | null>(null);
+
+  // ----- GPS sub-view state -----
+  const gpsLogs = state.trackGpsLogsByDay ?? {};
+  const gpsDays = useMemo(() => listAvailableDays(gpsLogs), [gpsLogs]);
+  const [gpsDay, setGpsDay] = useState<number | null>(null);
+  const effectiveGpsDay = gpsDay ?? gpsDays[0] ?? null;
+  const [openGpsTrack, setOpenGpsTrack] = useState<{ day: number; track: number } | null>(null);
 
   const allSegments = state.route?.segments ?? [];
 
@@ -83,6 +101,11 @@ export default function GabinetePage({ state }: Props) {
       return true;
     });
   }, [allSegments, search, statusFilter, dayFilter, trackFilter, getConsolidatedSegment]);
+
+  const openGpsPoints = useMemo(() => {
+    if (!openGpsTrack) return [];
+    return getTrackPoints(gpsLogs, openGpsTrack.day, openGpsTrack.track);
+  }, [gpsLogs, openGpsTrack]);
 
   // Defensa en profundidad: ocultar contenido si el rol no es válido.
   if (roleLoading) {
@@ -130,76 +153,148 @@ export default function GabinetePage({ state }: Props) {
           </h1>
           <p className="text-xs text-muted-foreground">
             {allSegments.length} tramo{allSegments.length === 1 ? '' : 's'} en la campaña
-            {filtered.length !== allSegments.length && (
-              <> · {filtered.length} tras filtros</>
-            )}
           </p>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar nombre, ID, carretera…"
-            className="pl-7 h-9 text-sm"
+      <Tabs defaultValue="segments" className="w-full">
+        <TabsList className="grid grid-cols-2 w-full sm:w-auto sm:inline-grid">
+          <TabsTrigger value="segments" className="text-xs gap-1.5">
+            <List className="w-3.5 h-3.5" />
+            Tramos
+          </TabsTrigger>
+          <TabsTrigger value="gps" className="text-xs gap-1.5">
+            <MapIcon className="w-3.5 h-3.5" />
+            Tracks GPS
+            {gpsDays.length > 0 && (
+              <span className="ml-1 text-[10px] text-muted-foreground">
+                ({gpsDays.length}d)
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ---------- Sub-vista TRAMOS ---------- */}
+        <TabsContent value="segments" className="space-y-3 mt-3">
+          <p className="text-[11px] text-muted-foreground">
+            {filtered.length !== allSegments.length
+              ? `${filtered.length} tras filtros`
+              : `${allSegments.length} tramos`}
+          </p>
+
+          {/* Filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar nombre, ID, carretera…"
+                className="pl-7 h-9 text-sm"
+              />
+            </div>
+
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | SegmentStatus)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={dayFilter} onValueChange={setDayFilter}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los días</SelectItem>
+                {days.map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    Día {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={trackFilter} onValueChange={setTrackFilter}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tracks</SelectItem>
+                {tracks.map((t) => (
+                  <SelectItem key={t} value={String(t)}>
+                    Track {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <GabineteSegmentsTable
+            segments={filtered}
+            onOpen={(s) => setOpenSegment(s)}
           />
-        </div>
+        </TabsContent>
 
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | SegmentStatus)}>
-          <SelectTrigger className="h-9 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_FILTERS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* ---------- Sub-vista TRACKS GPS ---------- */}
+        <TabsContent value="gps" className="space-y-3 mt-3">
+          {gpsDays.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border/60 py-12 text-center text-xs text-muted-foreground">
+              No hay puntos GPS registrados aún. La traza se captura automáticamente
+              durante la navegación con un track activo.
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">Día:</span>
+                <Select
+                  value={String(effectiveGpsDay ?? '')}
+                  onValueChange={(v) => setGpsDay(Number(v))}
+                >
+                  <SelectTrigger className="h-9 text-sm w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gpsDays.map((d) => (
+                      <SelectItem key={d} value={String(d)}>
+                        Día {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        <Select value={dayFilter} onValueChange={setDayFilter}>
-          <SelectTrigger className="h-9 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los días</SelectItem>
-            {days.map((d) => (
-              <SelectItem key={d} value={String(d)}>
-                Día {d}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={trackFilter} onValueChange={setTrackFilter}>
-          <SelectTrigger className="h-9 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los tracks</SelectItem>
-            {tracks.map((t) => (
-              <SelectItem key={t} value={String(t)}>
-                Track {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <GabineteSegmentsTable
-        segments={filtered}
-        onOpen={(s) => setOpenSegment(s)}
-      />
+              {effectiveGpsDay !== null && (
+                <GpsTracksTable
+                  day={effectiveGpsDay}
+                  logsByDay={gpsLogs}
+                  onOpen={(d, t) => setOpenGpsTrack({ day: d, track: t })}
+                />
+              )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <GabineteSegmentDetailDialog
         open={openSegment !== null}
         segment={openSegment}
         onClose={() => setOpenSegment(null)}
+      />
+
+      <GpsTrackDetailDialog
+        open={openGpsTrack !== null}
+        day={openGpsTrack?.day ?? null}
+        track={openGpsTrack?.track ?? null}
+        points={openGpsPoints}
+        allSegments={allSegments}
+        onClose={() => setOpenGpsTrack(null)}
       />
     </div>
   );
