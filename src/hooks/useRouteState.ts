@@ -1797,5 +1797,6 @@ export function useRouteState() {
     cancelAllInProgress,
     setSegmentCorrections,
     readCommittedState,
+    appendTrackGpsPoint,
   };
 }
