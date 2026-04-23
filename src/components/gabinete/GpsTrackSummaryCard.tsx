@@ -48,13 +48,13 @@ export function GpsTrackSummaryCard({ day, track, metrics }: Props) {
           value={formatMeters(metrics.totalDistanceMeters)}
         />
         <Metric
-          icon={<Activity className="w-3.5 h-3.5 text-emerald-500" />}
+          icon={<Activity className="w-3.5 h-3.5 text-primary" />}
           label="Grabando"
           value={formatMeters(metrics.recordingDistanceMeters)}
           sub={formatDuration(metrics.recordingTimeMs)}
         />
         <Metric
-          icon={<MapPin className="w-3.5 h-3.5 text-sky-500" />}
+          icon={<MapPin className="w-3.5 h-3.5 text-accent" />}
           label="Transporte"
           value={formatMeters(metrics.transportDistanceMeters)}
           sub={formatDuration(metrics.transportTimeMs)}
