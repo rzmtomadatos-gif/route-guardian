@@ -1187,6 +1187,7 @@ export function useRouteState() {
       acquisitionMode: s.acquisitionMode,
       lastConsumedTrackByDay: s.lastConsumedTrackByDay,
       segmentCorrections: s.segmentCorrections,
+      trackGpsLogsByDay: s.trackGpsLogsByDay,
     }));
   }, [setState]);
 
