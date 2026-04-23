@@ -190,6 +190,29 @@ export interface AppState {
    * campo con las correcciones activas (active=true), ordenadas por fecha.
    */
   segmentCorrections: SegmentCorrection[];
+  /**
+   * Traza GPS real del vehículo, organizada por workDay → trackNumber.
+   * Append-only. Cada punto se registra solo si el vehículo ha recorrido
+   * ≥10 m desde el último punto persistido del MISMO día y track.
+   * `phase` distingue transporte (sin tramo en grabación) de grabación
+   * (segmento status='en_progreso').
+   */
+  trackGpsLogsByDay: Record<number, Record<number, TrackGpsPoint[]>>;
+}
+
+/** Punto GPS persistido durante navegación activa con track abierto. */
+export interface TrackGpsPoint {
+  timestamp: string;
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+  speed?: number | null;
+  heading?: number | null;
+  workDay: number;
+  trackNumber: number;
+  phase: 'transport' | 'recording';
+  segmentId?: string | null;
+  source: 'gps';
 }
 
 /** Campos editables por gabinete mediante el modelo de correcciones. */
