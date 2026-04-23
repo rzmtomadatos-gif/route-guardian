@@ -62,6 +62,7 @@ export function getDefaultState(): AppState {
     acquisitionMode: 'RST' as const,
     lastConsumedTrackByDay: {},
     segmentCorrections: [],
+    trackGpsLogsByDay: {},
   };
 }
 

@@ -162,6 +162,44 @@ const appStateSchema = z.object({
       return out;
     }),
   segmentCorrections: z.array(z.lazy(() => segmentCorrectionSchema)).max(100_000).default([]),
+  trackGpsLogsByDay: z.record(
+    z.string(),
+    z.record(
+      z.string(),
+      z.array(z.lazy(() => trackGpsPointSchema)).max(1_000_000),
+    ),
+  )
+    .default({})
+    .transform((rec) => {
+      // Normaliza claves string→number en ambos niveles (workDay → trackNumber → puntos[]).
+      const out: Record<number, Record<number, any[]>> = {};
+      for (const [dayKey, byTrack] of Object.entries(rec)) {
+        const dayNum = Number(dayKey);
+        if (!Number.isFinite(dayNum)) continue;
+        const inner: Record<number, any[]> = {};
+        for (const [trackKey, points] of Object.entries(byTrack)) {
+          const trackNum = Number(trackKey);
+          if (!Number.isFinite(trackNum)) continue;
+          inner[trackNum] = points;
+        }
+        out[dayNum] = inner;
+      }
+      return out;
+    }),
+}).strict();
+
+const trackGpsPointSchema = z.object({
+  timestamp: isoDateString,
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().nullable().optional(),
+  speed: z.number().nullable().optional(),
+  heading: z.number().nullable().optional(),
+  workDay: z.number().int().min(0),
+  trackNumber: z.number().int().min(0),
+  phase: z.enum(['transport', 'recording']),
+  segmentId: z.string().nullable().optional(),
+  source: z.literal('gps'),
 }).strict();
 
 // ── Event Log — real EventType enum ──
