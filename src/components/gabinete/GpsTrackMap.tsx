@@ -78,28 +78,24 @@ export function GpsTrackMap({ points, className = '' }: Props) {
 
     // Polilíneas transport
     transport.forEach((line) => {
-      const poly = L.polyline(
-        line.map((p) => [p.lat, p.lng]),
-        {
-          color: TRANSPORT_COLOR,
-          weight: 4,
-          opacity: 0.75,
-          dashArray: '6 6',
-        },
-      ).addTo(map);
+      const latlngs: L.LatLngTuple[] = line.map((p) => [p.lat, p.lng]);
+      const poly = L.polyline(latlngs, {
+        color: TRANSPORT_COLOR,
+        weight: 4,
+        opacity: 0.75,
+        dashArray: '6 6',
+      }).addTo(map);
       layersRef.current.push(poly);
     });
 
     // Polilíneas recording
     recording.forEach((line) => {
-      const poly = L.polyline(
-        line.map((p) => [p.lat, p.lng]),
-        {
-          color: RECORDING_COLOR,
-          weight: 5,
-          opacity: 0.95,
-        },
-      ).addTo(map);
+      const latlngs: L.LatLngTuple[] = line.map((p) => [p.lat, p.lng]);
+      const poly = L.polyline(latlngs, {
+        color: RECORDING_COLOR,
+        weight: 5,
+        opacity: 0.95,
+      }).addTo(map);
       layersRef.current.push(poly);
     });
 
