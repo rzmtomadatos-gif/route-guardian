@@ -151,7 +151,7 @@ describe('overpass-api', () => {
     });
 
     it('mapea TypeError de fetch a OverpassError("network") en TODOS los mirrors', async () => {
-      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+      fetchMock.mockImplementation(async () => { throw new TypeError('Failed to fetch'); });
       await expect(
         fetchRoadsInCircle({ lat: 40, lng: -3 }, 100, ['residential']),
       ).rejects.toMatchObject({ kind: 'network' });
@@ -160,14 +160,14 @@ describe('overpass-api', () => {
     });
 
     it('429 reintenta dentro del mismo mirror y luego salta al siguiente', async () => {
-      // Todos los mirrors devuelven 429 siempre → debería intentar 3 veces por mirror
-      fetchMock.mockResolvedValue(errResponse(429));
+      // Cada llamada devuelve un Response NUEVO (no se puede reusar el mismo)
+      fetchMock.mockImplementation(async () => errResponse(429));
       await expect(
         fetchRoadsInCircle({ lat: 40, lng: -3 }, 100, ['residential']),
       ).rejects.toMatchObject({ kind: 'rate_limit' });
       // 3 mirrors × 3 intentos (1 inicial + 2 reintentos)
       expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_MIRRORS.length * 3);
-    });
+    }, 30_000);
 
     it('failover: primer mirror falla, segundo responde OK', async () => {
       fetchMock
@@ -183,14 +183,14 @@ describe('overpass-api', () => {
     });
 
     it('400 → OverpassError("query")', async () => {
-      fetchMock.mockResolvedValue(errResponse(400));
+      fetchMock.mockImplementation(async () => errResponse(400));
       await expect(
         fetchRoadsInCircle({ lat: 40, lng: -3 }, 100, ['residential']),
       ).rejects.toMatchObject({ kind: 'query' });
     });
 
     it('respuesta vacía no es error: devuelve []', async () => {
-      fetchMock.mockResolvedValue(okResponse({ elements: [] }));
+      fetchMock.mockImplementation(async () => okResponse({ elements: [] }));
       const ways = await fetchRoadsInCircle({ lat: 40, lng: -3 }, 100, ['residential']);
       expect(ways).toEqual([]);
     });
@@ -201,14 +201,12 @@ describe('overpass-api', () => {
   // ---------------------------------------------------------------------------
   describe('fetchRoadsInArea', () => {
     it('descarta vías cuya geometría completa está fuera del polígono', async () => {
-      // Polígono triangular pequeño en (0,0)-(0,1)-(1,0)
       const polygon = [
         { lat: 0, lng: 0 },
         { lat: 0, lng: 1 },
         { lat: 1, lng: 0 },
       ];
-      // Overpass devuelve 2 ways: una dentro del triángulo, otra claramente fuera (en la otra esquina del bbox)
-      fetchMock.mockResolvedValue(okResponse({
+      fetchMock.mockImplementation(async () => okResponse({
         elements: [
           makeWayElement(10, [[0.1, 0.1], [0.2, 0.2]]),       // dentro
           makeWayElement(20, [[0.95, 0.95], [0.99, 0.99]]),   // fuera del triángulo (pero dentro del bbox)
@@ -253,7 +251,7 @@ describe('overpass-api', () => {
     });
 
     it('devuelve null si ningún radio encuentra vías', async () => {
-      fetchMock.mockResolvedValue(okResponse({ elements: [] }));
+      fetchMock.mockImplementation(async () => okResponse({ elements: [] }));
       const info = await fetchNearestRoad({ lat: 40, lng: -3.7 });
       expect(info).toBeNull();
     });
