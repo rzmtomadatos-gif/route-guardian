@@ -275,13 +275,28 @@ export function GoogleMapDisplay({
   }, [mapReady]);
 
   // --- Resize when becoming visible (tab switch persistence) ---
+  // When MapPage was hidden via display:none and becomes visible again,
+  // Google Maps needs a manual 'resize' AND we must force a full repaint
+  // (we skip rebuilds while hidden because the container has 0×0 size, which
+  // makes fitBounds calculate garbage centers — e.g. Gulf of Guinea).
   const prevVisibleRef = useRef(visible);
   useEffect(() => {
     if (visible && !prevVisibleRef.current && mapRef.current) {
       google.maps.event.trigger(mapRef.current, 'resize');
+      // Invalidate fingerprints so the segment-draw effect re-runs against
+      // the now-correctly-sized container and re-fits bounds if needed.
+      prevFingerprintRef.current = '__force_repaint__';
+      prevIdSetFingerprintRef.current = '';
+      resetFitState();
+      // Trigger a re-render of the draw effect by nudging zoom listener-deps.
+      // The effect itself depends on segmentFingerprint/idSetFingerprint which
+      // we just reset, so a state update isn't strictly required — React will
+      // run the effect on the next render cycle anyway because the refs change
+      // but useEffect doesn't track refs. Force a state nudge:
+      setCurrentZoom((z) => z); // no-op state update to trigger re-render
     }
     prevVisibleRef.current = visible;
-  }, [visible]);
+  }, [visible, resetFitState]);
 
   // Compute segment fingerprint
   const segmentFingerprint = useMemo(
@@ -301,9 +316,13 @@ export function GoogleMapDisplay({
   const prevIdSetFingerprintRef = useRef('');
 
   // --- Draw static overlays (polylines, connection lines, order markers) ---
-  // Only rebuild when segment data actually changes, NOT on GPS position updates
+  // Only rebuild when segment data actually changes, NOT on GPS position updates.
+  // CRITICAL: skip while map is hidden (display:none on parent). Container has
+  // size 0×0, fitBounds would calculate garbage. We re-trigger when visible
+  // becomes true (see visible-effect above which resets fingerprints).
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    if (visible === false) return; // map is hidden — defer paint
     if (segmentFingerprint === prevFingerprintRef.current) return;
 
     const map = mapRef.current;
@@ -446,7 +465,7 @@ export function GoogleMapDisplay({
     // Mark fingerprints as painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
     prevIdSetFingerprintRef.current = idSetFingerprint;
-  }, [segmentFingerprint, idSetFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
+  }, [segmentFingerprint, idSetFingerprint, mapReady, visible, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
 
 
   // --- Draw/hide arrow overlays based on zoom ---

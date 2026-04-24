@@ -71,6 +71,20 @@ export function useSmartFitGoogle() {
   ) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
+    // Guard: never call fitBounds on a hidden / zero-sized container.
+    // Google Maps would compute a centroid based on a 0×0 viewport and
+    // happily pan to the Gulf of Guinea. Defer until the container has
+    // real dimensions (the visible-effect in GoogleMapDisplay re-runs
+    // this once the map becomes visible again).
+    try {
+      const div = (map as any).getDiv?.() as HTMLElement | undefined;
+      if (div && (div.offsetWidth === 0 || div.offsetHeight === 0)) {
+        return;
+      }
+    } catch {}
+    // Guard: bounds must be non-empty.
+    try { if (bounds.isEmpty()) return; } catch {}
+
     const execute = () => {
       const now = Date.now();
       const targetBounds = toBoundsObj(bounds);
@@ -154,6 +168,15 @@ export function useSmartFitLeaflet() {
     reason: FitReason,
   ) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    // Guard: skip on hidden / zero-sized container or empty bounds.
+    try {
+      const container = map.getContainer?.();
+      if (container && (container.offsetWidth === 0 || container.offsetHeight === 0)) {
+        return;
+      }
+    } catch {}
+    try { if (!bounds.isValid?.()) return; } catch {}
 
     const execute = () => {
       const now = Date.now();
