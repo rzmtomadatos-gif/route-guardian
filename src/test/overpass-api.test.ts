@@ -259,37 +259,42 @@ describe('overpass-api', () => {
   });
 
   describe('splitWayByPolygon', () => {
-    // Cuadrado unitario [0,0]-[1,1]
+    // Polígono ~50m de lado (1m ≈ 9e-6 grados).
+    const D = 0.0005; // ~55 m
     const square = [
-      { lat: 0, lng: 0 }, { lat: 0, lng: 1 },
-      { lat: 1, lng: 1 }, { lat: 1, lng: 0 },
+      { lat: 40, lng: -3.7 },
+      { lat: 40, lng: -3.7 + D },
+      { lat: 40 + D, lng: -3.7 + D },
+      { lat: 40 + D, lng: -3.7 },
     ];
 
     it('vía totalmente fuera devuelve []', () => {
-      const coords = [{ lat: 5, lng: 5 }, { lat: 5, lng: 6 }];
+      const coords = [{ lat: 41, lng: -3 }, { lat: 41, lng: -3 + 1e-5 }];
       expect(splitWayByPolygon(coords, square)).toEqual([]);
     });
 
     it('vía totalmente dentro devuelve un solo run', () => {
-      const coords = [{ lat: 0.2, lng: 0.2 }, { lat: 0.4, lng: 0.4 }, { lat: 0.6, lng: 0.6 }];
+      const coords = [
+        { lat: 40 + D * 0.2, lng: -3.7 + D * 0.2 },
+        { lat: 40 + D * 0.4, lng: -3.7 + D * 0.4 },
+        { lat: 40 + D * 0.6, lng: -3.7 + D * 0.6 },
+      ];
       const runs = splitWayByPolygon(coords, square);
       expect(runs).toHaveLength(1);
       expect(runs[0].length).toBe(3);
     });
 
     it('vía que entra y sale dos veces se divide en 2 runs', () => {
-      // dentro - fuera - fuera - dentro - dentro - fuera
-      const coords = [
-        { lat: 0.5, lng: 0.5 },   // in
-        { lat: 0.5, lng: 1.0001 },// out (apenas)
-        { lat: 0.5, lng: 1.0002 },// out
-        { lat: 0.5, lng: 0.7 },   // in (vuelve)
-        { lat: 0.5, lng: 0.8 },   // in
-        { lat: 0.5, lng: 1.0003 },// out
-      ];
+      // dentro - fuera (cerca) - fuera - dentro - dentro - fuera (cerca)
+      const inside1 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.5 };
+      const out1a = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.05 }; // fuera al este, ~5m
+      const out1b = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.10 };
+      const inside2 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.7 };
+      const inside3 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.8 };
+      const out2 = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.05 };
+      const coords = [inside1, out1a, out1b, inside2, inside3, out2];
       const runs = splitWayByPolygon(coords, square);
       expect(runs).toHaveLength(2);
-      // Cada run >= 2 puntos
       for (const r of runs) expect(r.length).toBeGreaterThanOrEqual(2);
     });
 
@@ -297,9 +302,9 @@ describe('overpass-api', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       // Punto interior con vecino exterior a varios km
       const coords = [
-        { lat: 5, lng: 5 },       // out, lejísimos
-        { lat: 0.5, lng: 0.5 },   // in
-        { lat: 5, lng: 5.001 },   // out, lejísimos
+        { lat: 41, lng: -3 },                            // out, lejísimos
+        { lat: 40 + D * 0.5, lng: -3.7 + D * 0.5 },      // in
+        { lat: 41, lng: -3 + 1e-5 },                     // out, lejísimos
       ];
       const runs = splitWayByPolygon(coords, square, 999);
       expect(runs).toEqual([]);
