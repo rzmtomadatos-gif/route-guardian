@@ -930,6 +930,7 @@ export function GoogleMapDisplay({
         searchTargetLocation={searchTargetLocation}
         searchTargetBounds={searchTargetBounds}
         searchCenterRequest={searchCenterRequest}
+        mapRefreshRequest={mapRefreshRequest}
       />
     );
   }
