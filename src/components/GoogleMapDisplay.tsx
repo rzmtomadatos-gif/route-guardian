@@ -151,6 +151,8 @@ export function GoogleMapDisplay({
   const arrowMarkersRef = useRef<google.maps.Marker[]>([]);
   // GPS position marker (separate lifecycle)
   const posMarkerRef = useRef<google.maps.Marker | null>(null);
+  // Marcador temporal del buscador (resultado de geocoding)
+  const searchMarkerRef = useRef<google.maps.Marker | null>(null);
   // Creation & area overlays
   const creationMarkersRef = useRef<google.maps.Marker[]>([]);
   const creationPolylineRef = useRef<google.maps.Polyline | null>(null);
