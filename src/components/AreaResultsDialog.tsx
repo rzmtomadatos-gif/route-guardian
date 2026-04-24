@@ -18,9 +18,11 @@ interface Props {
   onClose: () => void;
   onConfirm: (generateReverse: boolean) => void;
   ways: OverpassWay[];
+  /** Nº de vías cuyo osmId ya existe en la ruta. Solo informativo. */
+  duplicateCount?: number;
 }
 
-export function AreaResultsDialog({ open, onClose, onConfirm, ways }: Props) {
+export function AreaResultsDialog({ open, onClose, onConfirm, ways, duplicateCount = 0 }: Props) {
   const [generateReverse, setGenerateReverse] = useState(true);
 
   const onewayWays = ways.filter((w) => w.oneway);
