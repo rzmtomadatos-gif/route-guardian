@@ -6,6 +6,7 @@ import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
+import { isValidLatLng } from '@/utils/coord-validation';
 import {
   getOfflineTileData,
   listOfflineTileSources,
