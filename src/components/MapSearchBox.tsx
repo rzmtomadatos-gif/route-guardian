@@ -17,7 +17,7 @@
  * El componente es controlado mínimamente: comparte estado del input
  * internamente, pero notifica selecciones al padre vía callbacks.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Search, X, MapPin, Route as RouteIcon, Loader2 } from 'lucide-react';
 import type { LatLng, Segment } from '@/types/route';
 import { Input } from '@/components/ui/input';
