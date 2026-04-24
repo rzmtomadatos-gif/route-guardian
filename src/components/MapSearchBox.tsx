@@ -235,18 +235,24 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
             placeholder="Buscar tramo o calle…"
             className="h-8 border-0 bg-transparent px-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
           />
-          {query && (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 shrink-0"
-              onClick={handleClear}
-              title="Limpiar búsqueda"
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 shrink-0"
+            onClick={() => {
+              if (query) {
+                handleClear();
+              } else {
+                setOpen(false);
+                onClose?.();
+              }
+            }}
+            title={query ? 'Limpiar búsqueda' : 'Cerrar buscador'}
+            aria-label={query ? 'Limpiar búsqueda' : 'Cerrar buscador'}
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         {showResults && (
