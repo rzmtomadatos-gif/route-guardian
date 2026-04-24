@@ -169,6 +169,15 @@ export function useSmartFitLeaflet() {
   ) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
+    // Guard: skip on hidden / zero-sized container or empty bounds.
+    try {
+      const container = map.getContainer?.();
+      if (container && (container.offsetWidth === 0 || container.offsetHeight === 0)) {
+        return;
+      }
+    } catch {}
+    try { if (!bounds.isValid?.()) return; } catch {}
+
     const execute = () => {
       const now = Date.now();
       const ne = bounds.getNorthEast();
