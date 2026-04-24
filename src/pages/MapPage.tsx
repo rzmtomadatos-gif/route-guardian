@@ -1331,8 +1331,9 @@ export default function MapPage({
         
       </div>
 
-      {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
-      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
+      {/* Buscador de tramos / lugares — sólo visible al pulsar el atajo (/, Ctrl/Cmd+K) o el FAB Buscar.
+          Oculto siempre en modos de creación / selección por zona. */}
+      {searchVisible && !creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapSearchBox
           ref={searchBoxRef}
           segments={state.route?.segments}
@@ -1341,6 +1342,7 @@ export default function MapPage({
           onPickSegment={handleSearchPickSegment}
           onPickLocation={handleSearchPickLocation}
           onClearLocation={handleSearchClearLocation}
+          onClose={handleCloseSearch}
         />
       )}
 
