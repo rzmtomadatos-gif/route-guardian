@@ -116,6 +116,15 @@ export function AreaResultsDialog({ open, onClose, onConfirm, ways, duplicateCou
           </div>
         )}
 
+        {duplicateCount > 0 && (
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-foreground">
+              <span className="font-medium">{duplicateCount}</span> vía{duplicateCount > 1 ? 's' : ''} ya existe{duplicateCount > 1 ? 'n' : ''} en la ruta y se duplicará{duplicateCount > 1 ? 'n' : ''} si confirmas.
+            </p>
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={onClose}>
             Cancelar
