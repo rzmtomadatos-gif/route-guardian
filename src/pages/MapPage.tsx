@@ -700,6 +700,10 @@ export default function MapPage({
   }, [areaPoints]);
 
   const handleCancelArea = useCallback(() => {
+    // Aborta consulta Overpass en curso si la hay y limpia estado.
+    areaAbortRef.current?.abort();
+    areaAbortRef.current = null;
+    setIsLoadingArea(false);
     setAreaMode('none');
     setAreaPoints([]);
     setShowAreaDialog(false);
@@ -749,39 +753,23 @@ export default function MapPage({
   }, [areaMode, areaPoints, getCircleParams]);
 
   const handleFetchRoads = useCallback(async (categories: RoadCategory[], layerName: string) => {
+    // Cancelar cualquier consulta previa
+    areaAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    areaAbortRef.current = ctrl;
+
     setIsLoadingArea(true);
     setPendingLayerName(layerName);
     try {
-      let ways: OverpassWay[];
       const circleParams = getCircleParams();
+      const ways = areaMode === 'circle' && circleParams
+        ? await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories, { signal: ctrl.signal })
+        : await fetchRoadsInArea(getAreaPolygon(), categories, { signal: ctrl.signal });
 
-      if (areaMode === 'circle' && circleParams) {
-        const initialWays = await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories);
-
-        if (initialWays.length === 0) {
-          toast.warning('No se encontraron vías en la zona seleccionada');
-          setIsLoadingArea(false);
-          return;
-        }
-
-        const realNames = [...new Set(initialWays.filter((w) => w.name && !w.name.startsWith('Vía ')).map((w) => w.name))];
-
-        if (realNames.length > 0) {
-          toast.info(`Completando ${realNames.length} vías...`);
-          const completeWays = await fetchCompleteRoads(circleParams.center, circleParams.radiusMeters, realNames, categories);
-          const unnamedWays = initialWays.filter((w) => w.name.startsWith('Vía '));
-          ways = [...mergeWaysByName(completeWays), ...unnamedWays];
-        } else {
-          ways = initialWays;
-        }
-      } else {
-        const polygon = getAreaPolygon();
-        ways = await fetchRoadsInArea(polygon, categories);
-      }
+      if (ctrl.signal.aborted) return;
 
       if (!ways || ways.length === 0) {
-        toast.warning('No se encontraron vías en la zona seleccionada');
-        setIsLoadingArea(false);
+        toast.warning('No se encontraron vías del tipo seleccionado en esta zona');
         return;
       }
 
@@ -789,9 +777,31 @@ export default function MapPage({
       setShowAreaDialog(false);
       setShowResultsDialog(true);
     } catch (err) {
-      console.error('Overpass error:', err);
-      toast.error('Error al consultar las vías. Intenta con una zona más pequeña.');
+      if (err instanceof OverpassError) {
+        switch (err.kind) {
+          case 'aborted':
+            return; // silencioso: el usuario canceló
+          case 'rate_limit':
+            toast.error('Servidor OSM saturado. Reintenta en unos segundos.');
+            break;
+          case 'timeout':
+            toast.error('Consulta demasiado lenta. Reduce la zona o reintenta.');
+            break;
+          case 'network':
+            toast.error('Sin conexión. Comprueba la red y reintenta.');
+            break;
+          case 'query':
+            toast.error('Error de consulta Overpass. Revisa los filtros.');
+            break;
+          default:
+            toast.error('Error inesperado consultando vías.');
+        }
+      } else {
+        toast.error('Error inesperado consultando vías.');
+      }
+      console.error('[Overpass]', err);
     } finally {
+      if (areaAbortRef.current === ctrl) areaAbortRef.current = null;
       setIsLoadingArea(false);
     }
   }, [getAreaPolygon, getCircleParams, areaMode]);
