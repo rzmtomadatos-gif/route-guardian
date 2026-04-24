@@ -827,7 +827,14 @@ export default function MapPage({
         direction: 'creciente',
         type: 'tramo',
         status: 'pendiente',
-        kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
+        kmlMeta: {
+          carretera: way.ref || way.name,
+          tipo: way.highway,
+          sentido: way.oneway ? 'único' : undefined,
+          osmId: way.osmId,
+          ref: way.ref,
+          source: 'osm',
+        },
         layer: layerName || undefined
       };
       onAddSegment(segment);
@@ -850,7 +857,14 @@ export default function MapPage({
           direction: 'creciente',
           type: 'tramo',
           status: 'pendiente',
-          kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
+        kmlMeta: {
+          carretera: way.ref || way.name,
+          tipo: way.highway,
+          sentido: 'decreciente',
+          osmId: way.osmId,
+          ref: way.ref,
+          source: 'osm',
+        },
           layer: reverseLayerName
         };
         onAddSegment(segment);
