@@ -462,6 +462,17 @@ export function GoogleMapDisplay({
       smartFit(map, bounds, 'segmentsLoaded');
     }
 
+    // Defensive warning: if we received a non-empty segment list but ended up
+    // painting zero polylines, something upstream is filtering them out (bad
+    // coords, stale selection) and the user will see a blank map. Surface it.
+    if (segments.length > 0 && polylinesRef.current.length === 0) {
+      console.warn(
+        '[GoogleMapDisplay] received',
+        segments.length,
+        'segments but painted 0 polylines — check coordinates / visibility filters',
+      );
+    }
+
     // Mark fingerprints as painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
     prevIdSetFingerprintRef.current = idSetFingerprint;
