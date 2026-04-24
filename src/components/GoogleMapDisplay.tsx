@@ -7,6 +7,7 @@ import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
+import { isValidLatLng } from '@/utils/coord-validation';
 
 const DARK_STYLES: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#1a1d23' }] },
