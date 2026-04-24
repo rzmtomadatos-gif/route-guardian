@@ -228,7 +228,6 @@ function AppRoutes() {
           onApplyRouteOrder={applyRouteOrder}
           geo={geo}
           gpsEnabled={gpsEnabled}
-          visible={isMapRoute}
           setGpsEnabled={setGpsEnabled}
           copilot={copilot}
           visible={isMapRoute}
