@@ -712,7 +712,17 @@ export default function MapPage({
     setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
   }, []);
 
-  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
+  /** Abre y enfoca el buscador desde un FAB o atajo de teclado. */
+  const handleFocusSearch = useCallback(() => {
+    searchBoxRef.current?.focus();
+  }, []);
+
+  /** Solicita un repintado seguro del mapa sin alterar el estado operativo. */
+  const handleRefreshMap = useCallback(() => {
+    setMapRefreshRequest((c) => c + 1);
+    toast.success('Mapa actualizado', { duration: 1200 });
+  }, []);
+
   // de la campaña así lo indique (nombre de proyecto/ruta/capas que
   // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
   const searchContext = useMemo(() => {
