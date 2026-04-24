@@ -273,7 +273,10 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
       </div>
     </div>
   );
-}
+});
+
+MapSearchBox.displayName = 'MapSearchBox';
+
 
 // --- Subcomponentes de resultados ---
 
