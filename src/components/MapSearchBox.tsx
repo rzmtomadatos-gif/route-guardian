@@ -78,6 +78,24 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
   const geoAbortRef = useRef<AbortController | null>(null);
   const geoDebounceRef = useRef<number | null>(null);
 
+  // Exponer API imperativa al padre: abrir + enfocar sin tocar el query.
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        setOpen(true);
+        // Diferimos un tick para asegurar que el input esté montado/visible
+        requestAnimationFrame(() => {
+          const el = inputRef.current;
+          if (!el) return;
+          el.focus();
+          try { el.select(); } catch { /* noop */ }
+        });
+      },
+    }),
+    [],
+  );
+
   // --- Resultados locales (tramos) — inmediatos, sin debounce ---
   const segmentResults: SegmentSearchResult[] = useMemo(() => {
     if (mode !== 'segments') return [];
