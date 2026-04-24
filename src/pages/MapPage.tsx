@@ -714,9 +714,18 @@ export default function MapPage({
     setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
   }, []);
 
-  /** Abre y enfoca el buscador desde un FAB o atajo de teclado. */
+  /** Muestra y enfoca el buscador desde un FAB o atajo de teclado. */
   const handleFocusSearch = useCallback(() => {
-    searchBoxRef.current?.focus();
+    setSearchVisible(true);
+    // Si ya está montado, foco inmediato; si acaba de montarse, espera al siguiente frame.
+    requestAnimationFrame(() => {
+      searchBoxRef.current?.focus();
+    });
+  }, []);
+
+  /** Cierra y desmonta el buscador. */
+  const handleCloseSearch = useCallback(() => {
+    setSearchVisible(false);
   }, []);
 
   /** Solicita un repintado seguro del mapa sin alterar el estado operativo. */
