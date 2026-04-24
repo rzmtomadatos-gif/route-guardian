@@ -66,6 +66,14 @@ interface Props {
   searchTargetLocation?: LatLng | null;
   searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
   searchCenterRequest?: number;
+  /**
+   * Solicitud de refresco manual del mapa (contador incremental).
+   * Cuando cambia, el componente fuerza `resize` + repintado de overlays
+   * y, si detecta el mapa "perdido" (sin polilíneas con datos disponibles
+   * o centrado en [0,0]), realiza una recuperación segura con `smartFit`.
+   * No mueve el mapa cuando el estado actual es correcto.
+   */
+  mapRefreshRequest?: number;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
