@@ -293,14 +293,23 @@ export function GoogleMapDisplay({
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     if (segmentFingerprint === prevFingerprintRef.current) return;
-    prevFingerprintRef.current = segmentFingerprint;
 
     const map = mapRef.current;
     try { if (typeof map.getCenter !== 'function') return; } catch { return; }
 
+    // NOTE: prevFingerprintRef is updated AT THE END of this effect (after a
+    // successful repaint). Updating it earlier caused a critical bug where
+    // creating a manual segment would clear all polylines but, if the effect
+    // got interrupted (StrictMode, cleanup, micro-task race), the next render
+    // would see fingerprint===prev and skip the repaint, leaving the map blank
+    // until a full reload.
     clearStaticOverlays();
     clearArrowOverlays();
     clearArrowCache();
+
+    // Reset smart-fit cooldown so a brand-new segment set is guaranteed to
+    // trigger fitBounds (otherwise a recent fit could swallow the new one).
+    resetFitState();
 
     const bounds = new google.maps.LatLngBounds();
 
@@ -385,7 +394,10 @@ export function GoogleMapDisplay({
     if (!bounds.isEmpty()) {
       smartFit(map, bounds, 'segmentsLoaded');
     }
-  }, [segmentFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds]);
+
+    // Mark fingerprint as painted ONLY after a complete repaint succeeded.
+    prevFingerprintRef.current = segmentFingerprint;
+  }, [segmentFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
 
   // --- Draw/hide arrow overlays based on zoom ---
   // Arrows only render at zoom >= 15 and only for arrowSegmentIds
