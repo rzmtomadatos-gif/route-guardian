@@ -468,7 +468,7 @@ export function MapDisplay({
     // Mark fingerprints painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
     prevIdSetFingerprintRef.current = idSetFingerprint;
-  }, [segmentFingerprint, idSetFingerprint, onSegmentClick, smartFit, orderNumberIds, optimizedOrder, segments, activeSegmentId, arrowSegmentIds]);
+  }, [segmentFingerprint, idSetFingerprint, visible, onSegmentClick, smartFit, orderNumberIds, optimizedOrder, segments, activeSegmentId, arrowSegmentIds]);
 
 
   // Fit to active segment
