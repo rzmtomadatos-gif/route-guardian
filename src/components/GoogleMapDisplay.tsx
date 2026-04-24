@@ -136,6 +136,10 @@ export function GoogleMapDisplay({
   allSegments,
   onOfflineStateChange,
   visible,
+  searchTargetSegmentId,
+  searchTargetLocation,
+  searchTargetBounds,
+  searchCenterRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
