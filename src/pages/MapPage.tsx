@@ -1369,8 +1369,18 @@ export default function MapPage({
         open={showResultsDialog}
         onClose={() => {setShowResultsDialog(false);setFetchedWays([]);handleCancelArea();}}
         onConfirm={handleConfirmGeneration}
-        ways={fetchedWays} />
-      
+        ways={fetchedWays}
+        duplicateCount={(() => {
+          const existing = new Set<number>();
+          for (const s of state.route?.segments ?? []) {
+            const id = s.kmlMeta?.osmId;
+            if (typeof id === 'number') existing.add(id);
+          }
+          let n = 0;
+          for (const w of fetchedWays) if (existing.has(w.osmId)) n++;
+          return n;
+        })()} />
+
 
       {/* FAB buttons */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' &&
