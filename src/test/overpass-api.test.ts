@@ -257,4 +257,111 @@ describe('overpass-api', () => {
       expect(info).toBeNull();
     });
   });
+
+  describe('splitWayByPolygon', () => {
+    // Cuadrado unitario [0,0]-[1,1]
+    const square = [
+      { lat: 0, lng: 0 }, { lat: 0, lng: 1 },
+      { lat: 1, lng: 1 }, { lat: 1, lng: 0 },
+    ];
+
+    it('vía totalmente fuera devuelve []', () => {
+      const coords = [{ lat: 5, lng: 5 }, { lat: 5, lng: 6 }];
+      expect(splitWayByPolygon(coords, square)).toEqual([]);
+    });
+
+    it('vía totalmente dentro devuelve un solo run', () => {
+      const coords = [{ lat: 0.2, lng: 0.2 }, { lat: 0.4, lng: 0.4 }, { lat: 0.6, lng: 0.6 }];
+      const runs = splitWayByPolygon(coords, square);
+      expect(runs).toHaveLength(1);
+      expect(runs[0].length).toBe(3);
+    });
+
+    it('vía que entra y sale dos veces se divide en 2 runs', () => {
+      // dentro - fuera - fuera - dentro - dentro - fuera
+      const coords = [
+        { lat: 0.5, lng: 0.5 },   // in
+        { lat: 0.5, lng: 1.0001 },// out (apenas)
+        { lat: 0.5, lng: 1.0002 },// out
+        { lat: 0.5, lng: 0.7 },   // in (vuelve)
+        { lat: 0.5, lng: 0.8 },   // in
+        { lat: 0.5, lng: 1.0003 },// out
+      ];
+      const runs = splitWayByPolygon(coords, square);
+      expect(runs).toHaveLength(2);
+      // Cada run >= 2 puntos
+      for (const r of runs) expect(r.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('descarta run con salto > 500 m entre puntos consecutivos', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Punto interior con vecino exterior a varios km
+      const coords = [
+        { lat: 5, lng: 5 },       // out, lejísimos
+        { lat: 0.5, lng: 0.5 },   // in
+        { lat: 5, lng: 5.001 },   // out, lejísimos
+      ];
+      const runs = splitWayByPolygon(coords, square, 999);
+      expect(runs).toEqual([]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+
+  describe('fetchRoadsInArea — timeout global', () => {
+    it('aborta con OverpassError(timeout) si globalTimeoutMs se supera', async () => {
+      vi.useFakeTimers();
+      // fetch que nunca resuelve a menos que se aborte
+      fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const e: any = new Error('AbortError');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        }),
+      );
+
+      // Polígono pequeño (1 sola celda)
+      const poly = [
+        { lat: 0, lng: 0 }, { lat: 0, lng: 0.001 },
+        { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 },
+      ];
+      const promise = fetchRoadsInArea(poly, ['highway'], { globalTimeoutMs: 50 });
+      // Atrapar rechazo antes de avanzar timers
+      const caught = promise.catch((e) => e);
+      await vi.advanceTimersByTimeAsync(60);
+      const err = await caught;
+      expect(err).toBeInstanceOf(OverpassError);
+      expect(err.kind).toBe('timeout');
+      vi.useRealTimers();
+    });
+
+    it('si el usuario aborta antes del timeout, error es aborted (no timeout)', async () => {
+      fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const e: any = new Error('AbortError');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        }),
+      );
+      const ctrl = new AbortController();
+      const poly = [
+        { lat: 0, lng: 0 }, { lat: 0, lng: 0.001 },
+        { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 },
+      ];
+      const promise = fetchRoadsInArea(poly, ['highway'], {
+        signal: ctrl.signal,
+        globalTimeoutMs: 5000,
+      });
+      const caught = promise.catch((e) => e);
+      // El usuario cancela inmediatamente
+      setTimeout(() => ctrl.abort(), 10);
+      const err = await caught;
+      expect(err).toBeInstanceOf(OverpassError);
+      expect(err.kind).toBe('aborted');
+    });
+  });
 });
