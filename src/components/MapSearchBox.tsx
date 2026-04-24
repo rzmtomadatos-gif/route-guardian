@@ -191,6 +191,7 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       setOpen(false);
+      onClose?.();
       return;
     }
     if (e.key === 'Enter') {
