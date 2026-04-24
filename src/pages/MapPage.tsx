@@ -1268,9 +1268,25 @@ export default function MapPage({
           arrowSegmentIds={arrowSegmentIds}
           allSegments={state.route?.segments}
           visible={visible}
-          onOfflineStateChange={handleOfflineStateChange} />
+          onOfflineStateChange={handleOfflineStateChange}
+          searchTargetSegmentId={searchTargetSegmentId}
+          searchTargetLocation={searchTargetLocation}
+          searchTargetBounds={searchTargetBounds}
+          searchCenterRequest={searchCenterRequest} />
         
       </div>
+
+      {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
+        <MapSearchBox
+          segments={state.route?.segments}
+          bias={searchContext.bias}
+          contextSuffix={searchContext.contextSuffix}
+          onPickSegment={handleSearchPickSegment}
+          onPickLocation={handleSearchPickLocation}
+          onClearLocation={handleSearchClearLocation}
+        />
+      )}
 
       {/* Map state indicator — unified source of truth */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">
