@@ -18,9 +18,11 @@ interface Props {
   onClose: () => void;
   onConfirm: (generateReverse: boolean) => void;
   ways: OverpassWay[];
+  /** Nº de vías cuyo osmId ya existe en la ruta. Solo informativo. */
+  duplicateCount?: number;
 }
 
-export function AreaResultsDialog({ open, onClose, onConfirm, ways }: Props) {
+export function AreaResultsDialog({ open, onClose, onConfirm, ways, duplicateCount = 0 }: Props) {
   const [generateReverse, setGenerateReverse] = useState(true);
 
   const onewayWays = ways.filter((w) => w.oneway);
@@ -110,6 +112,15 @@ export function AreaResultsDialog({ open, onClose, onConfirm, ways }: Props) {
             <p className="text-[11px] text-muted-foreground">
               {onewayWays.length} vía{onewayWays.length > 1 ? 's' : ''} de sentido único detectada{onewayWays.length > 1 ? 's' : ''}. 
               No se generarán tramos decrecientes para respetar las normas de circulación.
+            </p>
+          </div>
+        )}
+
+        {duplicateCount > 0 && (
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-foreground">
+              <span className="font-medium">{duplicateCount}</span> vía{duplicateCount > 1 ? 's' : ''} ya existe{duplicateCount > 1 ? 'n' : ''} en la ruta y se duplicará{duplicateCount > 1 ? 'n' : ''} si confirmas.
             </p>
           </div>
         )}

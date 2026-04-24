@@ -8,6 +8,7 @@ import {
   pointInPolygon,
   intersectsPolygon,
   clipWayToPolygon,
+  splitWayByPolygon,
   __test__,
 } from '@/utils/overpass-api';
 
@@ -201,15 +202,16 @@ describe('overpass-api', () => {
   // ---------------------------------------------------------------------------
   describe('fetchRoadsInArea', () => {
     it('descarta vías cuya geometría completa está fuera del polígono', async () => {
+      // Triángulo ~50m de lado.
       const polygon = [
-        { lat: 0, lng: 0 },
-        { lat: 0, lng: 1 },
-        { lat: 1, lng: 0 },
+        { lat: 40, lng: -3.7 },
+        { lat: 40, lng: -3.7 + 0.0005 },
+        { lat: 40 + 0.0005, lng: -3.7 },
       ];
       fetchMock.mockImplementation(async () => okResponse({
         elements: [
-          makeWayElement(10, [[0.1, 0.1], [0.2, 0.2]]),       // dentro
-          makeWayElement(20, [[0.95, 0.95], [0.99, 0.99]]),   // fuera del triángulo (pero dentro del bbox)
+          makeWayElement(10, [[40 + 0.00005, -3.7 + 0.00005], [40 + 0.0001, -3.7 + 0.0001]]), // dentro
+          makeWayElement(20, [[40 + 0.00045, -3.7 + 0.00045], [40 + 0.00049, -3.7 + 0.00049]]), // fuera del triángulo
         ],
       }));
       const ways = await fetchRoadsInArea(polygon, ['residential']);
@@ -254,6 +256,118 @@ describe('overpass-api', () => {
       fetchMock.mockImplementation(async () => okResponse({ elements: [] }));
       const info = await fetchNearestRoad({ lat: 40, lng: -3.7 });
       expect(info).toBeNull();
+    });
+  });
+
+  describe('splitWayByPolygon', () => {
+    // Polígono ~50m de lado (1m ≈ 9e-6 grados).
+    const D = 0.0005; // ~55 m
+    const square = [
+      { lat: 40, lng: -3.7 },
+      { lat: 40, lng: -3.7 + D },
+      { lat: 40 + D, lng: -3.7 + D },
+      { lat: 40 + D, lng: -3.7 },
+    ];
+
+    it('vía totalmente fuera devuelve []', () => {
+      const coords = [{ lat: 41, lng: -3 }, { lat: 41, lng: -3 + 1e-5 }];
+      expect(splitWayByPolygon(coords, square)).toEqual([]);
+    });
+
+    it('vía totalmente dentro devuelve un solo run', () => {
+      const coords = [
+        { lat: 40 + D * 0.2, lng: -3.7 + D * 0.2 },
+        { lat: 40 + D * 0.4, lng: -3.7 + D * 0.4 },
+        { lat: 40 + D * 0.6, lng: -3.7 + D * 0.6 },
+      ];
+      const runs = splitWayByPolygon(coords, square);
+      expect(runs).toHaveLength(1);
+      expect(runs[0].length).toBe(3);
+    });
+
+    it('vía que entra y sale dos veces se divide en 2 runs', () => {
+      // dentro - fuera (cerca) - fuera - dentro - dentro - fuera (cerca)
+      const inside1 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.5 };
+      const out1a = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.05 }; // fuera al este, ~5m
+      const out1b = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.10 };
+      const inside2 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.7 };
+      const inside3 = { lat: 40 + D * 0.5, lng: -3.7 + D * 0.8 };
+      const out2 = { lat: 40 + D * 0.5, lng: -3.7 + D * 1.05 };
+      const coords = [inside1, out1a, out1b, inside2, inside3, out2];
+      const runs = splitWayByPolygon(coords, square);
+      expect(runs).toHaveLength(2);
+      for (const r of runs) expect(r.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('descarta run con salto > 500 m entre puntos consecutivos', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Punto interior con vecino exterior a varios km
+      const coords = [
+        { lat: 41, lng: -3 },                            // out, lejísimos
+        { lat: 40 + D * 0.5, lng: -3.7 + D * 0.5 },      // in
+        { lat: 41, lng: -3 + 1e-5 },                     // out, lejísimos
+      ];
+      const runs = splitWayByPolygon(coords, square, 999);
+      expect(runs).toEqual([]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+
+  describe('fetchRoadsInArea — timeout global', () => {
+    it('aborta con OverpassError(timeout) si globalTimeoutMs se supera', async () => {
+      vi.useFakeTimers();
+      // fetch que nunca resuelve a menos que se aborte
+      fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const e: any = new Error('AbortError');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        }),
+      );
+
+      // Polígono pequeño (1 sola celda)
+      const poly = [
+        { lat: 0, lng: 0 }, { lat: 0, lng: 0.001 },
+        { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 },
+      ];
+      const promise = fetchRoadsInArea(poly, ['highway'], { globalTimeoutMs: 50 });
+      // Atrapar rechazo antes de avanzar timers
+      const caught = promise.catch((e) => e);
+      await vi.advanceTimersByTimeAsync(60);
+      const err = await caught;
+      expect(err).toBeInstanceOf(OverpassError);
+      expect(err.kind).toBe('timeout');
+      vi.useRealTimers();
+    });
+
+    it('si el usuario aborta antes del timeout, error es aborted (no timeout)', async () => {
+      fetchMock.mockImplementation((_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const e: any = new Error('AbortError');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        }),
+      );
+      const ctrl = new AbortController();
+      const poly = [
+        { lat: 0, lng: 0 }, { lat: 0, lng: 0.001 },
+        { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 },
+      ];
+      const promise = fetchRoadsInArea(poly, ['highway'], {
+        signal: ctrl.signal,
+        globalTimeoutMs: 5000,
+      });
+      const caught = promise.catch((e) => e);
+      // El usuario cancela inmediatamente
+      setTimeout(() => ctrl.abort(), 10);
+      const err = await caught;
+      expect(err).toBeInstanceOf(OverpassError);
+      expect(err.kind).toBe('aborted');
     });
   });
 });
