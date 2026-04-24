@@ -23,6 +23,8 @@ import { ROAD_CATEGORIES, type RoadCategory } from '@/utils/overpass-api';
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Aborta la consulta Overpass en curso (si la hay) y cierra. */
+  onCancel?: () => void;
   onConfirm: (categories: RoadCategory[], layerName: string) => void;
   pointCount: number;
   isLoading: boolean;
@@ -36,11 +38,20 @@ const ALL_CATEGORIES: RoadCategory[] = [
 export function AreaSelectionDialog({
   open,
   onClose,
+  onCancel,
   onConfirm,
   pointCount,
   isLoading,
   layers,
 }: Props) {
+  const handleCancelClick = () => {
+    // Durante la carga, abortar real; en cualquier caso cerrar.
+    if (isLoading && onCancel) {
+      onCancel();
+    } else {
+      onClose();
+    }
+  };
   const [selected, setSelected] = useState<Set<RoadCategory>>(
     new Set<RoadCategory>(['highway', 'primary', 'secondary', 'tertiary'])
   );
