@@ -1,140 +1,90 @@
+# Plan — Atajo de búsqueda + Refrescar mapa (con corrección obligatoria)
 
-# Hotfix Overpass — 3 condiciones de control finales
+## Objetivo
 
-Refinamiento sobre el plan ya implementado. Tres ajustes quirúrgicos: timeout global cancelable, validación geométrica post-clipping y aviso de duplicados antes de insertar. No se reabre nada del flujo principal.
+Añadir dos controles flotantes en la vista de mapa, sin tocar la lógica operativa existente:
 
-## 1. Timeout global por operación + cancelación fiable
+1. **Botón Buscar (FAB)** + atajos de teclado (`/` y `Ctrl/Cmd+K`) que abren y enfocan `MapSearchBox`.
+2. **Botón Refrescar mapa (FAB)** que fuerza un repintado seguro de overlays y, si detecta el mapa "perdido" (centro [0,0] o sin polilíneas pintadas), ejecuta una recuperación con `smartFit` sobre los tramos visibles.
 
-**Problema actual:** cada petición HTTP tiene timeout de 35 s, pero una zona dividida en hasta 16 celdas (4×4) con failover entre 3 mirrors podría llegar teóricamente a varios minutos si todo va mal. La cancelación por usuario funciona, pero si no cancela, se queda esperando.
+Ambos botones se ocultan en modos críticos (creación manual, selección por área, navegación con overlay activo) para no estorbar.
 
-**Solución en `src/utils/overpass-api.ts`:**
+## Cambios funcionales
 
-- Añadir parámetro `globalTimeoutMs` a `OverpassOptions` (default `120_000` = 2 min).
-- En `fetchRoadsInArea` y `fetchRoadsInCircle`, crear un `AbortController` interno encadenado con el `signal` del usuario:
-  - se aborta si el usuario aborta
-  - se aborta si se supera `globalTimeoutMs`
-- Si el global timeout se dispara: lanzar `OverpassError('timeout', 'Operación demasiado lenta. Reduce la zona.')`.
-- El check `if (options.signal?.aborted)` antes de cada celda ya existe; se mantiene y se complementa con el signal encadenado.
-- La cancelación del usuario sigue funcionando exactamente igual (idempotente).
+### 1. `src/components/MapSearchBox.tsx`
+- Convertir a `forwardRef` exponiendo vía `useImperativeHandle`:
+  ```ts
+  export interface MapSearchBoxHandle {
+    focus: () => void;
+  }
+  ```
+- `focus()` hace: `setOpen(true)` + `inputRef.current?.focus()` + `select()` del texto actual. **No** toca el query ni el modo activo.
 
-**Detalle técnico encadenado:**
+### 2. `src/pages/MapPage.tsx`
+- `searchBoxRef = useRef<MapSearchBoxHandle>(null)`.
+- `const [mapRefreshRequest, setMapRefreshRequest] = useState(0)`.
+- `handleFocusSearch = () => searchBoxRef.current?.focus()`.
+- `handleRefreshMap = () => { setMapRefreshRequest(n => n + 1); toast.success('Mapa actualizado', { duration: 1200 }); }`.
+- **Atajos de teclado** (`useEffect` global con `keydown`):
+  - Activos solo si `visible === true`.
+  - Ignorados si el `event.target` es `INPUT/TEXTAREA/SELECT/[contenteditable]`.
+  - Ignorados si `creatorMode`, `areaSelectionMode`, diálogos abiertos o `state.isNavigating` con overlay activo.
+  - `/` (sin modificadores) o `Ctrl/Cmd+K` → `handleFocusSearch()` + `preventDefault()`.
+- **Dos FAB nuevos** integrados en la columna derecha existente (junto a "Centrar GPS"/"Orientación"), respetando el patrón visual ya documentado en `mem://ui/map/floating-controls`:
+  - Icono `Search` (lucide) — `title="Buscar (/)"`.
+  - Icono `RefreshCw` (lucide) — `title="Refrescar mapa"`.
+  - **Visibles únicamente** cuando `!creatorMode && !areaSelectionMode` y la barra superior `MapSearchBox` está renderizada.
+- Pasar `mapRefreshRequest` como prop al `<GoogleMapDisplay>` y al fallback `<MapDisplay>`.
 
-```ts
-const linked = new AbortController();
-const onUserAbort = () => linked.abort();
-options.signal?.addEventListener('abort', onUserAbort, { once: true });
-const globalTimer = setTimeout(() => linked.abort(), globalTimeoutMs);
-// ... bucle de celdas usa { signal: linked.signal }
-// finally: clearTimeout + removeEventListener + distinguir si abort fue por timeout o por usuario
-```
+### 3. `src/components/GoogleMapDisplay.tsx` y `src/components/MapDisplay.tsx`
 
-Si `linked.signal.aborted` y el usuario NO había abortado → fue timeout global → mapear a `OverpassError('timeout', ...)`. Si el usuario abortó → propagar `OverpassError('aborted', ...)`.
+Nueva prop opcional `mapRefreshRequest?: number` (default 0).
 
-## 2. Validación geométrica tras `clipWayToPolygon`
+**Repintado real (corrección obligatoria):**
+- Añadir `mapRefreshRequest` al array de dependencias del `useEffect` principal de dibujo de overlays (el que compara `prevFingerprintRef`).
+- Dentro de un `useEffect` previo dedicado a `mapRefreshRequest`:
+  1. Si `mapRefreshRequest === 0` o el contenedor no es visible → no hacer nada.
+  2. Resetear `prevFingerprintRef.current = '__force_repaint__'` para que el efecto de dibujo reconstruya polilíneas/marcadores aunque el fingerprint no haya cambiado.
+  3. Disparar resize del proveedor:
+     - Google: `google.maps.event.trigger(map, 'resize')`.
+     - Leaflet: `map.invalidateSize()`.
+  4. **Recuperación segura** (solo si procede):
+     - Calcular `visibleSegs = getVisibleMapSegments(segments, hiddenLayers)`.
+     - Considerar "mapa perdido" si:
+       - el centro actual está en `[0,0]` (con tolerancia `< 0.01`), o
+       - no hay polilíneas dibujadas (`polylinesRef.current.size === 0` / equivalente Leaflet) **a pesar de que** `visibleSegs.length > 0`.
+     - Si está perdido y hay `visibleSegs`: llamar `smartFit(visibleSegs, { animate: false })`.
+     - Si no está perdido: **no mover el mapa**, solo repintar.
 
-**Problema actual:** la implementación pragmática de clipping solo descarta resultado con `< 2` coords. No detecta:
-- Vías que cruzan el polígono con un solo punto interior + dos vecinos lejanos → polilínea con saltos absurdos.
-- Vías que entran y salen varias veces → genera una sola polilínea falsa que une trozos discontinuos.
+**Importante:** nunca usar `[0,0]` como destino. La recuperación delega siempre en `smartFit` con `getVisibleMapSegments`, que ya filtra coordenadas inválidas (utilidades existentes `coord-validation` + `map-visible-segments`).
 
-**Solución — nueva función `splitWayByPolygon` en `src/utils/overpass-api.ts`:**
+## Detalles técnicos
 
-En lugar de devolver una sola lista plana de puntos, devolver **runs contiguos** de puntos `inside` con un único vecino de borde a cada lado:
+- **Sin cambios en estado operativo**: refrescar no modifica `route.segments`, `hiddenLayers`, selección, navegación, modo RST, bloque ni track. Es puramente render.
+- **Sin cambios en KML/Overpass**: no se vuelve a parsear ni a consultar nada.
+- **No interfiere con creación manual**: los FAB se ocultan cuando `creatorMode` está activo, así no roban clics.
+- **Compatible con persistent viewport** (`mem://architecture/persistent-viewports`): el repintado se invoca aunque `MapPage` haya estado oculto, porque cuando el usuario pulsa Refrescar el contenedor ya es visible.
+- **Accesibilidad**: ambos FAB con `aria-label` y `title` en español; foco visible por defecto Radix/shadcn.
 
-```ts
-export function splitWayByPolygon(coords: LatLng[], polygon: LatLng[]): LatLng[][] {
-  // Devuelve N sub-polilíneas, cada una continua y geométricamente válida.
-  // Cada run = secuencia inside + 1 vecino exterior a cada extremo.
-}
-```
+## Pruebas a realizar
 
-**Validación adicional aplicada a cada run resultante:**
-- Mínimo 2 coords (descartar si menos).
-- Salto máximo entre puntos consecutivos: si supera `MAX_SEGMENT_GAP_M = 500 m`, descartar el run y registrar `console.warn('[Overpass] run descartado por salto', osmId, gap)`.
-- Si `intersectsPolygon(run, polygon)` falla para todos los puntos del run → descartar.
+1. **Atajo `/`**: con foco en el body abre y enfoca el buscador. Con foco en un input cualquiera, no actúa.
+2. **`Ctrl+K` / `Cmd+K`**: idéntico, evita acción del navegador con `preventDefault`.
+3. **Botón Buscar**: abre el panel y enfoca; no altera el query previo.
+4. **Refrescar con KML visible**: no mueve el mapa, no borra tramos, no cambia estado; toast breve.
+5. **Refrescar con mapa "perdido"** (simulado vaciando `polylinesRef`): repinta y recentra con `smartFit` sobre tramos visibles. Nunca centra en [0,0].
+6. **Cambiar capa → borrar tramo → volver al mapa → Refrescar**: si la vista quedó mal, recupera; si estaba bien, no la mueve.
+7. **Modos críticos**: en creación manual, área y navegación, los FAB no se muestran y los atajos no actúan.
+8. **Typecheck** (`tsc --noEmit`) y **tests** (`vitest run`) verdes.
 
-**Integración en `fetchRoadsInArea`:**
+## Archivos modificados
 
-```ts
-const runs = splitWayByPolygon(w.coordinates, polygon);
-if (runs.length === 0) continue;
-runs.forEach((run, idx) => {
-  // Si una vía produce N runs, generar N entradas con sufijo en osmId interno.
-  // Mantener osmId original real, pero en el Map usar clave compuesta.
-  const key = runs.length === 1 ? w.osmId : `${w.osmId}#${idx}`;
-  if (all.has(key)) return;
-  all.set(key, { ...w, coordinates: run });
-});
-```
+- `src/components/MapSearchBox.tsx` — `forwardRef` + `useImperativeHandle`.
+- `src/pages/MapPage.tsx` — ref, estado `mapRefreshRequest`, handlers, atajos, dos FAB.
+- `src/components/GoogleMapDisplay.tsx` — prop + efecto de repintado/recuperación.
+- `src/components/MapDisplay.tsx` — prop + efecto de repintado/recuperación (Leaflet).
 
-**Cambio de tipo:** la clave del Map pasa de `number` a `string | number`. Solo es interno a la función, no afecta al tipo público `OverpassWay` (sigue teniendo `osmId: number` real).
+## Limitaciones conocidas
 
-## 3. Aviso de duplicados antes de insertar
-
-**Problema actual:** `handleConfirmGeneration` en `MapPage.tsx` inserta todos los ways como segmentos sin comprobar si ya existían `osmId` en la ruta. El operador no se entera.
-
-**Solución en `src/pages/MapPage.tsx`:**
-
-Antes de mostrar `AreaResultsDialog` (o dentro de él), calcular cuántos `osmId` de los `fetchedWays` ya existen en `state.route?.segments`:
-
-```ts
-const existingOsmIds = new Set(
-  state.route?.segments
-    .map(s => s.kmlMeta?.osmId)
-    .filter((x): x is number => typeof x === 'number')
-);
-const duplicateCount = fetchedWays.filter(w => existingOsmIds.has(w.osmId)).length;
-```
-
-**Dónde mostrarlo:** en `AreaResultsDialog` (componente que ya muestra el resumen previo a confirmar). Añadir una línea visible:
-
-```
-⚠ N vías ya existen en la ruta y se duplicarán si confirmas
-```
-
-Si `duplicateCount === 0`: no mostrar nada. No bloquear nunca la inserción — el operador decide. Conservación del comportamiento actual: tras confirmar, se insertan todas (la deduplicación entre generaciones distintas no se bloquea, solo se comunica).
-
-**Cambio mínimo en props de `AreaResultsDialog`:** añadir `duplicateCount?: number` opcional, retrocompatible.
-
-## Archivos a tocar
-
-### Modificados
-- `src/utils/overpass-api.ts`
-  - Añadir `globalTimeoutMs` a `OverpassOptions`.
-  - Encadenar abort en `fetchRoadsInArea` y `fetchRoadsInCircle`.
-  - Sustituir `clipWayToPolygon` por `splitWayByPolygon` (mantener `clipWayToPolygon` exportado por compatibilidad de tests, marcado deprecated en JSDoc).
-  - Constante `MAX_SEGMENT_GAP_M = 500`.
-- `src/pages/MapPage.tsx`
-  - Calcular `duplicateCount` antes de abrir `AreaResultsDialog`.
-  - Pasar prop al diálogo.
-- `src/components/AreaResultsDialog.tsx`
-  - Aceptar prop `duplicateCount` opcional, mostrar banner amarillo si `> 0`.
-
-### Tests a ampliar
-- `src/test/overpass-api.test.ts`:
-  - `splitWayByPolygon` divide vía que entra/sale dos veces en 2 runs.
-  - `splitWayByPolygon` descarta runs con salto > 500 m.
-  - `splitWayByPolygon` con vía totalmente fuera devuelve `[]`.
-  - `fetchRoadsInArea` aborta con `globalTimeoutMs` simulado.
-  - `fetchRoadsInArea` distingue abort por usuario vs timeout global en el error final.
-
-### NO se toca
-- `executeOverpassQuery` (núcleo con failover y reintentos sigue intacto).
-- `fetchNearestRoad` (creación manual ya quedó correcta en la fase previa).
-- `SegmentCreatorPanel.tsx`.
-- Schema de campaña.
-
-## Riesgos reales
-
-1. **Cambio de comportamiento en clipping**: vías que antes generaban una sola polilínea con saltos ahora pueden dividirse en varios sub-tramos. Es lo que quiere el operador, pero aumenta el número de segmentos creados en zonas con vías que rodean el polígono. Mitigación: el banner de duplicados informa del total real.
-2. **Timeout global de 2 min**: razonable para zonas grandes con divisiones. Si en pruebas reales resulta corto, se ajusta vía constante única. No es valor mágico repartido por el código.
-3. **`AreaResultsDialog`**: cambio mínimo y opcional, retrocompatible.
-
-## Criterios de aceptación
-
-1. Generar zona muy grande con todos los mirrors lentos → en 2 min máximo se aborta con mensaje claro de timeout.
-2. Cancelar manualmente durante la consulta → aborta inmediatamente, no espera al timeout.
-3. Vía OSM que entra/sale del polígono dos veces → genera 2 segmentos, no 1 con saltos.
-4. Vía con un solo punto interior y vecinos a >500 m → se descarta con warning en consola.
-5. Generar zona donde 5 ways ya existen como segmentos → diálogo muestra "5 vías ya existen y se duplicarán".
-6. Confirmar igualmente → inserta todo, no bloquea (decisión del operador).
-7. Tests existentes siguen pasando + 5 tests nuevos verdes.
+- La heurística de "mapa perdido" se basa en centro ≈ [0,0] o ausencia total de polilíneas con datos disponibles. No detecta casos sutiles (p. ej. zoom equivocado pero centro correcto): en esos casos el botón solo repinta y el operador puede usar el buscador o "Centrar GPS" para reencuadrar.
+- Los atajos de teclado solo actúan en escritorio; en móvil el acceso es vía FAB.

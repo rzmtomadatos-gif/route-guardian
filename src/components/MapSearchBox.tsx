@@ -17,7 +17,7 @@
  * El componente es controlado mínimamente: comparte estado del input
  * internamente, pero notifica selecciones al padre vía callbacks.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Search, X, MapPin, Route as RouteIcon, Loader2 } from 'lucide-react';
 import type { LatLng, Segment } from '@/types/route';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,15 @@ export interface MapSearchPick {
   label: string;
 }
 
+/**
+ * Handle imperativo expuesto por `MapSearchBox`. Permite a `MapPage`
+ * abrir el panel y enfocar el input desde un FAB o un atajo de teclado
+ * sin alterar el estado actual de búsqueda (query, modo, resultados).
+ */
+export interface MapSearchBoxHandle {
+  focus: () => void;
+}
+
 interface Props {
   segments: Segment[] | null | undefined;
   /** Sesgo geográfico para geocoding (centro/radio aproximado). */
@@ -48,14 +57,17 @@ interface Props {
   onClearLocation?: () => void;
 }
 
-export function MapSearchBox({
-  segments,
-  bias,
-  contextSuffix,
-  onPickSegment,
-  onPickLocation,
-  onClearLocation,
-}: Props) {
+export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSearchBox(
+  {
+    segments,
+    bias,
+    contextSuffix,
+    onPickSegment,
+    onPickLocation,
+    onClearLocation,
+  },
+  ref,
+) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('segments');
@@ -65,6 +77,24 @@ export function MapSearchBox({
   const inputRef = useRef<HTMLInputElement>(null);
   const geoAbortRef = useRef<AbortController | null>(null);
   const geoDebounceRef = useRef<number | null>(null);
+
+  // Exponer API imperativa al padre: abrir + enfocar sin tocar el query.
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        setOpen(true);
+        // Diferimos un tick para asegurar que el input esté montado/visible
+        requestAnimationFrame(() => {
+          const el = inputRef.current;
+          if (!el) return;
+          el.focus();
+          try { el.select(); } catch { /* noop */ }
+        });
+      },
+    }),
+    [],
+  );
 
   // --- Resultados locales (tramos) — inmediatos, sin debounce ---
   const segmentResults: SegmentSearchResult[] = useMemo(() => {
@@ -261,7 +291,10 @@ export function MapSearchBox({
       </div>
     </div>
   );
-}
+});
+
+MapSearchBox.displayName = 'MapSearchBox';
+
 
 // --- Subcomponentes de resultados ---
 

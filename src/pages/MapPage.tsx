@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair } from 'lucide-react';
+import { Upload, Plus, Square, Pentagon, Circle, MousePointer2, BoxSelect, Crosshair, Search, RefreshCw } from 'lucide-react';
 import { NavigationOverlay } from '@/components/NavigationOverlay';
 import { StopNavigationDialog } from '@/components/StopNavigationDialog';
 import { TrackStartDialog } from '@/components/TrackStartDialog';
@@ -30,7 +30,7 @@ import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-dire
 import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { getVisibleMapSegments } from '@/utils/map-visible-segments';
-import { MapSearchBox, type MapSearchPick } from '@/components/MapSearchBox';
+import { MapSearchBox, type MapSearchPick, type MapSearchBoxHandle } from '@/components/MapSearchBox';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -130,6 +130,9 @@ export default function MapPage({
     { north: number; south: number; east: number; west: number } | null
   >(null);
   const [searchCenterRequest, setSearchCenterRequest] = useState(0);
+  /** Contador incremental para forzar repintado seguro del mapa (FAB Refrescar). */
+  const [mapRefreshRequest, setMapRefreshRequest] = useState(0);
+  const searchBoxRef = useRef<MapSearchBoxHandle>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
     { workDay: number; trackNumber: number | null; inProgressCount: number } | null
@@ -709,6 +712,46 @@ export default function MapPage({
     setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
   }, []);
 
+  /** Abre y enfoca el buscador desde un FAB o atajo de teclado. */
+  const handleFocusSearch = useCallback(() => {
+    searchBoxRef.current?.focus();
+  }, []);
+
+  /** Solicita un repintado seguro del mapa sin alterar el estado operativo. */
+  const handleRefreshMap = useCallback(() => {
+    setMapRefreshRequest((c) => c + 1);
+    toast.success('Mapa actualizado', { duration: 1200 });
+  }, []);
+
+  // Atajos de teclado para enfocar el buscador.
+  // Activos sólo cuando la vista de mapa es visible y NO hay un modo
+  // crítico (creación manual / selección por zona / selección de tramos).
+  // Se ignoran cuando el foco está en un input/textarea/contenteditable.
+  useEffect(() => {
+    if (visible === false) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      if (creationMode || areaMode !== 'none' || zoneSelectMode !== 'none') return;
+      const isSlash = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const isCmdK = (e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K');
+      if (isSlash || isCmdK) {
+        e.preventDefault();
+        handleFocusSearch();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [visible, creationMode, areaMode, zoneSelectMode, handleFocusSearch]);
+
   // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
   // de la campaña así lo indique (nombre de proyecto/ruta/capas que
   // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
@@ -1272,13 +1315,15 @@ export default function MapPage({
           searchTargetSegmentId={searchTargetSegmentId}
           searchTargetLocation={searchTargetLocation}
           searchTargetBounds={searchTargetBounds}
-          searchCenterRequest={searchCenterRequest} />
+          searchCenterRequest={searchCenterRequest}
+          mapRefreshRequest={mapRefreshRequest} />
         
       </div>
 
       {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapSearchBox
+          ref={searchBoxRef}
           segments={state.route?.segments}
           bias={searchContext.bias}
           contextSuffix={searchContext.contextSuffix}
@@ -1468,6 +1513,26 @@ export default function MapPage({
       {/* FAB buttons */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' &&
       <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+          {/* Buscar (atajo / o Ctrl/Cmd+K) */}
+          <button
+            onClick={handleFocusSearch}
+            className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Buscar tramo o lugar (/)"
+            aria-label="Abrir buscador del mapa">
+            <Search className="w-4 h-4" />
+          </button>
+
+          {/* Refrescar mapa (repinta sin alterar estado) */}
+          <button
+            onClick={handleRefreshMap}
+            className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Refrescar mapa"
+            aria-label="Refrescar mapa">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
+          <div className="w-6 h-px bg-border mx-auto" />
+
           {/* Selection mode toggle */}
           <button
           onClick={() => {

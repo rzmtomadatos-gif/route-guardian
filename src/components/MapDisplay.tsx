@@ -57,6 +57,8 @@ interface Props {
   searchTargetLocation?: LatLng | null;
   searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
   searchCenterRequest?: number;
+  /** Solicitud de refresco manual del mapa (ver GoogleMapDisplay). */
+  mapRefreshRequest?: number;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -109,6 +111,7 @@ export function MapDisplay({
   searchTargetLocation,
   searchTargetBounds,
   searchCenterRequest = 0,
+  mapRefreshRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -585,6 +588,50 @@ export function MapDisplay({
       { icon, title: 'Resultado de búsqueda' },
     ).addTo(map);
   }, [searchCenterRequest, searchTargetLocation, searchTargetBounds, smartFit, visible]);
+
+  // --- Manual map refresh request ---
+  // Repintado seguro Leaflet: invalidateSize + force repaint. Si el mapa
+  // está "perdido" (centro ≈ [0,0] o sin polilíneas con datos disponibles),
+  // recupera con `smartFit` sobre los tramos. Nunca usa [0,0] como destino.
+  const prevRefreshRef = useRef(0);
+  useEffect(() => {
+    if (mapRefreshRequest === 0 || mapRefreshRequest === prevRefreshRef.current) return;
+    prevRefreshRef.current = mapRefreshRequest;
+    const map = mapRef.current;
+    if (!map || visible === false) return;
+
+    // 1) Recalcula tamaño real del contenedor.
+    try { map.invalidateSize(); } catch { /* noop */ }
+
+    // 2) Fuerza repintado de overlays en el siguiente ciclo.
+    prevFingerprintRef.current = '__force_repaint__';
+    prevIdSetFingerprintRef.current = '';
+
+    // 3) Recuperación segura solo si procede.
+    let centerLost = false;
+    try {
+      const c = map.getCenter();
+      if (Math.abs(c.lat) < 0.01 && Math.abs(c.lng) < 0.01) centerLost = true;
+    } catch { /* noop */ }
+    const drawnCount = segmentLayerRef.current?.getLayers().length ?? 0;
+    const noPolylinesButData = drawnCount === 0 && segments.length > 0;
+
+    if ((centerLost || noPolylinesButData) && segments.length > 0) {
+      const bounds = L.latLngBounds([]);
+      let added = 0;
+      for (const seg of segments) {
+        if (!Array.isArray(seg.coordinates)) continue;
+        for (const c of seg.coordinates) {
+          if (!isValidLatLng(c)) continue;
+          bounds.extend([c.lat, c.lng]);
+          added++;
+        }
+      }
+      if (added >= 2 && bounds.isValid()) {
+        smartFit(map, bounds, 'manual');
+      }
+    }
+  }, [mapRefreshRequest, visible, segments, smartFit]);
 
   return (
     <div ref={containerRef} className={`w-full h-full ${className}`} />
