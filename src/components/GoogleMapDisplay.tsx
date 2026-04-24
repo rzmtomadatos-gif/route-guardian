@@ -319,17 +319,25 @@ export function GoogleMapDisplay({
     clearArrowOverlays();
     clearArrowCache();
 
-    // Decide if we need to auto-fit. Only when the SET of segment IDs changes
-    // (load, delete, reload). Status/color/order changes don't trigger refit.
-    const idSetChanged = idSetFingerprint !== prevIdSetFingerprintRef.current;
+    // Decide if we need to auto-fit:
+    // - First paint (initial load): always fit.
+    // - Subsequent changes: fit only if the new ID set is NOT a strict
+    //   superset of the previous one (i.e. something was deleted or
+    //   replaced). Pure additions (manual segment) don't refit so the
+    //   user keeps the current viewport.
     const isFirstPaint = prevIdSetFingerprintRef.current === '';
-    const shouldFit = idSetChanged && (isFirstPaint || prevIdSetFingerprintRef.current.split(',').length !== idSetFingerprint.split(',').length);
-
-    if (shouldFit) {
-      // Reset cooldown only when we actually intend to fit, so we don't
-      // trample a recent user-initiated fit.
-      resetFitState();
+    let shouldFit = false;
+    if (isFirstPaint) {
+      shouldFit = idSetFingerprint !== '';
+    } else if (idSetFingerprint !== prevIdSetFingerprintRef.current) {
+      const prevIds = new Set(prevIdSetFingerprintRef.current.split(','));
+      const currIds = idSetFingerprint.split(',');
+      // If any previous id is missing now -> set changed (delete/replace) -> refit.
+      // If only new ids were added -> don't refit.
+      const onlyAdded = Array.from(prevIds).every((id) => currIds.includes(id));
+      shouldFit = !onlyAdded;
     }
+
 
     const bounds = new google.maps.LatLngBounds();
     let hasValidBounds = false;
