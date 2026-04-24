@@ -309,23 +309,24 @@ export function GoogleMapDisplay({
       google.maps.event.trigger(mapRef.current, 'resize');
       // Invalidate fingerprints so the segment-draw effect re-runs against
       // the now-correctly-sized container and re-fits bounds if needed.
+      // The draw effect depends on segmentFingerprint (which now embeds
+      // mapRefreshRequest); resetting the prev ref is enough — when segments
+      // change next, or when a refresh is requested, the effect will re-run.
       prevFingerprintRef.current = '__force_repaint__';
       prevIdSetFingerprintRef.current = '';
       resetFitState();
-      // Trigger a re-render of the draw effect by nudging zoom listener-deps.
-      // The effect itself depends on segmentFingerprint/idSetFingerprint which
-      // we just reset, so a state update isn't strictly required — React will
-      // run the effect on the next render cycle anyway because the refs change
-      // but useEffect doesn't track refs. Force a state nudge:
-      setCurrentZoom((z) => z); // no-op state update to trigger re-render
     }
     prevVisibleRef.current = visible;
   }, [visible, resetFitState]);
 
-  // Compute segment fingerprint
+  // Compute segment fingerprint.
+  // IMPORTANT: include `mapRefreshRequest` so the draw effect re-runs
+  // deterministically when the user presses "Refresh map" — this is the
+  // only reliable way to force a full repaint of overlays without depending
+  // on ref mutations (which don't trigger re-renders) or no-op state updates.
   const segmentFingerprint = useMemo(
-    () => buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds),
-    [segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
@@ -864,10 +865,13 @@ export function GoogleMapDisplay({
   }, [searchCenterRequest, searchTargetLocation, searchTargetBounds, mapReady, smartFit, visible]);
 
   // --- Manual map refresh request ---
-  // Repintado seguro: fuerza resize + reconstrucción de overlays. Si detecta
-  // que el mapa está "perdido" (centro ≈ [0,0] o sin polilíneas pintadas pese
-  // a haber tramos disponibles), recupera la vista con `smartFit`. NUNCA
-  // usa [0,0] como destino: delega siempre en bounds calculados desde tramos.
+  // Repintado seguro: el repintado real se garantiza porque `mapRefreshRequest`
+  // forma parte de `segmentFingerprint`, lo que provoca que el effect de
+  // dibujo se ejecute sí o sí al cambiar el contador. Aquí solo:
+  //  1) Disparamos resize del proveedor para recalcular el contenedor.
+  //  2) Reseteamos `prevIdSetFingerprintRef` para permitir refit si procede.
+  //  3) Recuperamos la vista SOLO si el mapa parece "perdido" tras pintar.
+  // NUNCA se usa [0,0] como destino: bounds se calculan desde tramos.
   const prevRefreshRef = useRef(0);
   useEffect(() => {
     if (mapRefreshRequest === 0 || mapRefreshRequest === prevRefreshRef.current) return;
@@ -878,36 +882,40 @@ export function GoogleMapDisplay({
     // 1) Resize del proveedor para que el contenedor recalcule tamaño real.
     try { google.maps.event.trigger(map, 'resize'); } catch { /* noop */ }
 
-    // 2) Forzar repintado de overlays (polilíneas/marcadores).
-    prevFingerprintRef.current = '__force_repaint__';
+    // 2) Permitir reevaluación de fit en el effect de dibujo si fuera necesario.
     prevIdSetFingerprintRef.current = '';
     resetFitState();
-    setCurrentZoom((z) => z); // nudge para que React vuelva a ejecutar el effect
 
-    // 3) Recuperación segura SOLO si procede.
-    let centerLost = false;
-    try {
-      const c = map.getCenter();
-      if (c && Math.abs(c.lat()) < 0.01 && Math.abs(c.lng()) < 0.01) centerLost = true;
-    } catch { /* noop */ }
-    const noPolylinesButData =
-      polylinesRef.current.length === 0 && segments.length > 0;
+    // 3) Recuperación segura SOLO si procede. Comprobamos en el siguiente
+    // microtick para dejar al effect de dibujo (disparado por el cambio de
+    // segmentFingerprint) ejecutarse antes de medir polilíneas.
+    const timer = setTimeout(() => {
+      if (!mapRef.current) return;
+      let centerLost = false;
+      try {
+        const c = map.getCenter();
+        if (c && Math.abs(c.lat()) < 0.01 && Math.abs(c.lng()) < 0.01) centerLost = true;
+      } catch { /* noop */ }
+      const noPolylinesButData =
+        polylinesRef.current.length === 0 && segments.length > 0;
 
-    if ((centerLost || noPolylinesButData) && segments.length > 0) {
-      const bounds = new google.maps.LatLngBounds();
-      let added = 0;
-      for (const seg of segments) {
-        if (!Array.isArray(seg.coordinates)) continue;
-        for (const c of seg.coordinates) {
-          if (!isValidLatLng(c)) continue;
-          bounds.extend(new google.maps.LatLng(c.lat, c.lng));
-          added++;
+      if ((centerLost || noPolylinesButData) && segments.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        let added = 0;
+        for (const seg of segments) {
+          if (!Array.isArray(seg.coordinates)) continue;
+          for (const c of seg.coordinates) {
+            if (!isValidLatLng(c)) continue;
+            bounds.extend(new google.maps.LatLng(c.lat, c.lng));
+            added++;
+          }
+        }
+        if (added >= 2 && !bounds.isEmpty()) {
+          smartFit(map, bounds, 'manual');
         }
       }
-      if (added >= 2 && !bounds.isEmpty()) {
-        smartFit(map, bounds, 'manual');
-      }
-    }
+    }, 50);
+    return () => clearTimeout(timer);
   }, [mapRefreshRequest, mapReady, visible, segments, smartFit, resetFitState]);
 
   // Render Leaflet if: permanent fallback (auth error / no key) OR temporary offline switch

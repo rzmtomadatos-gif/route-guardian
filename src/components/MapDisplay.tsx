@@ -133,9 +133,13 @@ export function MapDisplay({
     onOfflineStateChange?.({ active: offlineMapActive, noTiles: noTilesWarning });
   }, [offlineMapActive, noTilesWarning, onOfflineStateChange]);
 
+  // IMPORTANT: include `mapRefreshRequest` so the draw effect re-runs
+  // deterministically when the user presses "Refresh map". This avoids
+  // depending on ref mutations (which don't trigger re-renders) to force
+  // a real repaint of polylines and arrows.
   const segmentFingerprint = useMemo(
-    () => buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds),
-    [segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
@@ -590,9 +594,12 @@ export function MapDisplay({
   }, [searchCenterRequest, searchTargetLocation, searchTargetBounds, smartFit, visible]);
 
   // --- Manual map refresh request ---
-  // Repintado seguro Leaflet: invalidateSize + force repaint. Si el mapa
-  // está "perdido" (centro ≈ [0,0] o sin polilíneas con datos disponibles),
-  // recupera con `smartFit` sobre los tramos. Nunca usa [0,0] como destino.
+  // Repintado seguro Leaflet: el repintado real está garantizado porque
+  // `mapRefreshRequest` forma parte de `segmentFingerprint`. Aquí solo:
+  //  1) invalidateSize para recalcular el contenedor.
+  //  2) reseteamos `prevIdSetFingerprintRef` para permitir refit si procede.
+  //  3) recuperamos vista solo si el mapa parece "perdido" tras pintar.
+  // Nunca usa [0,0] como destino.
   const prevRefreshRef = useRef(0);
   useEffect(() => {
     if (mapRefreshRequest === 0 || mapRefreshRequest === prevRefreshRef.current) return;
@@ -603,34 +610,38 @@ export function MapDisplay({
     // 1) Recalcula tamaño real del contenedor.
     try { map.invalidateSize(); } catch { /* noop */ }
 
-    // 2) Fuerza repintado de overlays en el siguiente ciclo.
-    prevFingerprintRef.current = '__force_repaint__';
+    // 2) Permitir reevaluación de fit en el effect de dibujo si fuera necesario.
     prevIdSetFingerprintRef.current = '';
 
-    // 3) Recuperación segura solo si procede.
-    let centerLost = false;
-    try {
-      const c = map.getCenter();
-      if (Math.abs(c.lat) < 0.01 && Math.abs(c.lng) < 0.01) centerLost = true;
-    } catch { /* noop */ }
-    const drawnCount = segmentLayerRef.current?.getLayers().length ?? 0;
-    const noPolylinesButData = drawnCount === 0 && segments.length > 0;
+    // 3) Recuperación segura SOLO si procede, tras dejar al effect de dibujo
+    // ejecutarse (disparado por el cambio en segmentFingerprint).
+    const timer = setTimeout(() => {
+      if (!mapRef.current) return;
+      let centerLost = false;
+      try {
+        const c = map.getCenter();
+        if (Math.abs(c.lat) < 0.01 && Math.abs(c.lng) < 0.01) centerLost = true;
+      } catch { /* noop */ }
+      const drawnCount = segmentLayerRef.current?.getLayers().length ?? 0;
+      const noPolylinesButData = drawnCount === 0 && segments.length > 0;
 
-    if ((centerLost || noPolylinesButData) && segments.length > 0) {
-      const bounds = L.latLngBounds([]);
-      let added = 0;
-      for (const seg of segments) {
-        if (!Array.isArray(seg.coordinates)) continue;
-        for (const c of seg.coordinates) {
-          if (!isValidLatLng(c)) continue;
-          bounds.extend([c.lat, c.lng]);
-          added++;
+      if ((centerLost || noPolylinesButData) && segments.length > 0) {
+        const bounds = L.latLngBounds([]);
+        let added = 0;
+        for (const seg of segments) {
+          if (!Array.isArray(seg.coordinates)) continue;
+          for (const c of seg.coordinates) {
+            if (!isValidLatLng(c)) continue;
+            bounds.extend([c.lat, c.lng]);
+            added++;
+          }
+        }
+        if (added >= 2 && bounds.isValid()) {
+          smartFit(map, bounds, 'manual');
         }
       }
-      if (added >= 2 && bounds.isValid()) {
-        smartFit(map, bounds, 'manual');
-      }
-    }
+    }, 50);
+    return () => clearTimeout(timer);
   }, [mapRefreshRequest, visible, segments, smartFit]);
 
   return (
