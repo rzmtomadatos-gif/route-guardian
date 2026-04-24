@@ -7,6 +7,7 @@ import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor } from '@/utils/segment-colors';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
+import { isValidLatLng } from '@/utils/coord-validation';
 
 const DARK_STYLES: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#1a1d23' }] },
@@ -288,6 +289,17 @@ export function GoogleMapDisplay({
     [segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
   );
 
+  // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
+  // Used to decide whether to re-run fitBounds: we only want to auto-frame
+  // the map when the segment set itself changes (initial load, delete,
+  // KML reload), NOT when a manual segment is added on top of the
+  // current view (that would visually push existing segments off-screen).
+  const idSetFingerprint = useMemo(
+    () => segments.map((s) => s.id).sort().join(','),
+    [segments],
+  );
+  const prevIdSetFingerprintRef = useRef('');
+
   // --- Draw static overlays (polylines, connection lines, order markers) ---
   // Only rebuild when segment data actually changes, NOT on GPS position updates
   useEffect(() => {
@@ -307,11 +319,28 @@ export function GoogleMapDisplay({
     clearArrowOverlays();
     clearArrowCache();
 
-    // Reset smart-fit cooldown so a brand-new segment set is guaranteed to
-    // trigger fitBounds (otherwise a recent fit could swallow the new one).
-    resetFitState();
+    // Decide if we need to auto-fit:
+    // - First paint (initial load): always fit.
+    // - Subsequent changes: fit only if the new ID set is NOT a strict
+    //   superset of the previous one (i.e. something was deleted or
+    //   replaced). Pure additions (manual segment) don't refit so the
+    //   user keeps the current viewport.
+    const isFirstPaint = prevIdSetFingerprintRef.current === '';
+    let shouldFit = false;
+    if (isFirstPaint) {
+      shouldFit = idSetFingerprint !== '';
+    } else if (idSetFingerprint !== prevIdSetFingerprintRef.current) {
+      const prevIds = new Set(prevIdSetFingerprintRef.current.split(','));
+      const currIds = idSetFingerprint.split(',');
+      // If any previous id is missing now -> set changed (delete/replace) -> refit.
+      // If only new ids were added -> don't refit.
+      const onlyAdded = Array.from(prevIds).every((id) => currIds.includes(id));
+      shouldFit = !onlyAdded;
+    }
+
 
     const bounds = new google.maps.LatLngBounds();
+    let hasValidBounds = false;
 
     // Connection lines for optimized order
     if (optimizedOrder && optimizedOrder.length > 1) {
@@ -319,9 +348,11 @@ export function GoogleMapDisplay({
       for (let i = 0; i < optimizedOrder.length - 1; i++) {
         const curr = segMap.get(optimizedOrder[i]);
         const next = segMap.get(optimizedOrder[i + 1]);
-        if (curr && next) {
-          const endCoord = curr.coordinates[curr.coordinates.length - 1];
-          const startCoord = next.coordinates[0];
+        if (!curr || !next) continue;
+        const endCoord = curr.coordinates[curr.coordinates.length - 1];
+        const startCoord = next.coordinates[0];
+        if (!isValidLatLng(endCoord) || !isValidLatLng(startCoord)) continue;
+        try {
           const line = new google.maps.Polyline({
             path: [
               { lat: endCoord.lat, lng: endCoord.lng },
@@ -334,70 +365,89 @@ export function GoogleMapDisplay({
             map,
           });
           connectionLinesRef.current.push(line);
+        } catch (e) {
+          console.warn('[GoogleMapDisplay] connection line skipped:', e);
         }
       }
     }
 
-    // Segment polylines
+    // Segment polylines — wrap each segment so a single bad coord does not
+    // abort the whole repaint and leave the map blank.
     segments.forEach((seg) => {
-      const path = seg.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }));
-      const isActive = seg.id === activeSegmentId;
-      const isSelected = selectedSegmentIds?.has(seg.id);
-      const layerColor = seg.color || layerColorMap?.get(seg.id);
-      const color = isSelected
-        ? '#8b5cf6'
-        : resolveSegmentColor(seg, activeSegmentId, layerColor);
+      try {
+        const validCoords = (seg.coordinates || []).filter(isValidLatLng);
+        if (validCoords.length < 2) return; // not drawable
 
-      const polyline = new google.maps.Polyline({
-        path,
-        strokeColor: color,
-        strokeWeight: isActive ? 6 : isSelected ? 5 : 3,
-        strokeOpacity: isActive ? 1 : isSelected ? 0.95 : 0.7,
-        map,
-      });
+        const path = validCoords.map((c) => ({ lat: c.lat, lng: c.lng }));
+        const isActive = seg.id === activeSegmentId;
+        const isSelected = selectedSegmentIds?.has(seg.id);
+        const layerColor = seg.color || layerColorMap?.get(seg.id);
+        const color = isSelected
+          ? '#8b5cf6'
+          : resolveSegmentColor(seg, activeSegmentId, layerColor);
 
-      if (onSegmentClick) {
-        polyline.addListener('click', () => onSegmentClick(seg.id));
-      }
+        const polyline = new google.maps.Polyline({
+          path,
+          strokeColor: color,
+          strokeWeight: isActive ? 6 : isSelected ? 5 : 3,
+          strokeOpacity: isActive ? 1 : isSelected ? 0.95 : 0.7,
+          map,
+        });
 
-      polylinesRef.current.push(polyline);
-      path.forEach((p) => bounds.extend(new google.maps.LatLng(p.lat, p.lng)));
-
-      // Order number markers — only for active block segments
-      if (optimizedOrder && orderNumberIds.has(seg.id)) {
-        const orderIdx = optimizedOrder.indexOf(seg.id);
-        if (orderIdx >= 0) {
-          const startCoord = seg.coordinates[0];
-          const marker = new google.maps.Marker({
-            position: { lat: startCoord.lat, lng: startCoord.lng },
-            map,
-            label: {
-              text: `${orderIdx + 1}`,
-              color: '#fff',
-              fontSize: '10px',
-              fontWeight: 'bold',
-            },
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 12,
-              fillColor: color,
-              fillOpacity: 1,
-              strokeColor: '#000',
-              strokeWeight: 1,
-            },
-          });
-          orderMarkersRef.current.push(marker);
+        if (onSegmentClick) {
+          polyline.addListener('click', () => onSegmentClick(seg.id));
         }
+
+        polylinesRef.current.push(polyline);
+        path.forEach((p) => {
+          bounds.extend(new google.maps.LatLng(p.lat, p.lng));
+          hasValidBounds = true;
+        });
+
+        // Order number markers — only for active block segments
+        if (optimizedOrder && orderNumberIds.has(seg.id)) {
+          const orderIdx = optimizedOrder.indexOf(seg.id);
+          if (orderIdx >= 0) {
+            const startCoord = validCoords[0];
+            const marker = new google.maps.Marker({
+              position: { lat: startCoord.lat, lng: startCoord.lng },
+              map,
+              label: {
+                text: `${orderIdx + 1}`,
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: 'bold',
+              },
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 12,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: '#000',
+                strokeWeight: 1,
+              },
+            });
+            orderMarkersRef.current.push(marker);
+          }
+        }
+      } catch (e) {
+        console.warn('[GoogleMapDisplay] segment skipped due to draw error:', seg.id, e);
       }
     });
 
-    if (!bounds.isEmpty()) {
+    // Only fit bounds when the segment set really changed AND we have valid
+    // coordinates. Never auto-fit just because a single segment was appended.
+    if (shouldFit && hasValidBounds && !bounds.isEmpty()) {
+      // Clear cooldown so this fit is guaranteed to happen
+      resetFitState();
       smartFit(map, bounds, 'segmentsLoaded');
     }
 
-    // Mark fingerprint as painted ONLY after a complete repaint succeeded.
+    // Mark fingerprints as painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
-  }, [segmentFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
+    prevIdSetFingerprintRef.current = idSetFingerprint;
+  }, [segmentFingerprint, idSetFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
+
 
   // --- Draw/hide arrow overlays based on zoom ---
   // Arrows only render at zoom >= 15 and only for arrowSegmentIds
