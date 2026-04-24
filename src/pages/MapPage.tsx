@@ -1513,6 +1513,26 @@ export default function MapPage({
       {/* FAB buttons */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' &&
       <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+          {/* Buscar (atajo / o Ctrl/Cmd+K) */}
+          <button
+            onClick={handleFocusSearch}
+            className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Buscar tramo o lugar (/)"
+            aria-label="Abrir buscador del mapa">
+            <Search className="w-4 h-4" />
+          </button>
+
+          {/* Refrescar mapa (repinta sin alterar estado) */}
+          <button
+            onClick={handleRefreshMap}
+            className="w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Refrescar mapa"
+            aria-label="Refrescar mapa">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
+          <div className="w-6 h-px bg-border mx-auto" />
+
           {/* Selection mode toggle */}
           <button
           onClick={() => {
