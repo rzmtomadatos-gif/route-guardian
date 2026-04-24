@@ -57,6 +57,15 @@ interface Props {
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
   /** Whether this map is currently visible (for resize invalidation) */
   visible?: boolean;
+  /**
+   * Buscador: ubicación a la que centrar el mapa (calle/lugar). Cuando cambia
+   * `searchCenterRequest`, el mapa centra en `searchTargetLocation` (con
+   * bounds si vienen) y coloca un marcador temporal de búsqueda.
+   */
+  searchTargetSegmentId?: string | null;
+  searchTargetLocation?: LatLng | null;
+  searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
+  searchCenterRequest?: number;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
