@@ -713,12 +713,13 @@ export default function MapPage({
   // de la campaña así lo indique (nombre de proyecto/ruta/capas que
   // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
   const searchContext = useMemo(() => {
+    const r = state.route;
     const haystack = [
-      route?.projectName,
-      route?.projectCode,
-      route?.name,
-      route?.fileName,
-      ...(route?.availableLayers ?? []),
+      r?.projectName,
+      r?.projectCode,
+      r?.name,
+      r?.fileName,
+      ...(r?.availableLayers ?? []),
     ]
       .filter(Boolean)
       .join(' ')
@@ -730,7 +731,8 @@ export default function MapPage({
       bias: { center, radiusMeters: isBoadilla ? 6000 : 8000 },
       contextSuffix: isBoadilla ? 'Boadilla del Monte, Madrid, España' : 'España',
     };
-  }, [route?.projectName, route?.projectCode, route?.name, route?.fileName, route?.availableLayers, state.base, geo.position, basePosition]);
+  }, [state.route, state.base, geo.position, basePosition]);
+
 
   const handleAreaClick = useCallback((latlng: LatLng) => {
     if (areaMode === 'rectangle') {
