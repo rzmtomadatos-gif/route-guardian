@@ -117,6 +117,7 @@ export function MapDisplay({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const offlineLayerRef = useRef<L.Layer | null>(null);
   const posMarkerRef = useRef<L.CircleMarker | null>(null);
+  const searchMarkerRef = useRef<L.Marker | null>(null);
   const currentZoomRef = useRef(6);
   const { requestFitBounds: smartFit } = useSmartFitLeaflet();
   const prevFingerprintRef = useRef('');
