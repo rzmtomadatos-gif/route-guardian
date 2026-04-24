@@ -682,7 +682,56 @@ export default function MapPage({
     setCreationRoadInfo(null);
   }, []);
 
-  // Area selection handlers
+  // --- Buscador de mapa ---
+  // Selección de un tramo: marcar activo + centrar mapa.
+  // No activa navegación ni cambia estado del tramo.
+  const handleSearchPickSegment = useCallback((segment: Segment) => {
+    onSetActiveSegment(segment.id);
+    // Limpia ubicación previa de búsqueda y solicita centrar al tramo
+    setSearchTargetLocation(null);
+    setSearchTargetBounds(null);
+    setSearchTargetSegmentId(segment.id);
+    setSearchCenterRequest((c) => c + 1);
+  }, [onSetActiveSegment]);
+
+  // Selección de una calle/lugar: centrar y colocar marcador temporal.
+  const handleSearchPickLocation = useCallback((pick: MapSearchPick) => {
+    setSearchTargetSegmentId(null);
+    setSearchTargetLocation(pick.location);
+    setSearchTargetBounds(pick.bounds ?? null);
+    setSearchCenterRequest((c) => c + 1);
+  }, []);
+
+  const handleSearchClearLocation = useCallback(() => {
+    setSearchTargetLocation(null);
+    setSearchTargetBounds(null);
+    setSearchTargetSegmentId(null);
+    setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
+  }, []);
+
+  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
+  // de la campaña así lo indique (nombre de proyecto/ruta/capas que
+  // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
+  const searchContext = useMemo(() => {
+    const haystack = [
+      route?.projectName,
+      route?.projectCode,
+      route?.name,
+      route?.fileName,
+      ...(route?.availableLayers ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const isBoadilla = haystack.includes('boadilla') || haystack.includes('boa_');
+    const center: LatLng | null =
+      state.base?.position ?? geo.position ?? basePosition ?? null;
+    return {
+      bias: { center, radiusMeters: isBoadilla ? 6000 : 8000 },
+      contextSuffix: isBoadilla ? 'Boadilla del Monte, Madrid, España' : 'España',
+    };
+  }, [route?.projectName, route?.projectCode, route?.name, route?.fileName, route?.availableLayers, state.base, geo.position, basePosition]);
+
   const handleAreaClick = useCallback((latlng: LatLng) => {
     if (areaMode === 'rectangle') {
       setAreaPoints((prev) => {
