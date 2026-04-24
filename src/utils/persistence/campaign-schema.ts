@@ -38,6 +38,10 @@ const segmentKmlMetaSchema = z.object({
   sentido: z.string().optional(),
   pkInicial: z.string().optional(),
   pkFinal: z.string().optional(),
+  // Origen OSM (Overpass): identificador OSM, ref y procedencia
+  osmId: z.number().optional(),
+  ref: z.string().optional(),
+  source: z.enum(['osm', 'manual', 'kml']).optional(),
 }).passthrough();
 
 // ── Segment — strict core, optional future fields explicitly declared ──

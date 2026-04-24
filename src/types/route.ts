@@ -16,6 +16,12 @@ export interface SegmentKmlMeta {
   sentido?: string;
   pkInicial?: string;
   pkFinal?: string;
+  /** Identificador OSM cuando el tramo procede de Overpass. NO es id interno de VialRoute. */
+  osmId?: number;
+  /** Referencia de carretera/calle según OSM (p. ej. "M-501"). */
+  ref?: string;
+  /** Procedencia del tramo. */
+  source?: 'osm' | 'manual' | 'kml';
 }
 
 export interface Segment {

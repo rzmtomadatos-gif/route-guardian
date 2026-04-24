@@ -27,7 +27,7 @@ import { generateDebugInfo, type OptimizerDebugInfo } from '@/utils/optimizer-de
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
-import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
+import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
@@ -451,8 +451,10 @@ export default function MapPage({
   }, [activeSegment, hiddenLayers, state.navigationActive, handleStopRequest]);
 
   // Auto-calculate route when both points are set
-  const [creationRoadInfo, setCreationRoadInfo] = useState<{name: string;highway: string;oneway: boolean;} | null>(null);
+  const [creationRoadInfo, setCreationRoadInfo] = useState<NearestRoadInfo | null>(null);
   const [isLoadingRoadInfo, setIsLoadingRoadInfo] = useState(false);
+  const nearestRoadAbortRef = useRef<AbortController | null>(null);
+  const areaAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!creationStart || !creationEnd) return;
@@ -477,19 +479,26 @@ export default function MapPage({
       setIsLoadingRoute(false);
     });
 
-    // Query Overpass for road info at midpoint
+    // Query Overpass for road info at midpoint (con AbortController)
     setIsLoadingRoadInfo(true);
     setCreationRoadInfo(null);
     const mid: LatLng = {
       lat: (creationStart.lat + creationEnd.lat) / 2,
       lng: (creationStart.lng + creationEnd.lng) / 2
     };
-    fetchNearestRoad(mid).
+    nearestRoadAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    nearestRoadAbortRef.current = ctrl;
+    fetchNearestRoad(mid, { signal: ctrl.signal }).
     then((info) => {
+      if (ctrl.signal.aborted) return;
       if (info) setCreationRoadInfo(info);
     }).
     catch(() => {}).
-    finally(() => setIsLoadingRoadInfo(false));
+    finally(() => {
+      if (nearestRoadAbortRef.current === ctrl) nearestRoadAbortRef.current = null;
+      setIsLoadingRoadInfo(false);
+    });
   }, [creationStart, creationEnd]);
 
   const fetchDirectionsRoute = useCallback(async (start: LatLng, end: LatLng, apiKey: string) => {
@@ -691,6 +700,10 @@ export default function MapPage({
   }, [areaPoints]);
 
   const handleCancelArea = useCallback(() => {
+    // Aborta consulta Overpass en curso si la hay y limpia estado.
+    areaAbortRef.current?.abort();
+    areaAbortRef.current = null;
+    setIsLoadingArea(false);
     setAreaMode('none');
     setAreaPoints([]);
     setShowAreaDialog(false);
@@ -740,39 +753,23 @@ export default function MapPage({
   }, [areaMode, areaPoints, getCircleParams]);
 
   const handleFetchRoads = useCallback(async (categories: RoadCategory[], layerName: string) => {
+    // Cancelar cualquier consulta previa
+    areaAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    areaAbortRef.current = ctrl;
+
     setIsLoadingArea(true);
     setPendingLayerName(layerName);
     try {
-      let ways: OverpassWay[];
       const circleParams = getCircleParams();
+      const ways = areaMode === 'circle' && circleParams
+        ? await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories, { signal: ctrl.signal })
+        : await fetchRoadsInArea(getAreaPolygon(), categories, { signal: ctrl.signal });
 
-      if (areaMode === 'circle' && circleParams) {
-        const initialWays = await fetchRoadsInCircle(circleParams.center, circleParams.radiusMeters, categories);
-
-        if (initialWays.length === 0) {
-          toast.warning('No se encontraron vías en la zona seleccionada');
-          setIsLoadingArea(false);
-          return;
-        }
-
-        const realNames = [...new Set(initialWays.filter((w) => w.name && !w.name.startsWith('Vía ')).map((w) => w.name))];
-
-        if (realNames.length > 0) {
-          toast.info(`Completando ${realNames.length} vías...`);
-          const completeWays = await fetchCompleteRoads(circleParams.center, circleParams.radiusMeters, realNames, categories);
-          const unnamedWays = initialWays.filter((w) => w.name.startsWith('Vía '));
-          ways = [...mergeWaysByName(completeWays), ...unnamedWays];
-        } else {
-          ways = initialWays;
-        }
-      } else {
-        const polygon = getAreaPolygon();
-        ways = await fetchRoadsInArea(polygon, categories);
-      }
+      if (ctrl.signal.aborted) return;
 
       if (!ways || ways.length === 0) {
-        toast.warning('No se encontraron vías en la zona seleccionada');
-        setIsLoadingArea(false);
+        toast.warning('No se encontraron vías del tipo seleccionado en esta zona');
         return;
       }
 
@@ -780,9 +777,31 @@ export default function MapPage({
       setShowAreaDialog(false);
       setShowResultsDialog(true);
     } catch (err) {
-      console.error('Overpass error:', err);
-      toast.error('Error al consultar las vías. Intenta con una zona más pequeña.');
+      if (err instanceof OverpassError) {
+        switch (err.kind) {
+          case 'aborted':
+            return; // silencioso: el usuario canceló
+          case 'rate_limit':
+            toast.error('Servidor OSM saturado. Reintenta en unos segundos.');
+            break;
+          case 'timeout':
+            toast.error('Consulta demasiado lenta. Reduce la zona o reintenta.');
+            break;
+          case 'network':
+            toast.error('Sin conexión. Comprueba la red y reintenta.');
+            break;
+          case 'query':
+            toast.error('Error de consulta Overpass. Revisa los filtros.');
+            break;
+          default:
+            toast.error('Error inesperado consultando vías.');
+        }
+      } else {
+        toast.error('Error inesperado consultando vías.');
+      }
+      console.error('[Overpass]', err);
     } finally {
+      if (areaAbortRef.current === ctrl) areaAbortRef.current = null;
       setIsLoadingArea(false);
     }
   }, [getAreaPolygon, getCircleParams, areaMode]);
@@ -808,7 +827,14 @@ export default function MapPage({
         direction: 'creciente',
         type: 'tramo',
         status: 'pendiente',
-        kmlMeta: { carretera: way.name, tipo: way.highway, sentido: way.oneway ? 'único' : undefined },
+        kmlMeta: {
+          carretera: way.ref || way.name,
+          tipo: way.highway,
+          sentido: way.oneway ? 'único' : undefined,
+          osmId: way.osmId,
+          ref: way.ref,
+          source: 'osm',
+        },
         layer: layerName || undefined
       };
       onAddSegment(segment);
@@ -831,7 +857,14 @@ export default function MapPage({
           direction: 'creciente',
           type: 'tramo',
           status: 'pendiente',
-          kmlMeta: { carretera: way.name, tipo: way.highway, sentido: 'decreciente' },
+        kmlMeta: {
+          carretera: way.ref || way.name,
+          tipo: way.highway,
+          sentido: 'decreciente',
+          osmId: way.osmId,
+          ref: way.ref,
+          source: 'osm',
+        },
           layer: reverseLayerName
         };
         onAddSegment(segment);
@@ -1324,6 +1357,7 @@ export default function MapPage({
       <AreaSelectionDialog
         open={showAreaDialog}
         onClose={handleCancelArea}
+        onCancel={handleCancelArea}
         onConfirm={handleFetchRoads}
         pointCount={areaPoints.length}
         isLoading={isLoadingArea}

@@ -23,6 +23,8 @@ import { ROAD_CATEGORIES, type RoadCategory } from '@/utils/overpass-api';
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Aborta la consulta Overpass en curso (si la hay) y cierra. */
+  onCancel?: () => void;
   onConfirm: (categories: RoadCategory[], layerName: string) => void;
   pointCount: number;
   isLoading: boolean;
@@ -36,11 +38,20 @@ const ALL_CATEGORIES: RoadCategory[] = [
 export function AreaSelectionDialog({
   open,
   onClose,
+  onCancel,
   onConfirm,
   pointCount,
   isLoading,
   layers,
 }: Props) {
+  const handleCancelClick = () => {
+    // Durante la carga, abortar real; en cualquier caso cerrar.
+    if (isLoading && onCancel) {
+      onCancel();
+    } else {
+      onClose();
+    }
+  };
   const [selected, setSelected] = useState<Set<RoadCategory>>(
     new Set<RoadCategory>(['highway', 'primary', 'secondary', 'tertiary'])
   );
@@ -67,7 +78,7 @@ export function AreaSelectionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !isLoading && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancelClick(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -133,7 +144,7 @@ export function AreaSelectionDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={handleCancelClick}>
             Cancelar
           </Button>
           <Button
