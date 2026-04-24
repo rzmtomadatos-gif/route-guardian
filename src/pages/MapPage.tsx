@@ -1133,13 +1133,20 @@ export default function MapPage({
   // Layer colors - safe palette (no green/yellow/red)
   const LAYER_COLORS = SAFE_LAYER_COLORS;
 
-  // If there's a selection, show ONLY selected segments on the map; otherwise filter by hidden layers
+  // If there's a selection, show ONLY selected segments on the map; otherwise filter
+  // by hidden layers using the canonical visibility utility (rejects bad geometry,
+  // [0,0] sentinels, hidden layers, etc.).
   const visibleSegments = useMemo(() => {
     if (!route) return [];
     if (selectedSegmentIds.size > 0) {
-      return route.segments.filter((s) => selectedSegmentIds.has(s.id));
+      // Even when filtering by selection, validate geometry to avoid passing
+      // unrenderable segments (which would otherwise blank the map).
+      return getVisibleMapSegments(
+        route.segments.filter((s) => selectedSegmentIds.has(s.id)),
+        new Set<string>(),
+      );
     }
-    return route.segments.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
+    return getVisibleMapSegments(route.segments, hiddenLayers);
   }, [route, hiddenLayers, selectedSegmentIds]);
 
   const visibleOrder = useMemo(() => {
