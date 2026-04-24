@@ -57,6 +57,8 @@ interface Props {
   searchTargetLocation?: LatLng | null;
   searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
   searchCenterRequest?: number;
+  /** Solicitud de refresco manual del mapa (ver GoogleMapDisplay). */
+  mapRefreshRequest?: number;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
