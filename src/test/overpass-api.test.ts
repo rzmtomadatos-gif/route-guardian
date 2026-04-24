@@ -8,6 +8,7 @@ import {
   pointInPolygon,
   intersectsPolygon,
   clipWayToPolygon,
+  splitWayByPolygon,
   __test__,
 } from '@/utils/overpass-api';
 
