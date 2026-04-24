@@ -1315,13 +1315,15 @@ export default function MapPage({
           searchTargetSegmentId={searchTargetSegmentId}
           searchTargetLocation={searchTargetLocation}
           searchTargetBounds={searchTargetBounds}
-          searchCenterRequest={searchCenterRequest} />
+          searchCenterRequest={searchCenterRequest}
+          mapRefreshRequest={mapRefreshRequest} />
         
       </div>
 
       {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
       {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapSearchBox
+          ref={searchBoxRef}
           segments={state.route?.segments}
           bias={searchContext.bias}
           contextSuffix={searchContext.contextSuffix}
