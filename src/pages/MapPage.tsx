@@ -29,6 +29,7 @@ import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
 import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
+import { getVisibleMapSegments } from '@/utils/map-visible-segments';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 
