@@ -176,16 +176,18 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
     (seg: Segment) => {
       onPickSegment(seg);
       setOpen(false);
+      onClose?.();
     },
-    [onPickSegment],
+    [onPickSegment, onClose],
   );
 
   const handlePickLocation = useCallback(
     (r: GeoResult) => {
       onPickLocation({ location: r.location, bounds: r.bounds, label: r.label });
       setOpen(false);
+      onClose?.();
     },
-    [onPickLocation],
+    [onPickLocation, onClose],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
