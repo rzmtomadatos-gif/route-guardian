@@ -465,7 +465,7 @@ export function GoogleMapDisplay({
     // Mark fingerprints as painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
     prevIdSetFingerprintRef.current = idSetFingerprint;
-  }, [segmentFingerprint, idSetFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
+  }, [segmentFingerprint, idSetFingerprint, mapReady, visible, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
 
 
   // --- Draw/hide arrow overlays based on zoom ---
