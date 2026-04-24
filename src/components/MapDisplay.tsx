@@ -133,9 +133,13 @@ export function MapDisplay({
     onOfflineStateChange?.({ active: offlineMapActive, noTiles: noTilesWarning });
   }, [offlineMapActive, noTilesWarning, onOfflineStateChange]);
 
+  // IMPORTANT: include `mapRefreshRequest` so the draw effect re-runs
+  // deterministically when the user presses "Refresh map". This avoids
+  // depending on ref mutations (which don't trigger re-renders) to force
+  // a real repaint of polylines and arrows.
   const segmentFingerprint = useMemo(
-    () => buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds),
-    [segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
