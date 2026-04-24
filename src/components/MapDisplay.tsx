@@ -125,6 +125,15 @@ export function MapDisplay({
     [segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
   );
 
+  // Tracks only the SET of segment IDs (not status/colors). Used to decide
+  // whether to refit the map: only when the set actually changes (load,
+  // delete, replace) and never on pure additions (manual segment).
+  const idSetFingerprint = useMemo(
+    () => segments.map((s) => s.id).sort().join(','),
+    [segments],
+  );
+  const prevIdSetFingerprintRef = useRef('');
+
   const orderNumberIds = useMemo(() => {
     const ids = new Set<string>();
     if (activeSegmentId) ids.add(activeSegmentId);
