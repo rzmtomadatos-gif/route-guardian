@@ -109,7 +109,18 @@ export interface OverpassOptions {
   signal?: AbortSignal;
   /** Timeout por petición HTTP individual. Default 35s. */
   timeoutMs?: number;
+  /**
+   * Timeout global para toda la operación (por ejemplo, todas las celdas
+   * de una zona subdividida + reintentos + failover). Default 120s.
+   * Si se supera, se aborta con OverpassError('timeout').
+   * Aplica solo en fetchRoadsInArea / fetchRoadsInCircle.
+   */
+  globalTimeoutMs?: number;
 }
+
+const DEFAULT_GLOBAL_TIMEOUT_MS = 120_000;
+/** Salto máximo aceptable entre puntos consecutivos de un sub-tramo recortado. */
+const MAX_SEGMENT_GAP_M = 500;
 
 // =============================================================================
 // Endpoints
