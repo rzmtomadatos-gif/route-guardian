@@ -456,13 +456,9 @@ export function intersectsPolygon(coords: LatLng[], polygon: LatLng[]): boolean 
 }
 
 /**
- * Recorta una vía conservando los nodos dentro del polígono más
- * un nodo de transición a cada lado del cruce de borde, para no
- * cortar la línea bruscamente.
- *
- * Implementación pragmática (no Sutherland-Hodgman completo):
- * para vías que entran y salen varias veces, mantiene runs
- * contiguos de puntos `inside` con su par de bordes adyacentes.
+ * @deprecated Usar `splitWayByPolygon`. Se mantiene exportada por compatibilidad
+ * con tests anteriores. Devuelve una sola lista plana de puntos sin garantizar
+ * continuidad geométrica si la vía entra y sale varias veces del polígono.
  */
 export function clipWayToPolygon(coords: LatLng[], polygon: LatLng[]): LatLng[] {
   if (coords.length === 0) return [];
@@ -471,13 +467,85 @@ export function clipWayToPolygon(coords: LatLng[], polygon: LatLng[]): LatLng[] 
   for (let i = 0; i < coords.length; i++) {
     if (inside[i]) {
       keep[i] = true;
-      if (i > 0) keep[i - 1] = true; // vecino anterior (puede estar fuera)
-      if (i < coords.length - 1) keep[i + 1] = true; // vecino posterior
+      if (i > 0) keep[i - 1] = true;
+      if (i < coords.length - 1) keep[i + 1] = true;
     }
   }
   const result: LatLng[] = [];
   for (let i = 0; i < coords.length; i++) {
     if (keep[i]) result.push(coords[i]);
+  }
+  return result;
+}
+
+/**
+ * Recorta una vía contra un polígono devolviendo **runs contiguos**
+ * geométricamente válidos. Cada run es una sub-polilínea formada por
+ * puntos `inside` consecutivos más, como mucho, un vecino exterior a
+ * cada extremo (para no cortar la línea bruscamente en el borde).
+ *
+ * Si la vía entra y sale del polígono varias veces, devuelve N runs
+ * separados (no una sola polilínea con saltos).
+ *
+ * Validación aplicada a cada run:
+ *  - mínimo 2 coords
+ *  - ningún salto consecutivo > MAX_SEGMENT_GAP_M
+ *  - al menos un punto debe caer dentro del polígono
+ *
+ * Los runs descartados emiten warning en consola con la causa.
+ */
+export function splitWayByPolygon(
+  coords: LatLng[],
+  polygon: LatLng[],
+  osmIdForLog?: number,
+): LatLng[][] {
+  if (coords.length < 2) return [];
+  const inside = coords.map((c) => pointInPolygon(c, polygon));
+
+  // Localizar runs contiguos de índices `inside`.
+  const runs: { start: number; end: number }[] = [];
+  let i = 0;
+  while (i < coords.length) {
+    if (!inside[i]) { i++; continue; }
+    const start = i;
+    while (i < coords.length && inside[i]) i++;
+    runs.push({ start, end: i - 1 });
+  }
+  if (runs.length === 0) return [];
+
+  const result: LatLng[][] = [];
+  for (const r of runs) {
+    // Añadir un vecino exterior a cada extremo si existe (para suavizar borde).
+    const a = r.start > 0 ? r.start - 1 : r.start;
+    const b = r.end < coords.length - 1 ? r.end + 1 : r.end;
+    const slice = coords.slice(a, b + 1);
+
+    if (slice.length < 2) continue;
+
+    // Validar que no haya saltos absurdos entre puntos consecutivos.
+    let badGap = false;
+    let worstGap = 0;
+    for (let k = 1; k < slice.length; k++) {
+      const d = haversineMeters(slice[k - 1], slice[k]);
+      if (d > worstGap) worstGap = d;
+      if (d > MAX_SEGMENT_GAP_M) { badGap = true; break; }
+    }
+    if (badGap) {
+      console.warn(
+        '[Overpass] run descartado por salto >',
+        MAX_SEGMENT_GAP_M, 'm',
+        { osmId: osmIdForLog, gap: Math.round(worstGap) },
+      );
+      continue;
+    }
+
+    // Confirmar que al menos un punto del run cae dentro del polígono.
+    if (!intersectsPolygon(slice, polygon)) {
+      console.warn('[Overpass] run descartado: no intersecta polígono', { osmId: osmIdForLog });
+      continue;
+    }
+
+    result.push(slice);
   }
   return result;
 }
