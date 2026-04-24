@@ -55,6 +55,8 @@ interface Props {
   onPickLocation: (pick: MapSearchPick) => void;
   /** Limpiar marcador temporal de búsqueda. */
   onClearLocation?: () => void;
+  /** Cerrar / desmontar el buscador (Escape o botón cerrar). */
+  onClose?: () => void;
 }
 
 export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSearchBox(
@@ -65,6 +67,7 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
     onPickSegment,
     onPickLocation,
     onClearLocation,
+    onClose,
   },
   ref,
 ) {
