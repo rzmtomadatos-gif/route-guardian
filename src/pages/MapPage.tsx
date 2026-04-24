@@ -659,7 +659,12 @@ export default function MapPage({
     setCreationEnd(null);
     setCreationRoute(null);
     setCreationRoadInfo(null);
-  }, [onAddSegment]);
+    // Limpiamos selección previa: si había tramos seleccionados desde antes
+    // de entrar en modo creación, mantenerlos podría confundir al operador
+    // (no son los que acaba de tocar). Esto NO oculta tramos en el mapa
+    // porque la malla ya no se filtra por selección — sólo cambia el estilo.
+    setSelectedSegmentIds(new Set());
+  }, [onAddSegment, setSelectedSegmentIds]);
 
   const handleCancelCreation = useCallback(() => {
     setCreationMode(false);
