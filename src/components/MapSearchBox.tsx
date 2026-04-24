@@ -34,6 +34,15 @@ export interface MapSearchPick {
   label: string;
 }
 
+/**
+ * Handle imperativo expuesto por `MapSearchBox`. Permite a `MapPage`
+ * abrir el panel y enfocar el input desde un FAB o un atajo de teclado
+ * sin alterar el estado actual de búsqueda (query, modo, resultados).
+ */
+export interface MapSearchBoxHandle {
+  focus: () => void;
+}
+
 interface Props {
   segments: Segment[] | null | undefined;
   /** Sesgo geográfico para geocoding (centro/radio aproximado). */
@@ -48,14 +57,17 @@ interface Props {
   onClearLocation?: () => void;
 }
 
-export function MapSearchBox({
-  segments,
-  bias,
-  contextSuffix,
-  onPickSegment,
-  onPickLocation,
-  onClearLocation,
-}: Props) {
+export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSearchBox(
+  {
+    segments,
+    bias,
+    contextSuffix,
+    onPickSegment,
+    onPickLocation,
+    onClearLocation,
+  },
+  ref,
+) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('segments');
