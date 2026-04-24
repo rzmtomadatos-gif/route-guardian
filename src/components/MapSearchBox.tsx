@@ -55,6 +55,8 @@ interface Props {
   onPickLocation: (pick: MapSearchPick) => void;
   /** Limpiar marcador temporal de búsqueda. */
   onClearLocation?: () => void;
+  /** Cerrar / desmontar el buscador (Escape o botón cerrar). */
+  onClose?: () => void;
 }
 
 export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSearchBox(
@@ -65,6 +67,7 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
     onPickSegment,
     onPickLocation,
     onClearLocation,
+    onClose,
   },
   ref,
 ) {
@@ -173,21 +176,24 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
     (seg: Segment) => {
       onPickSegment(seg);
       setOpen(false);
+      onClose?.();
     },
-    [onPickSegment],
+    [onPickSegment, onClose],
   );
 
   const handlePickLocation = useCallback(
     (r: GeoResult) => {
       onPickLocation({ location: r.location, bounds: r.bounds, label: r.label });
       setOpen(false);
+      onClose?.();
     },
-    [onPickLocation],
+    [onPickLocation, onClose],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       setOpen(false);
+      onClose?.();
       return;
     }
     if (e.key === 'Enter') {
@@ -231,18 +237,24 @@ export const MapSearchBox = forwardRef<MapSearchBoxHandle, Props>(function MapSe
             placeholder="Buscar tramo o calle…"
             className="h-8 border-0 bg-transparent px-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
           />
-          {query && (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 shrink-0"
-              onClick={handleClear}
-              title="Limpiar búsqueda"
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 shrink-0"
+            onClick={() => {
+              if (query) {
+                handleClear();
+              } else {
+                setOpen(false);
+                onClose?.();
+              }
+            }}
+            title={query ? 'Limpiar búsqueda' : 'Cerrar buscador'}
+            aria-label={query ? 'Limpiar búsqueda' : 'Cerrar buscador'}
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         {showResults && (

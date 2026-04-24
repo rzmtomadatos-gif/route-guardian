@@ -132,6 +132,8 @@ export default function MapPage({
   const [searchCenterRequest, setSearchCenterRequest] = useState(0);
   /** Contador incremental para forzar repintado seguro del mapa (FAB Refrescar). */
   const [mapRefreshRequest, setMapRefreshRequest] = useState(0);
+  /** Visibilidad del buscador del mapa: oculto por defecto, sólo visible al pulsar el atajo o el FAB Buscar. */
+  const [searchVisible, setSearchVisible] = useState(false);
   const searchBoxRef = useRef<MapSearchBoxHandle>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
@@ -712,9 +714,18 @@ export default function MapPage({
     setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
   }, []);
 
-  /** Abre y enfoca el buscador desde un FAB o atajo de teclado. */
+  /** Muestra y enfoca el buscador desde un FAB o atajo de teclado. */
   const handleFocusSearch = useCallback(() => {
-    searchBoxRef.current?.focus();
+    setSearchVisible(true);
+    // Si ya está montado, foco inmediato; si acaba de montarse, espera al siguiente frame.
+    requestAnimationFrame(() => {
+      searchBoxRef.current?.focus();
+    });
+  }, []);
+
+  /** Cierra y desmonta el buscador. */
+  const handleCloseSearch = useCallback(() => {
+    setSearchVisible(false);
   }, []);
 
   /** Solicita un repintado seguro del mapa sin alterar el estado operativo. */
@@ -1320,8 +1331,9 @@ export default function MapPage({
         
       </div>
 
-      {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
-      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
+      {/* Buscador de tramos / lugares — sólo visible al pulsar el atajo (/, Ctrl/Cmd+K) o el FAB Buscar.
+          Oculto siempre en modos de creación / selección por zona. */}
+      {searchVisible && !creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
         <MapSearchBox
           ref={searchBoxRef}
           segments={state.route?.segments}
@@ -1330,6 +1342,7 @@ export default function MapPage({
           onPickSegment={handleSearchPickSegment}
           onPickLocation={handleSearchPickLocation}
           onClearLocation={handleSearchClearLocation}
+          onClose={handleCloseSearch}
         />
       )}
 
