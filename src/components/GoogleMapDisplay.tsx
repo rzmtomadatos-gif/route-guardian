@@ -438,6 +438,8 @@ export function GoogleMapDisplay({
     // Only fit bounds when the segment set really changed AND we have valid
     // coordinates. Never auto-fit just because a single segment was appended.
     if (shouldFit && hasValidBounds && !bounds.isEmpty()) {
+      // Clear cooldown so this fit is guaranteed to happen
+      resetFitState();
       smartFit(map, bounds, 'segmentsLoaded');
     }
 
