@@ -1357,6 +1357,7 @@ export default function MapPage({
       <AreaSelectionDialog
         open={showAreaDialog}
         onClose={handleCancelArea}
+        onCancel={handleCancelArea}
         onConfirm={handleFetchRoads}
         pointCount={areaPoints.length}
         isLoading={isLoadingArea}
