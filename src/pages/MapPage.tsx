@@ -659,7 +659,12 @@ export default function MapPage({
     setCreationEnd(null);
     setCreationRoute(null);
     setCreationRoadInfo(null);
-  }, [onAddSegment]);
+    // Limpiamos selección previa: si había tramos seleccionados desde antes
+    // de entrar en modo creación, mantenerlos podría confundir al operador
+    // (no son los que acaba de tocar). Esto NO oculta tramos en el mapa
+    // porque la malla ya no se filtra por selección — sólo cambia el estilo.
+    setSelectedSegmentIds(new Set());
+  }, [onAddSegment, setSelectedSegmentIds]);
 
   const handleCancelCreation = useCallback(() => {
     setCreationMode(false);
@@ -1134,21 +1139,16 @@ export default function MapPage({
   // Layer colors - safe palette (no green/yellow/red)
   const LAYER_COLORS = SAFE_LAYER_COLORS;
 
-  // If there's a selection, show ONLY selected segments on the map; otherwise filter
-  // by hidden layers using the canonical visibility utility (rejects bad geometry,
-  // [0,0] sentinels, hidden layers, etc.).
+  // Visibilidad de la malla: SIEMPRE mostrar todos los tramos no ocultos por capas.
+  // La selección NO debe filtrar la malla — sólo cambia el estilo (resaltado morado).
+  // Antes filtrábamos por `selectedSegmentIds` cuando había selección, lo que
+  // dejaba el mapa en blanco si la selección apuntaba a ids inexistentes
+  // (p.ej. tras borrar tramos) o si tras crear un tramo manual quedaba una
+  // selección antigua que no incluía el nuevo segmento.
   const visibleSegments = useMemo(() => {
     if (!route) return [];
-    if (selectedSegmentIds.size > 0) {
-      // Even when filtering by selection, validate geometry to avoid passing
-      // unrenderable segments (which would otherwise blank the map).
-      return getVisibleMapSegments(
-        route.segments.filter((s) => selectedSegmentIds.has(s.id)),
-        new Set<string>(),
-      );
-    }
     return getVisibleMapSegments(route.segments, hiddenLayers);
-  }, [route, hiddenLayers, selectedSegmentIds]);
+  }, [route, hiddenLayers]);
 
   const visibleOrder = useMemo(() => {
     if (!route) return [];

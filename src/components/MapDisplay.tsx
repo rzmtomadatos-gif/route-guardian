@@ -465,6 +465,16 @@ export function MapDisplay({
       smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
 
+    // Defensive warning: non-empty segment list but nothing painted means
+    // upstream filtering is leaving the map blank.
+    if (segments.length > 0 && segmentLayerRef.current && segmentLayerRef.current.getLayers().length === 0) {
+      console.warn(
+        '[MapDisplay] received',
+        segments.length,
+        'segments but painted 0 polylines — check coordinates / visibility filters',
+      );
+    }
+
     // Mark fingerprints painted ONLY after a complete repaint succeeded.
     prevFingerprintRef.current = segmentFingerprint;
     prevIdSetFingerprintRef.current = idSetFingerprint;
