@@ -723,7 +723,35 @@ export default function MapPage({
     toast.success('Mapa actualizado', { duration: 1200 });
   }, []);
 
-  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
+  // Atajos de teclado para enfocar el buscador.
+  // Activos sólo cuando la vista de mapa es visible y NO hay un modo
+  // crítico (creación manual / selección por zona / selección de tramos).
+  // Se ignoran cuando el foco está en un input/textarea/contenteditable.
+  useEffect(() => {
+    if (visible === false) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      if (creationMode || areaMode !== 'none' || zoneSelectMode !== 'none') return;
+      const isSlash = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const isCmdK = (e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K');
+      if (isSlash || isCmdK) {
+        e.preventDefault();
+        handleFocusSearch();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [visible, creationMode, areaMode, zoneSelectMode, handleFocusSearch]);
+
   // de la campaña así lo indique (nombre de proyecto/ruta/capas que
   // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
   const searchContext = useMemo(() => {
