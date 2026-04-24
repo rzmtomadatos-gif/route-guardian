@@ -336,11 +336,16 @@ export function MapDisplay({
     return () => window.removeEventListener('vialroute:map-theme-changed', handler);
   }, []);
 
-  // Resize when becoming visible (tab switch persistence)
+  // Resize when becoming visible (tab switch persistence).
+  // When the parent toggles display:none -> visible, Leaflet container goes
+  // from 0×0 to real size and we must invalidateSize AND force a repaint.
   const prevVisibleRef = useRef(visible);
   useEffect(() => {
     if (visible && !prevVisibleRef.current && mapRef.current) {
       setTimeout(() => mapRef.current?.invalidateSize(), 100);
+      // Force the segment-draw effect to re-run on the now-visible map.
+      prevFingerprintRef.current = '__force_repaint__';
+      prevIdSetFingerprintRef.current = '';
     }
     prevVisibleRef.current = visible;
   }, [visible]);
@@ -348,6 +353,7 @@ export function MapDisplay({
   // Draw static segments
   useEffect(() => {
     if (!mapRef.current || !segmentLayerRef.current || !arrowLayerRef.current) return;
+    if (visible === false) return; // map is hidden — defer paint
     if (segmentFingerprint === prevFingerprintRef.current) return;
 
     segmentLayerRef.current.clearLayers();
