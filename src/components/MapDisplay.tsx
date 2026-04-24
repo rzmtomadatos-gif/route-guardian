@@ -52,6 +52,11 @@ interface Props {
   allSegments?: Segment[];
   /** Whether this map is currently visible (for resize invalidation) */
   visible?: boolean;
+  /** Buscador (ver GoogleMapDisplay para semántica). */
+  searchTargetSegmentId?: string | null;
+  searchTargetLocation?: LatLng | null;
+  searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
+  searchCenterRequest?: number;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -100,6 +105,10 @@ export function MapDisplay({
   onOfflineStateChange,
   allSegments,
   visible,
+  searchTargetSegmentId,
+  searchTargetLocation,
+  searchTargetBounds,
+  searchCenterRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -108,6 +117,7 @@ export function MapDisplay({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const offlineLayerRef = useRef<L.Layer | null>(null);
   const posMarkerRef = useRef<L.CircleMarker | null>(null);
+  const searchMarkerRef = useRef<L.Marker | null>(null);
   const currentZoomRef = useRef(6);
   const { requestFitBounds: smartFit } = useSmartFitLeaflet();
   const prevFingerprintRef = useRef('');
@@ -523,6 +533,58 @@ export function MapDisplay({
       ).addTo(segmentLayerRef.current);
     }
   }, [currentPosition]);
+
+  // --- Search: center on a target segment ---
+  useEffect(() => {
+    if (!mapRef.current || visible === false) return;
+    if (!searchTargetSegmentId || searchCenterRequest === 0) return;
+    const seg = segments.find((s) => s.id === searchTargetSegmentId);
+    if (!seg || !Array.isArray(seg.coordinates) || seg.coordinates.length === 0) return;
+    const valid = seg.coordinates.filter(isValidLatLng);
+    if (valid.length === 0) return;
+    const bounds = L.latLngBounds(valid.map((c) => [c.lat, c.lng] as L.LatLngTuple));
+    if (bounds.isValid()) smartFit(mapRef.current, bounds, 'manual');
+  }, [searchCenterRequest, searchTargetSegmentId, segments, smartFit, visible]);
+
+  // --- Search: center on geocoded location + temp marker ---
+  useEffect(() => {
+    if (!mapRef.current || visible === false) return;
+    if (!searchTargetLocation || searchCenterRequest === 0) {
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove();
+        searchMarkerRef.current = null;
+      }
+      return;
+    }
+    if (!isValidLatLng(searchTargetLocation)) return;
+    const map = mapRef.current;
+    if (searchTargetBounds) {
+      const b = L.latLngBounds(
+        [searchTargetBounds.south, searchTargetBounds.west],
+        [searchTargetBounds.north, searchTargetBounds.east],
+      );
+      if (b.isValid()) smartFit(map, b, 'manual');
+    } else {
+      map.setView(
+        [searchTargetLocation.lat, searchTargetLocation.lng],
+        Math.max(map.getZoom() ?? 6, 17),
+      );
+    }
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove();
+      searchMarkerRef.current = null;
+    }
+    const icon = L.divIcon({
+      className: '',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#8b5cf6;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.5);"></div>`,
+    });
+    searchMarkerRef.current = L.marker(
+      [searchTargetLocation.lat, searchTargetLocation.lng],
+      { icon, title: 'Resultado de búsqueda' },
+    ).addTo(map);
+  }, [searchCenterRequest, searchTargetLocation, searchTargetBounds, smartFit, visible]);
 
   return (
     <div ref={containerRef} className={`w-full h-full ${className}`} />

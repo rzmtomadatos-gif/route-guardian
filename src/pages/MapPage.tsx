@@ -30,6 +30,7 @@ import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-dire
 import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { getVisibleMapSegments } from '@/utils/map-visible-segments';
+import { MapSearchBox, type MapSearchPick } from '@/components/MapSearchBox';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 
@@ -122,6 +123,13 @@ export default function MapPage({
   const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
   const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
+  // Buscador de mapa (tramos / lugares)
+  const [searchTargetSegmentId, setSearchTargetSegmentId] = useState<string | null>(null);
+  const [searchTargetLocation, setSearchTargetLocation] = useState<LatLng | null>(null);
+  const [searchTargetBounds, setSearchTargetBounds] = useState<
+    { north: number; south: number; east: number; west: number } | null
+  >(null);
+  const [searchCenterRequest, setSearchCenterRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
     { workDay: number; trackNumber: number | null; inProgressCount: number } | null
@@ -674,7 +682,58 @@ export default function MapPage({
     setCreationRoadInfo(null);
   }, []);
 
-  // Area selection handlers
+  // --- Buscador de mapa ---
+  // Selección de un tramo: marcar activo + centrar mapa.
+  // No activa navegación ni cambia estado del tramo.
+  const handleSearchPickSegment = useCallback((segment: Segment) => {
+    onSetActiveSegment(segment.id);
+    // Limpia ubicación previa de búsqueda y solicita centrar al tramo
+    setSearchTargetLocation(null);
+    setSearchTargetBounds(null);
+    setSearchTargetSegmentId(segment.id);
+    setSearchCenterRequest((c) => c + 1);
+  }, [onSetActiveSegment]);
+
+  // Selección de una calle/lugar: centrar y colocar marcador temporal.
+  const handleSearchPickLocation = useCallback((pick: MapSearchPick) => {
+    setSearchTargetSegmentId(null);
+    setSearchTargetLocation(pick.location);
+    setSearchTargetBounds(pick.bounds ?? null);
+    setSearchCenterRequest((c) => c + 1);
+  }, []);
+
+  const handleSearchClearLocation = useCallback(() => {
+    setSearchTargetLocation(null);
+    setSearchTargetBounds(null);
+    setSearchTargetSegmentId(null);
+    setSearchCenterRequest((c) => c + 1); // dispara effect de limpieza del marcador
+  }, []);
+
+  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
+  // de la campaña así lo indique (nombre de proyecto/ruta/capas que
+  // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
+  const searchContext = useMemo(() => {
+    const r = state.route;
+    const haystack = [
+      r?.projectName,
+      r?.projectCode,
+      r?.name,
+      r?.fileName,
+      ...(r?.availableLayers ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const isBoadilla = haystack.includes('boadilla') || haystack.includes('boa_');
+    const center: LatLng | null =
+      state.base?.position ?? geo.position ?? basePosition ?? null;
+    return {
+      bias: { center, radiusMeters: isBoadilla ? 6000 : 8000 },
+      contextSuffix: isBoadilla ? 'Boadilla del Monte, Madrid, España' : 'España',
+    };
+  }, [state.route, state.base, geo.position, basePosition]);
+
+
   const handleAreaClick = useCallback((latlng: LatLng) => {
     if (areaMode === 'rectangle') {
       setAreaPoints((prev) => {
@@ -1209,9 +1268,25 @@ export default function MapPage({
           arrowSegmentIds={arrowSegmentIds}
           allSegments={state.route?.segments}
           visible={visible}
-          onOfflineStateChange={handleOfflineStateChange} />
+          onOfflineStateChange={handleOfflineStateChange}
+          searchTargetSegmentId={searchTargetSegmentId}
+          searchTargetLocation={searchTargetLocation}
+          searchTargetBounds={searchTargetBounds}
+          searchCenterRequest={searchCenterRequest} />
         
       </div>
+
+      {/* Buscador de tramos / lugares — oculto en modos de creación / selección por zona */}
+      {!creationMode && areaMode === 'none' && zoneSelectMode === 'none' && (
+        <MapSearchBox
+          segments={state.route?.segments}
+          bias={searchContext.bias}
+          contextSuffix={searchContext.contextSuffix}
+          onPickSegment={handleSearchPickSegment}
+          onPickLocation={handleSearchPickLocation}
+          onClearLocation={handleSearchClearLocation}
+        />
+      )}
 
       {/* Map state indicator — unified source of truth */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 pointer-events-none">

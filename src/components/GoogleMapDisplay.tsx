@@ -57,6 +57,15 @@ interface Props {
   onOfflineStateChange?: (state: { active: boolean; noTiles: boolean }) => void;
   /** Whether this map is currently visible (for resize invalidation) */
   visible?: boolean;
+  /**
+   * Buscador: ubicación a la que centrar el mapa (calle/lugar). Cuando cambia
+   * `searchCenterRequest`, el mapa centra en `searchTargetLocation` (con
+   * bounds si vienen) y coloca un marcador temporal de búsqueda.
+   */
+  searchTargetSegmentId?: string | null;
+  searchTargetLocation?: LatLng | null;
+  searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
+  searchCenterRequest?: number;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -127,6 +136,10 @@ export function GoogleMapDisplay({
   allSegments,
   onOfflineStateChange,
   visible,
+  searchTargetSegmentId,
+  searchTargetLocation,
+  searchTargetBounds,
+  searchCenterRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -138,6 +151,8 @@ export function GoogleMapDisplay({
   const arrowMarkersRef = useRef<google.maps.Marker[]>([]);
   // GPS position marker (separate lifecycle)
   const posMarkerRef = useRef<google.maps.Marker | null>(null);
+  // Marcador temporal del buscador (resultado de geocoding)
+  const searchMarkerRef = useRef<google.maps.Marker | null>(null);
   // Creation & area overlays
   const creationMarkersRef = useRef<google.maps.Marker[]>([]);
   const creationPolylineRef = useRef<google.maps.Polyline | null>(null);
@@ -776,6 +791,69 @@ export function GoogleMapDisplay({
     }
   }, [centerActiveRequest, mapReady, smartFit]);
 
+  // --- Search: center on a target segment by id (independent del activo) ---
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || visible === false) return;
+    if (!searchTargetSegmentId || searchCenterRequest === 0) return;
+    const seg = segments.find((s) => s.id === searchTargetSegmentId);
+    if (!seg || !Array.isArray(seg.coordinates) || seg.coordinates.length === 0) return;
+    const bounds = new google.maps.LatLngBounds();
+    let added = 0;
+    for (const c of seg.coordinates) {
+      if (!isValidLatLng(c)) continue;
+      bounds.extend(new google.maps.LatLng(c.lat, c.lng));
+      added++;
+    }
+    if (added < 1 || bounds.isEmpty()) return;
+    smartFit(mapRef.current, bounds, 'manual');
+  }, [searchCenterRequest, searchTargetSegmentId, segments, mapReady, smartFit, visible]);
+
+  // --- Search: center on a geocoded location + temp marker ---
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || visible === false) return;
+    if (!searchTargetLocation || searchCenterRequest === 0) {
+      // Sin objetivo → limpia marcador si existía
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.setMap(null);
+        searchMarkerRef.current = null;
+      }
+      return;
+    }
+    if (!isValidLatLng(searchTargetLocation)) return;
+    const map = mapRef.current;
+    if (searchTargetBounds) {
+      const b = searchTargetBounds;
+      const gb = new google.maps.LatLngBounds(
+        new google.maps.LatLng(b.south, b.west),
+        new google.maps.LatLng(b.north, b.east),
+      );
+      if (!gb.isEmpty()) smartFit(map, gb, 'manual');
+    } else {
+      map.panTo(new google.maps.LatLng(searchTargetLocation.lat, searchTargetLocation.lng));
+      const z = map.getZoom() ?? 6;
+      if (z < 16) map.setZoom(17);
+    }
+    // (re)crea marcador temporal
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.setMap(null);
+      searchMarkerRef.current = null;
+    }
+    searchMarkerRef.current = new google.maps.Marker({
+      position: { lat: searchTargetLocation.lat, lng: searchTargetLocation.lng },
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: '#8b5cf6',
+        fillOpacity: 0.9,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+      },
+      zIndex: 9999,
+      title: 'Resultado de búsqueda',
+    });
+  }, [searchCenterRequest, searchTargetLocation, searchTargetBounds, mapReady, smartFit, visible]);
+
   // Render Leaflet if: permanent fallback (auth error / no key) OR temporary offline switch
   if (fallbackToLeaflet || offlineSwitch) {
     return (
@@ -792,6 +870,10 @@ export function GoogleMapDisplay({
         allSegments={allSegments}
         onOfflineStateChange={onOfflineStateChange}
         visible={visible}
+        searchTargetSegmentId={searchTargetSegmentId}
+        searchTargetLocation={searchTargetLocation}
+        searchTargetBounds={searchTargetBounds}
+        searchCenterRequest={searchCenterRequest}
       />
     );
   }
