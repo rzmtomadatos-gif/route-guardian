@@ -202,15 +202,16 @@ describe('overpass-api', () => {
   // ---------------------------------------------------------------------------
   describe('fetchRoadsInArea', () => {
     it('descarta vías cuya geometría completa está fuera del polígono', async () => {
+      // Triángulo ~50m de lado.
       const polygon = [
-        { lat: 0, lng: 0 },
-        { lat: 0, lng: 1 },
-        { lat: 1, lng: 0 },
+        { lat: 40, lng: -3.7 },
+        { lat: 40, lng: -3.7 + 0.0005 },
+        { lat: 40 + 0.0005, lng: -3.7 },
       ];
       fetchMock.mockImplementation(async () => okResponse({
         elements: [
-          makeWayElement(10, [[0.1, 0.1], [0.2, 0.2]]),       // dentro
-          makeWayElement(20, [[0.95, 0.95], [0.99, 0.99]]),   // fuera del triángulo (pero dentro del bbox)
+          makeWayElement(10, [[40 + 0.00005, -3.7 + 0.00005], [40 + 0.0001, -3.7 + 0.0001]]), // dentro
+          makeWayElement(20, [[40 + 0.00045, -3.7 + 0.00045], [40 + 0.00049, -3.7 + 0.00049]]), // fuera del triángulo
         ],
       }));
       const ways = await fetchRoadsInArea(polygon, ['residential']);
