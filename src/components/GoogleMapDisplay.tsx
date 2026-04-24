@@ -394,7 +394,10 @@ export function GoogleMapDisplay({
     if (!bounds.isEmpty()) {
       smartFit(map, bounds, 'segmentsLoaded');
     }
-  }, [segmentFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds]);
+
+    // Mark fingerprint as painted ONLY after a complete repaint succeeded.
+    prevFingerprintRef.current = segmentFingerprint;
+  }, [segmentFingerprint, mapReady, layerColorMap, onSegmentClick, clearStaticOverlays, clearArrowOverlays, smartFit, orderNumberIds, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, resetFitState]);
 
   // --- Draw/hide arrow overlays based on zoom ---
   // Arrows only render at zoom >= 15 and only for arrowSegmentIds
