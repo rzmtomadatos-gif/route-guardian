@@ -27,7 +27,7 @@ import { generateDebugInfo, type OptimizerDebugInfo } from '@/utils/optimizer-de
 import { playDeviationSound } from '@/utils/sounds';
 import { primeAudio } from '@/utils/sounds';
 import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-directions';
-import { fetchRoadsInArea, fetchRoadsInCircle, fetchCompleteRoads, mergeWaysByName, fetchNearestRoad, type RoadCategory, type OverpassWay } from '@/utils/overpass-api';
+import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
@@ -451,8 +451,10 @@ export default function MapPage({
   }, [activeSegment, hiddenLayers, state.navigationActive, handleStopRequest]);
 
   // Auto-calculate route when both points are set
-  const [creationRoadInfo, setCreationRoadInfo] = useState<{name: string;highway: string;oneway: boolean;} | null>(null);
+  const [creationRoadInfo, setCreationRoadInfo] = useState<NearestRoadInfo | null>(null);
   const [isLoadingRoadInfo, setIsLoadingRoadInfo] = useState(false);
+  const nearestRoadAbortRef = useRef<AbortController | null>(null);
+  const areaAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!creationStart || !creationEnd) return;
@@ -477,19 +479,26 @@ export default function MapPage({
       setIsLoadingRoute(false);
     });
 
-    // Query Overpass for road info at midpoint
+    // Query Overpass for road info at midpoint (con AbortController)
     setIsLoadingRoadInfo(true);
     setCreationRoadInfo(null);
     const mid: LatLng = {
       lat: (creationStart.lat + creationEnd.lat) / 2,
       lng: (creationStart.lng + creationEnd.lng) / 2
     };
-    fetchNearestRoad(mid).
+    nearestRoadAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    nearestRoadAbortRef.current = ctrl;
+    fetchNearestRoad(mid, { signal: ctrl.signal }).
     then((info) => {
+      if (ctrl.signal.aborted) return;
       if (info) setCreationRoadInfo(info);
     }).
     catch(() => {}).
-    finally(() => setIsLoadingRoadInfo(false));
+    finally(() => {
+      if (nearestRoadAbortRef.current === ctrl) nearestRoadAbortRef.current = null;
+      setIsLoadingRoadInfo(false);
+    });
   }, [creationStart, creationEnd]);
 
   const fetchDirectionsRoute = useCallback(async (start: LatLng, end: LatLng, apiKey: string) => {
