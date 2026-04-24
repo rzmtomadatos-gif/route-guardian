@@ -130,6 +130,9 @@ export default function MapPage({
     { north: number; south: number; east: number; west: number } | null
   >(null);
   const [searchCenterRequest, setSearchCenterRequest] = useState(0);
+  /** Contador incremental para forzar repintado seguro del mapa (FAB Refrescar). */
+  const [mapRefreshRequest, setMapRefreshRequest] = useState(0);
+  const searchBoxRef = useRef<MapSearchBoxHandle>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
     { workDay: number; trackNumber: number | null; inProgressCount: number } | null
