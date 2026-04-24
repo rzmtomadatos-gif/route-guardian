@@ -309,15 +309,12 @@ export function GoogleMapDisplay({
       google.maps.event.trigger(mapRef.current, 'resize');
       // Invalidate fingerprints so the segment-draw effect re-runs against
       // the now-correctly-sized container and re-fits bounds if needed.
+      // The draw effect depends on segmentFingerprint (which now embeds
+      // mapRefreshRequest); resetting the prev ref is enough — when segments
+      // change next, or when a refresh is requested, the effect will re-run.
       prevFingerprintRef.current = '__force_repaint__';
       prevIdSetFingerprintRef.current = '';
       resetFitState();
-      // Trigger a re-render of the draw effect by nudging zoom listener-deps.
-      // The effect itself depends on segmentFingerprint/idSetFingerprint which
-      // we just reset, so a state update isn't strictly required — React will
-      // run the effect on the next render cycle anyway because the refs change
-      // but useEffect doesn't track refs. Force a state nudge:
-      setCurrentZoom((z) => z); // no-op state update to trigger re-render
     }
     prevVisibleRef.current = visible;
   }, [visible, resetFitState]);
