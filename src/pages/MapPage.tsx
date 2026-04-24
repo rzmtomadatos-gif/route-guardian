@@ -123,6 +123,13 @@ export default function MapPage({
   const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
   const [offlineLayerActive, setOfflineLayerActive] = useState(false);
   const [centerActiveRequest, setCenterActiveRequest] = useState(0);
+  // Buscador de mapa (tramos / lugares)
+  const [searchTargetSegmentId, setSearchTargetSegmentId] = useState<string | null>(null);
+  const [searchTargetLocation, setSearchTargetLocation] = useState<LatLng | null>(null);
+  const [searchTargetBounds, setSearchTargetBounds] = useState<
+    { north: number; south: number; east: number; west: number } | null
+  >(null);
+  const [searchCenterRequest, setSearchCenterRequest] = useState(0);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
     { workDay: number; trackNumber: number | null; inProgressCount: number } | null
