@@ -105,6 +105,10 @@ export function MapDisplay({
   onOfflineStateChange,
   allSegments,
   visible,
+  searchTargetSegmentId,
+  searchTargetLocation,
+  searchTargetBounds,
+  searchCenterRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
