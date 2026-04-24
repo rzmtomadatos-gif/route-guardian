@@ -554,6 +554,53 @@ export function splitWayByPolygon(
 // API pública: fetchRoadsInArea / fetchRoadsInCircle
 // =============================================================================
 
+/**
+ * Crea un AbortController encadenado al signal del usuario y a un timer global.
+ * Devuelve helpers para distinguir el origen del aborto (usuario vs timeout)
+ * y para liberar recursos.
+ */
+function createLinkedAbort(
+  userSignal: AbortSignal | undefined,
+  globalTimeoutMs: number,
+) {
+  const linked = new AbortController();
+  let timedOut = false;
+
+  const onUserAbort = () => linked.abort();
+  if (userSignal) {
+    if (userSignal.aborted) linked.abort();
+    else userSignal.addEventListener('abort', onUserAbort, { once: true });
+  }
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    linked.abort();
+  }, globalTimeoutMs);
+
+  const dispose = () => {
+    clearTimeout(timer);
+    userSignal?.removeEventListener('abort', onUserAbort);
+  };
+
+  /** Mapea un OverpassError('aborted') al origen real (timeout vs usuario). */
+  const mapAbortError = (err: unknown): OverpassError => {
+    if (err instanceof OverpassError && err.kind === 'aborted') {
+      if (userSignal?.aborted) return err;
+      if (timedOut) {
+        return new OverpassError(
+          'timeout',
+          'Operación demasiado lenta. Reduce la zona o reintenta.',
+        );
+      }
+    }
+    return err instanceof OverpassError
+      ? err
+      : new OverpassError('unknown', (err as any)?.message ?? 'Error desconocido', err);
+  };
+
+  return { signal: linked.signal, dispose, mapAbortError };
+}
+
 export async function fetchRoadsInArea(
   polygon: LatLng[],
   categories: RoadCategory[],
@@ -565,22 +612,40 @@ export async function fetchRoadsInArea(
   const areaKm2 = bboxAreaKm2(bbox);
   const cells = areaKm2 > 25 ? splitBBox(bbox, gridFor(areaKm2)) : [bbox];
 
-  const all = new Map<number, OverpassWay>();
-  for (const cell of cells) {
-    if (options.signal?.aborted) {
-      throw new OverpassError('aborted', 'Cancelado');
+  const link = createLinkedAbort(
+    options.signal,
+    options.globalTimeoutMs ?? DEFAULT_GLOBAL_TIMEOUT_MS,
+  );
+  const cellOptions: OverpassOptions = { ...options, signal: link.signal };
+
+  // Clave compuesta: una vía puede generar varios sub-runs (ver splitWayByPolygon).
+  const all = new Map<string, OverpassWay>();
+  try {
+    for (const cell of cells) {
+      if (link.signal.aborted) {
+        throw link.mapAbortError(new OverpassError('aborted', 'Cancelado'));
+      }
+      const cellPoly = bboxToPolygon(cell);
+      const ways = await executeOverpassQuery(
+        buildPolyQuery(cellPoly, categories),
+        cellOptions,
+      );
+      for (const w of ways) {
+        // Las celdas bbox son superconjunto del polígono real:
+        // dividir en runs válidos y descartar geometrías dudosas.
+        const runs = splitWayByPolygon(w.coordinates, polygon, w.osmId);
+        if (runs.length === 0) continue;
+        runs.forEach((run, idx) => {
+          const key = runs.length === 1 ? String(w.osmId) : `${w.osmId}#${idx}`;
+          if (all.has(key)) return;
+          all.set(key, { ...w, coordinates: run });
+        });
+      }
     }
-    const cellPoly = bboxToPolygon(cell);
-    const ways = await executeOverpassQuery(buildPolyQuery(cellPoly, categories), options);
-    for (const w of ways) {
-      if (all.has(w.osmId)) continue;
-      // Las celdas bbox son superconjunto del polígono real:
-      // descartar vías que no intersectan y recortar las que cruzan el borde.
-      if (!intersectsPolygon(w.coordinates, polygon)) continue;
-      const clipped = clipWayToPolygon(w.coordinates, polygon);
-      if (clipped.length < 2) continue;
-      all.set(w.osmId, { ...w, coordinates: clipped });
-    }
+  } catch (err) {
+    throw link.mapAbortError(err);
+  } finally {
+    link.dispose();
   }
 
   return [...all.values()];
@@ -593,11 +658,23 @@ export async function fetchRoadsInCircle(
   options: OverpassOptions = {},
 ): Promise<OverpassWay[]> {
   if (categories.length === 0) return [];
-  const query = buildAroundQuery(center, radiusMeters, categories);
-  const ways = await executeOverpassQuery(query, options);
 
-  // Filtrado adicional por radio real (Overpass `around` ya lo hace, pero
-  // dedup por osmId queda aquí por consistencia con fetchRoadsInArea).
+  const link = createLinkedAbort(
+    options.signal,
+    options.globalTimeoutMs ?? DEFAULT_GLOBAL_TIMEOUT_MS,
+  );
+  const query = buildAroundQuery(center, radiusMeters, categories);
+
+  let ways: OverpassWay[];
+  try {
+    ways = await executeOverpassQuery(query, { ...options, signal: link.signal });
+  } catch (err) {
+    throw link.mapAbortError(err);
+  } finally {
+    link.dispose();
+  }
+
+  // Dedup por osmId por consistencia con fetchRoadsInArea.
   const dedup = new Map<number, OverpassWay>();
   for (const w of ways) {
     if (!dedup.has(w.osmId)) dedup.set(w.osmId, w);
