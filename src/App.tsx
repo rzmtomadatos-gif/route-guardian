@@ -206,12 +206,12 @@ function AppRoutes() {
               onDeleteIncident={deleteIncident}
               onSetActiveSegment={setActiveSegment}
               onRenameLayer={renameLayer}
-              onDeleteLayer={deleteLayer}
+              onDeleteLayer={deleteLayerSafe}
               onMoveToLayer={moveSegmentToLayer}
               onMergeSegments={mergeSegments}
               onAddLayer={addLayer}
-              onDeleteSegment={deleteSegment}
-              onBulkDelete={bulkDeleteSegments}
+              onDeleteSegment={deleteSegmentSafe}
+              onBulkDelete={bulkDeleteSegmentsSafe}
               onBulkMove={bulkMoveToLayer}
               onBulkColor={bulkSetColor}
               onDuplicate={duplicateSegments}
