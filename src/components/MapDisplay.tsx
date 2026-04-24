@@ -111,6 +111,7 @@ export function MapDisplay({
   searchTargetLocation,
   searchTargetBounds,
   searchCenterRequest = 0,
+  mapRefreshRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
