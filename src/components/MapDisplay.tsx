@@ -52,6 +52,11 @@ interface Props {
   allSegments?: Segment[];
   /** Whether this map is currently visible (for resize invalidation) */
   visible?: boolean;
+  /** Buscador (ver GoogleMapDisplay para semántica). */
+  searchTargetSegmentId?: string | null;
+  searchTargetLocation?: LatLng | null;
+  searchTargetBounds?: { north: number; south: number; east: number; west: number } | null;
+  searchCenterRequest?: number;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
