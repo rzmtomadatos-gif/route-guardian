@@ -18,7 +18,7 @@ interface Props {
   endPoint: LatLng | null;
   routePreview: LatLng[] | null;
   isLoadingRoute: boolean;
-  roadInfo?: { name: string; highway: string; oneway: boolean } | null;
+  roadInfo?: { name: string; highway: string; oneway: boolean; osmId?: number; ref?: string } | null;
   isLoadingRoadInfo?: boolean;
 }
 
@@ -37,10 +37,11 @@ export function SegmentCreatorPanel({
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [layer, setLayer] = useState<string>('__none__');
 
-  // Auto-fill name from road info
+  // Auto-fill name from road info (prioriza name, luego ref)
   useEffect(() => {
     if (roadInfo && !nameManuallyEdited) {
-      setName(roadInfo.name);
+      const auto = (roadInfo.name && roadInfo.name.trim()) || (roadInfo.ref && roadInfo.ref.trim()) || '';
+      if (auto) setName(auto);
     }
   }, [roadInfo, nameManuallyEdited]);
 
@@ -49,20 +50,37 @@ export function SegmentCreatorPanel({
   const handleCreate = () => {
     if (!canCreate || !routePreview) return;
 
+    // Fallback de nombre obligatorio: nunca dejar undefined/null/críptico visible.
+    const trimmed = name.trim();
+    const displayName =
+      trimmed ||
+      (roadInfo?.name && roadInfo.name.trim()) ||
+      (roadInfo?.ref && roadInfo.ref.trim()) ||
+      'Tramo manual sin nombre';
+
     const segment: Segment = {
-      id: Math.random().toString(36).substring(2, 10),
+      id: Math.random().toString(36).substring(2, 10), // id interno VialRoute (NO se sobrescribe)
       routeId: 'manual',
       trackNumber: null,
       plannedTrackNumber: null,
       trackHistory: [],
-      kmlId: '',
-      name: name.trim() || roadInfo?.name || `Tramo manual ${Date.now()}`,
+      kmlId: roadInfo?.osmId ? `osm-${roadInfo.osmId}` : '',
+      name: displayName,
       notes: roadInfo ? `Tipo: ${roadInfo.highway}${roadInfo.oneway ? ' | Sentido único' : ''}` : '',
       coordinates: routePreview,
       direction: roadInfo?.oneway ? 'creciente' : 'ambos',
       type: 'tramo',
       status: 'pendiente',
-      kmlMeta: roadInfo ? { carretera: roadInfo.name, tipo: roadInfo.highway, sentido: roadInfo.oneway ? 'único' : undefined } : {},
+      kmlMeta: roadInfo
+        ? {
+            carretera: roadInfo.ref || roadInfo.name,
+            tipo: roadInfo.highway,
+            sentido: roadInfo.oneway ? 'único' : undefined,
+            osmId: roadInfo.osmId,
+            ref: roadInfo.ref,
+            source: 'osm',
+          }
+        : { source: 'manual' },
       layer: layer === '__none__' ? undefined : layer,
     };
 
