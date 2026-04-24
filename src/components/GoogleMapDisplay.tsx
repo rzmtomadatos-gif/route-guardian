@@ -275,13 +275,28 @@ export function GoogleMapDisplay({
   }, [mapReady]);
 
   // --- Resize when becoming visible (tab switch persistence) ---
+  // When MapPage was hidden via display:none and becomes visible again,
+  // Google Maps needs a manual 'resize' AND we must force a full repaint
+  // (we skip rebuilds while hidden because the container has 0×0 size, which
+  // makes fitBounds calculate garbage centers — e.g. Gulf of Guinea).
   const prevVisibleRef = useRef(visible);
   useEffect(() => {
     if (visible && !prevVisibleRef.current && mapRef.current) {
       google.maps.event.trigger(mapRef.current, 'resize');
+      // Invalidate fingerprints so the segment-draw effect re-runs against
+      // the now-correctly-sized container and re-fits bounds if needed.
+      prevFingerprintRef.current = '__force_repaint__';
+      prevIdSetFingerprintRef.current = '';
+      resetFitState();
+      // Trigger a re-render of the draw effect by nudging zoom listener-deps.
+      // The effect itself depends on segmentFingerprint/idSetFingerprint which
+      // we just reset, so a state update isn't strictly required — React will
+      // run the effect on the next render cycle anyway because the refs change
+      // but useEffect doesn't track refs. Force a state nudge:
+      setCurrentZoom((z) => z); // no-op state update to trigger re-render
     }
     prevVisibleRef.current = visible;
-  }, [visible]);
+  }, [visible, resetFitState]);
 
   // Compute segment fingerprint
   const segmentFingerprint = useMemo(
