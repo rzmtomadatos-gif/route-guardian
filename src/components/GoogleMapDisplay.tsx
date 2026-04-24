@@ -316,9 +316,13 @@ export function GoogleMapDisplay({
   const prevIdSetFingerprintRef = useRef('');
 
   // --- Draw static overlays (polylines, connection lines, order markers) ---
-  // Only rebuild when segment data actually changes, NOT on GPS position updates
+  // Only rebuild when segment data actually changes, NOT on GPS position updates.
+  // CRITICAL: skip while map is hidden (display:none on parent). Container has
+  // size 0×0, fitBounds would calculate garbage. We re-trigger when visible
+  // becomes true (see visible-effect above which resets fingerprints).
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    if (visible === false) return; // map is hidden — defer paint
     if (segmentFingerprint === prevFingerprintRef.current) return;
 
     const map = mapRef.current;
