@@ -349,26 +349,43 @@ export function MapDisplay({
   useEffect(() => {
     if (!mapRef.current || !segmentLayerRef.current || !arrowLayerRef.current) return;
     if (segmentFingerprint === prevFingerprintRef.current) return;
-    prevFingerprintRef.current = segmentFingerprint;
 
     segmentLayerRef.current.clearLayers();
     arrowLayerRef.current.clearLayers();
     clearArrowCache();
 
+    // Decide if we need to auto-fit (same policy as GoogleMapDisplay):
+    // first paint or set change with deletions; pure additions don't refit.
+    const isFirstPaint = prevIdSetFingerprintRef.current === '';
+    let shouldFit = false;
+    if (isFirstPaint) {
+      shouldFit = idSetFingerprint !== '';
+    } else if (idSetFingerprint !== prevIdSetFingerprintRef.current) {
+      const prevIds = new Set(prevIdSetFingerprintRef.current.split(','));
+      const currIds = idSetFingerprint.split(',');
+      const onlyAdded = Array.from(prevIds).every((id) => currIds.includes(id));
+      shouldFit = !onlyAdded;
+    }
+
     const bounds = L.latLngBounds([]);
+    let hasValidBounds = false;
 
     if (optimizedOrder && optimizedOrder.length > 1) {
       const segMap = new Map(segments.map((s) => [s.id, s]));
       for (let i = 0; i < optimizedOrder.length - 1; i++) {
         const curr = segMap.get(optimizedOrder[i]);
         const next = segMap.get(optimizedOrder[i + 1]);
-        if (curr && next) {
-          const endCoord = curr.coordinates[curr.coordinates.length - 1];
-          const startCoord = next.coordinates[0];
+        if (!curr || !next) continue;
+        const endCoord = curr.coordinates[curr.coordinates.length - 1];
+        const startCoord = next.coordinates[0];
+        if (!isValidLatLng(endCoord) || !isValidLatLng(startCoord)) continue;
+        try {
           L.polyline(
             [[endCoord.lat, endCoord.lng], [startCoord.lat, startCoord.lng]],
             { color: '#ffffff20', weight: 1, dashArray: '4 8' }
           ).addTo(segmentLayerRef.current!);
+        } catch (e) {
+          console.warn('[MapDisplay] connection line skipped:', e);
         }
       }
     }
@@ -376,53 +393,61 @@ export function MapDisplay({
     const arrowSet = arrowSegmentIds ? new Set(arrowSegmentIds) : null;
 
     segments.forEach((seg) => {
-      const latLngs = seg.coordinates.map((c) => [c.lat, c.lng] as L.LatLngTuple);
-      const isActive = seg.id === activeSegmentId;
-      const color = resolveSegmentColor(seg, activeSegmentId);
+      try {
+        const validCoords = (seg.coordinates || []).filter(isValidLatLng);
+        if (validCoords.length < 2) return;
 
-      const polyline = L.polyline(latLngs, {
-        color,
-        weight: isActive ? 6 : 3,
-        opacity: isActive ? 1 : 0.7,
-      }).addTo(segmentLayerRef.current!);
+        const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
+        const isActive = seg.id === activeSegmentId;
+        const color = resolveSegmentColor(seg, activeSegmentId);
 
-      if (onSegmentClick) {
-        polyline.on('click', () => onSegmentClick(seg.id));
-      }
+        const polyline = L.polyline(latLngs, {
+          color,
+          weight: isActive ? 6 : 3,
+          opacity: isActive ? 1 : 0.7,
+        }).addTo(segmentLayerRef.current!);
 
-      polyline.bindTooltip(seg.name, {
-        permanent: false,
-        className: 'bg-card text-foreground border-border text-xs px-2 py-1 rounded shadow-lg',
-      });
-
-      bounds.extend(latLngs);
-
-      if (!arrowSet || arrowSet.has(seg.id)) {
-        const arrows = getSegmentArrows(seg.id, seg.coordinates);
-        arrows.forEach(({ pos, angle }) => {
-          L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
-            .addTo(arrowLayerRef.current!);
-        });
-      }
-
-      if (optimizedOrder && orderNumberIds.has(seg.id)) {
-        const orderIdx = optimizedOrder.indexOf(seg.id);
-        if (orderIdx >= 0) {
-          const startCoord = seg.coordinates[0];
-          L.circleMarker([startCoord.lat, startCoord.lng], {
-            radius: 10,
-            fillColor: color,
-            fillOpacity: 1,
-            color: '#000',
-            weight: 1,
-          })
-            .bindTooltip(`${orderIdx + 1}`, {
-              permanent: true,
-              direction: 'center',
-              className: 'bg-transparent border-0 shadow-none text-[10px] font-bold text-primary-foreground',
-            })
-            .addTo(segmentLayerRef.current!);
+        if (onSegmentClick) {
+          polyline.on('click', () => onSegmentClick(seg.id));
         }
+
+        polyline.bindTooltip(seg.name, {
+          permanent: false,
+          className: 'bg-card text-foreground border-border text-xs px-2 py-1 rounded shadow-lg',
+        });
+
+        bounds.extend(latLngs);
+        hasValidBounds = true;
+
+        if (!arrowSet || arrowSet.has(seg.id)) {
+          const arrows = getSegmentArrows(seg.id, validCoords);
+          arrows.forEach(({ pos, angle }) => {
+            L.marker([pos.lat, pos.lng], { icon: arrowIcon(angle, color), interactive: false })
+              .addTo(arrowLayerRef.current!);
+          });
+        }
+
+        if (optimizedOrder && orderNumberIds.has(seg.id)) {
+          const orderIdx = optimizedOrder.indexOf(seg.id);
+          if (orderIdx >= 0) {
+            const startCoord = validCoords[0];
+            L.circleMarker([startCoord.lat, startCoord.lng], {
+              radius: 10,
+              fillColor: color,
+              fillOpacity: 1,
+              color: '#000',
+              weight: 1,
+            })
+              .bindTooltip(`${orderIdx + 1}`, {
+                permanent: true,
+                direction: 'center',
+                className: 'bg-transparent border-0 shadow-none text-[10px] font-bold text-primary-foreground',
+              })
+              .addTo(segmentLayerRef.current!);
+          }
+        }
+      } catch (e) {
+        console.warn('[MapDisplay] segment skipped due to draw error:', seg.id, e);
       }
     });
 
@@ -430,10 +455,15 @@ export function MapDisplay({
       arrowLayerRef.current.remove();
     }
 
-    if (bounds.isValid()) {
+    if (shouldFit && hasValidBounds && bounds.isValid()) {
       smartFit(mapRef.current, bounds, 'segmentsLoaded');
     }
-  }, [segmentFingerprint, onSegmentClick, smartFit, orderNumberIds, optimizedOrder, segments, activeSegmentId, arrowSegmentIds]);
+
+    // Mark fingerprints painted ONLY after a complete repaint succeeded.
+    prevFingerprintRef.current = segmentFingerprint;
+    prevIdSetFingerprintRef.current = idSetFingerprint;
+  }, [segmentFingerprint, idSetFingerprint, onSegmentClick, smartFit, orderNumberIds, optimizedOrder, segments, activeSegmentId, arrowSegmentIds]);
+
 
   // Fit to active segment
   useEffect(() => {
