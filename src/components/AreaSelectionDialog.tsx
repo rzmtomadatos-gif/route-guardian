@@ -78,7 +78,7 @@ export function AreaSelectionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !isLoading && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancelClick(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export function AreaSelectionDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={handleCancelClick}>
             Cancelar
           </Button>
           <Button
