@@ -132,6 +132,8 @@ export default function MapPage({
   const [searchCenterRequest, setSearchCenterRequest] = useState(0);
   /** Contador incremental para forzar repintado seguro del mapa (FAB Refrescar). */
   const [mapRefreshRequest, setMapRefreshRequest] = useState(0);
+  /** Visibilidad del buscador del mapa: oculto por defecto, sólo visible al pulsar el atajo o el FAB Buscar. */
+  const [searchVisible, setSearchVisible] = useState(false);
   const searchBoxRef = useRef<MapSearchBoxHandle>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [stopDialogState, setStopDialogState] = useState<
