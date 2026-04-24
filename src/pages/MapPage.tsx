@@ -723,6 +723,7 @@ export default function MapPage({
     toast.success('Mapa actualizado', { duration: 1200 });
   }, []);
 
+  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
   // de la campaña así lo indique (nombre de proyecto/ruta/capas que
   // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
   const searchContext = useMemo(() => {
