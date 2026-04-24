@@ -322,10 +322,14 @@ export function GoogleMapDisplay({
     prevVisibleRef.current = visible;
   }, [visible, resetFitState]);
 
-  // Compute segment fingerprint
+  // Compute segment fingerprint.
+  // IMPORTANT: include `mapRefreshRequest` so the draw effect re-runs
+  // deterministically when the user presses "Refresh map" — this is the
+  // only reliable way to force a full repaint of overlays without depending
+  // on ref mutations (which don't trigger re-renders) or no-op state updates.
   const segmentFingerprint = useMemo(
-    () => buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds),
-    [segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
