@@ -148,6 +148,7 @@ export function GoogleMapDisplay({
   searchTargetLocation,
   searchTargetBounds,
   searchCenterRequest = 0,
+  mapRefreshRequest = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
