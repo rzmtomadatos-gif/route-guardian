@@ -80,6 +80,56 @@ function AppRoutes() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+
+  // Wrappers que limpian `selectedIds` huérfanos tras borrados.
+  // Si no hacemos esto, `selectedIds` puede quedar con ids inexistentes y
+  // el filtrado por selección en MapPage devolverá lista vacía → el mapa se
+  // queda en blanco y, al recalcular bounds, salta al [0,0] (Golfo de Guinea).
+  const deleteSegmentSafe = useCallback((segmentId: string) => {
+    deleteSegment(segmentId);
+    setSelectedIds((prev) => {
+      if (!prev.has(segmentId)) return prev;
+      const next = new Set(prev);
+      next.delete(segmentId);
+      return next;
+    });
+  }, [deleteSegment]);
+
+  const bulkDeleteSegmentsSafe = useCallback((segmentIds: string[]) => {
+    bulkDeleteSegments(segmentIds);
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const idSet = new Set(segmentIds);
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (idSet.has(id)) { changed = true; return; }
+        next.add(id);
+      });
+      return changed ? next : prev;
+    });
+  }, [bulkDeleteSegments]);
+
+  const deleteLayerSafe = useCallback((layerName: string) => {
+    // Capturamos los ids de la capa ANTES de borrarla para limpiar selectedIds.
+    const layerIds = state.route?.segments
+      .filter((s) => s.layer === layerName)
+      .map((s) => s.id) ?? [];
+    deleteLayer(layerName);
+    if (layerIds.length > 0) {
+      setSelectedIds((prev) => {
+        if (prev.size === 0) return prev;
+        const idSet = new Set(layerIds);
+        let changed = false;
+        const next = new Set<string>();
+        prev.forEach((id) => {
+          if (idSet.has(id)) { changed = true; return; }
+          next.add(id);
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [deleteLayer, state.route]);
   const [startWithLayersHidden] = useState(() => {
     try { return localStorage.getItem('vialroute_start_hidden') === 'true'; } catch { return false; }
   });
