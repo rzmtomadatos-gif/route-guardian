@@ -7,8 +7,10 @@ import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
 import { CampaignSummary } from '@/components/CampaignSummary';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star } from 'lucide-react';
+import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star, FileSpreadsheet } from 'lucide-react';
 import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
+import { exportRouteToExcelV2 } from '@/utils/excel-export-v2';
+import { toast } from 'sonner';
 import { getAllEvents } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 import { buildDisplayOrderMap } from '@/utils/display-order';
@@ -261,6 +263,25 @@ export default function SegmentsPage({
     });
   };
 
+  const handleExportV2 = async () => {
+    try {
+      const events = await getAllEvents().catch(() => []);
+      const result = await exportRouteToExcelV2(route, incidents, state.rstMode, {
+        selectedIds: selectedIds && selectedIds.size > 0 ? selectedIds : undefined,
+        persistentEvents: events,
+      });
+      const reviewCount = result.findings.filter((f) => f.status !== 'OK').length;
+      if (reviewCount > 0) {
+        toast.warning(`Hoja de Ruta 2.0 generada: ${result.fileName} · ${reviewCount} hallazgos en hoja 09`);
+      } else {
+        toast.success(`Hoja de Ruta 2.0 generada: ${result.fileName}`);
+      }
+    } catch (e: any) {
+      console.error('[Hoja Ruta 2.0] Error:', e);
+      toast.error(`Error generando Hoja de Ruta 2.0: ${e?.message || e}`);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -311,9 +332,13 @@ export default function SegmentsPage({
                 Ver {selectedIds.size} en mapa
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={handleExport} className="h-7 text-[10px] gap-1">
+            <Button size="sm" variant="outline" onClick={handleExport} className="h-7 text-[10px] gap-1" title="Exportación clásica (compatibilidad)">
               <Download className="w-3 h-3" />
               Excel
+            </Button>
+            <Button size="sm" onClick={handleExportV2} className="h-7 text-[10px] gap-1 bg-primary text-primary-foreground" title="Hoja de Ruta 2.0 (formato profesional, auditable)">
+              <FileSpreadsheet className="w-3 h-3" />
+              2.0
             </Button>
           </div>
         </div>

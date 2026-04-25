@@ -110,6 +110,12 @@ export interface Route {
   vehicle?: string;
   /** Weather conditions note */
   weather?: string;
+  /** Cliente final del proyecto (administración, organismo, empresa contratante) */
+  client?: string;
+  /** Empresa ejecutora de la campaña */
+  company?: string;
+  /** Conductor responsable del vehículo en campo */
+  driver?: string;
 }
 
 export type IncidentCategory =

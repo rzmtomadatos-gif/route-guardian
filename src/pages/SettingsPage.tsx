@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon, Building2, Briefcase, UserCheck, FileSpreadsheet } from 'lucide-react';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AboutSection } from '@/components/AboutSection';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
@@ -25,7 +25,7 @@ interface Props {
   state: AppState;
   isDirty?: boolean;
   onMarkClean?: () => void;
-  onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string }) => void;
+  onUpdateRouteContext: (updates: { operator?: string; vehicle?: string; weather?: string; client?: string; company?: string; driver?: string }) => void;
   onApplyRetroactiveIds: (code: string, projectName: string) => void;
   onRestoreState: (state: AppState) => void;
 }
@@ -407,6 +407,33 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                     placeholder="Climatología"
                     value={route.weather || ''}
                     onChange={(e) => onUpdateRouteContext({ weather: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Cliente (administración / organismo)"
+                    value={route.client || ''}
+                    onChange={(e) => onUpdateRouteContext({ client: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Empresa ejecutora"
+                    value={route.company || ''}
+                    onChange={(e) => onUpdateRouteContext({ company: e.target.value })}
+                    className="h-8 text-sm bg-secondary border-border"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    placeholder="Conductor"
+                    value={route.driver || ''}
+                    onChange={(e) => onUpdateRouteContext({ driver: e.target.value })}
                     className="h-8 text-sm bg-secondary border-border"
                   />
                 </div>
