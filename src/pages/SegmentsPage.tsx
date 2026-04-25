@@ -332,9 +332,13 @@ export default function SegmentsPage({
                 Ver {selectedIds.size} en mapa
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={handleExport} className="h-7 text-[10px] gap-1">
+            <Button size="sm" variant="outline" onClick={handleExport} className="h-7 text-[10px] gap-1" title="Exportación clásica (compatibilidad)">
               <Download className="w-3 h-3" />
               Excel
+            </Button>
+            <Button size="sm" onClick={handleExportV2} className="h-7 text-[10px] gap-1 bg-primary text-primary-foreground" title="Hoja de Ruta 2.0 (formato profesional, auditable)">
+              <FileSpreadsheet className="w-3 h-3" />
+              2.0
             </Button>
           </div>
         </div>
