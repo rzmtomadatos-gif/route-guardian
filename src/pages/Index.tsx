@@ -8,6 +8,7 @@ import type { ParsedKmlResult } from '@/utils/kml-parser';
 import { NamingChoiceDialog } from '@/components/NamingChoiceDialog';
 import { ProjectCodeDialog } from '@/components/ProjectCodeDialog';
 import { routeToKml, downloadKml } from '@/utils/kml-export';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,11 +88,19 @@ function UploadPage({ onRouteLoaded, hasRoute, isDirty, route, onMarkClean }: Pr
   );
 
   const handleUnsavedExport = useCallback(() => {
-    // Export current route as KML, then load new file
+    // Export current route as KML, then load new file.
+    // Si el export falla, NO descartamos cambios ni avanzamos: el usuario
+    // debe poder reintentar sin perder datos.
     if (route) {
-      const kml = routeToKml(route);
-      downloadKml(kml, route.fileName || `${route.name}.kml`);
-      onMarkClean();
+      try {
+        const kml = routeToKml(route);
+        downloadKml(kml, route.fileName || `${route.name}.kml`);
+        onMarkClean();
+      } catch (e: any) {
+        console.error('[Export KML] Error:', e);
+        toast.error(`Error exportando KML: ${e?.message || e}`);
+        return;
+      }
     }
     setUnsavedDialogOpen(false);
     if (pendingFile) {
