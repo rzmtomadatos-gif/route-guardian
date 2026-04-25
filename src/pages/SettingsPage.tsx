@@ -435,10 +435,16 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
               <div className="flex gap-2">
                 <Button
                   onClick={() => {
-                    const kml = routeToKml(route);
-                    downloadKml(kml, route.fileName || `${route.name}.kml`);
-                    onMarkClean?.();
-                    toast.success(`${route.fileName || route.name} exportado correctamente.`);
+                    try {
+                      const kml = routeToKml(route);
+                      const fileName = route.fileName || `${route.name}.kml`;
+                      downloadKml(kml, fileName);
+                      onMarkClean?.();
+                      toast.success(`${fileName} exportado correctamente.`);
+                    } catch (e: any) {
+                      console.error('[Export KML] Error:', e);
+                      toast.error(`Error exportando KML: ${e?.message || e}`);
+                    }
                   }}
                   className="flex-1"
                   size="sm"
@@ -449,10 +455,15 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
                 <Button
                   onClick={() => {
                     const newName = prompt('Nombre del archivo:', route.name + '_copia');
-                    if (!newName) return;
-                    const kml = routeToKml(route);
-                    downloadKml(kml, `${newName}.kml`);
-                    toast.success(`${newName}.kml exportado correctamente.`);
+                    if (!newName || !newName.trim()) return;
+                    try {
+                      const kml = routeToKml(route);
+                      downloadKml(kml, `${newName.trim()}.kml`);
+                      toast.success(`${newName.trim()}.kml exportado correctamente.`);
+                    } catch (e: any) {
+                      console.error('[Export KML] Error:', e);
+                      toast.error(`Error exportando KML: ${e?.message || e}`);
+                    }
                   }}
                   variant="outline"
                   className="flex-1"
