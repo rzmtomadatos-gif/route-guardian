@@ -148,7 +148,7 @@ ${rootPlacemarks}
  *  - Recorta espacios y puntos al final (problemáticos en Windows).
  *  - Asegura que termina en `.kml`.
  *  - Si tras limpiar queda vacío, devuelve "ruta.kml".
- *  - Conserva espacios normales internos.
+ *  - Conserva espacios normales internos y mayúsculas/minúsculas tal cual.
  */
 export function sanitizeKmlFileName(rawName: string): string {
   const cleaned = (rawName ?? '')
@@ -159,14 +159,59 @@ export function sanitizeKmlFileName(rawName: string): string {
     .trim();
 
   const base = cleaned.length > 0 ? cleaned : 'ruta';
-  return base.toLowerCase().endsWith('.kml') ? base : `${base}.kml`;
+  return /\.kml$/i.test(base) ? base : `${base}.kml`;
+}
+
+/**
+ * Devuelve un timestamp local compacto apto para nombres de archivo:
+ * `YYYYMMDD-HHMMSS` (sin separadores ambiguos para FS).
+ */
+function buildTimestampSuffix(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
+}
+
+/**
+ * Construye un nombre de archivo único añadiendo un sufijo de fecha/hora antes
+ * de la extensión `.kml`. Conserva mayúsculas, minúsculas y espacios del nombre
+ * original. Si el nombre ya contiene un sufijo idéntico al actual, no lo duplica.
+ *
+ *   "Boadilla 2026.kml" → "Boadilla 2026 - 20260425-101530.kml"
+ *
+ * Pensado para evitar sobreescrituras silenciosas al exportar varias veces la
+ * misma campaña en una jornada.
+ */
+export function uniqueKmlFileName(rawName: string, date: Date = new Date()): string {
+  const sanitized = sanitizeKmlFileName(rawName);
+  const suffix = buildTimestampSuffix(date);
+
+  // Separa base y extensión real (.kml/.KML/...).
+  const match = sanitized.match(/^(.*)(\.kml)$/i);
+  const base = match ? match[1] : sanitized;
+  const ext = match ? match[2] : '.kml';
+
+  // Si el nombre ya termina con un sufijo de timestamp idéntico, no duplicar.
+  const trimmedBase = base.replace(/[\s-]+$/u, '');
+  const alreadyHasSuffix = new RegExp(`[\\s-]${suffix}$`).test(base);
+
+  if (alreadyHasSuffix) {
+    return `${base}${ext}`;
+  }
+
+  return `${trimmedBase} - ${suffix}${ext}`;
 }
 
 /**
  * Descarga un string KML como archivo.
+ *
+ * Siempre añade un sufijo de fecha/hora único al nombre para evitar
+ * sobreescrituras y facilitar trazabilidad operativa en campo.
  */
 export function downloadKml(kmlContent: string, fileName: string): void {
-  const safeName = sanitizeKmlFileName(fileName);
+  const safeName = uniqueKmlFileName(fileName);
   const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

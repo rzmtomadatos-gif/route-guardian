@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { routeToKml, sanitizeKmlFileName } from '@/utils/kml-export';
+import { routeToKml, sanitizeKmlFileName, uniqueKmlFileName } from '@/utils/kml-export';
 import type { Route, Segment } from '@/types/route';
 
 function makeSegment(overrides: Partial<Segment> = {}): Segment {
@@ -138,6 +138,11 @@ describe('sanitizeKmlFileName', () => {
     expect(sanitizeKmlFileName('boadilla.KML')).toBe('boadilla.KML');
   });
 
+  it('conserva mayúsculas/minúsculas del nombre original', () => {
+    expect(sanitizeKmlFileName('Boadilla Del Monte')).toBe('Boadilla Del Monte.kml');
+    expect(sanitizeKmlFileName('Campaña BOA 2026')).toBe('Campaña BOA 2026.kml');
+  });
+
   it('devuelve "ruta.kml" si el nombre queda vacío tras limpiar', () => {
     expect(sanitizeKmlFileName('///???')).toBe('ruta.kml');
     expect(sanitizeKmlFileName('   ')).toBe('ruta.kml');
@@ -145,5 +150,42 @@ describe('sanitizeKmlFileName', () => {
 
   it('elimina caracteres prohibidos: \\ : * ? " < > |', () => {
     expect(sanitizeKmlFileName('a\\b:c*d?e"f<g>h|i.kml')).toBe('abcdefghi.kml');
+  });
+});
+
+describe('uniqueKmlFileName', () => {
+  const fixedDate = new Date(2026, 3, 25, 10, 15, 30); // 25 abr 2026 10:15:30 local
+
+  it('añade sufijo de fecha/hora antes de la extensión', () => {
+    expect(uniqueKmlFileName('Boadilla 2026.kml', fixedDate)).toBe(
+      'Boadilla 2026 - 20260425-101530.kml',
+    );
+  });
+
+  it('conserva mayúsculas y espacios del nombre original', () => {
+    const out = uniqueKmlFileName('Campaña BOA Test', fixedDate);
+    expect(out).toBe('Campaña BOA Test - 20260425-101530.kml');
+  });
+
+  it('genera nombres distintos en momentos distintos', () => {
+    const a = uniqueKmlFileName('ruta.kml', new Date(2026, 0, 1, 9, 0, 0));
+    const b = uniqueKmlFileName('ruta.kml', new Date(2026, 0, 1, 9, 0, 1));
+    expect(a).not.toBe(b);
+  });
+
+  it('no duplica el sufijo si ya está presente', () => {
+    const once = uniqueKmlFileName('ruta.kml', fixedDate);
+    const twice = uniqueKmlFileName(once, fixedDate);
+    expect(twice).toBe(once);
+  });
+
+  it('aplica saneado y añade extensión si falta', () => {
+    const out = uniqueKmlFileName('mala/ruta?', fixedDate);
+    expect(out).toBe('malaruta - 20260425-101530.kml');
+  });
+
+  it('devuelve nombre válido aunque el original esté vacío', () => {
+    const out = uniqueKmlFileName('', fixedDate);
+    expect(out).toBe('ruta - 20260425-101530.kml');
   });
 });
