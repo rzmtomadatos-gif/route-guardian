@@ -1,90 +1,61 @@
-# Plan — Atajo de búsqueda + Refrescar mapa (con corrección obligatoria)
+## Diagnóstico
 
-## Objetivo
+`routeToKml()` en `src/utils/kml-export.ts` falla con la campaña real porque pasa valores no-string a `escapeXml`, que llama a `.replace()`. En particular `kmlMeta.osmId` es `number` (definido en `src/utils/overpass-api.ts` y validado como `z.number()` en `campaign-schema.ts`). El error se traga porque los handlers del botón **Exportar KML** y **Exportar como…** en `SettingsPage` no tienen `try/catch` → el toast de éxito nunca llega y aparenta "no hacer nada".
 
-Añadir dos controles flotantes en la vista de mapa, sin tocar la lógica operativa existente:
+## Cambios
 
-1. **Botón Buscar (FAB)** + atajos de teclado (`/` y `Ctrl/Cmd+K`) que abren y enfocan `MapSearchBox`.
-2. **Botón Refrescar mapa (FAB)** que fuerza un repintado seguro de overlays y, si detecta el mapa "perdido" (centro [0,0] o sin polilíneas pintadas), ejecuta una recuperación con `smartFit` sobre los tramos visibles.
+### 1. `src/utils/kml-export.ts` — reescritura del serializador
 
-Ambos botones se ocultan en modos críticos (creación manual, selección por área, navegación con overlay activo) para no estorbar.
+- `escapeXml(value: unknown): string` con coerción segura:
+  - `null` / `undefined` → `""`
+  - `string` → tal cual
+  - `number` / `boolean` → `String(value)`
+  - `object` / `array` → `JSON.stringify(value)`, `""` si falla
+  - cualquier otro → `String(value)`, `""` si falla
+  - solo después aplica los `replace` XML
+- `segmentToPlacemark`:
+  - filtra `seg.coordinates` con `isValidLatLng` (ya existente en `src/utils/coord-validation.ts`: descarta `NaN`, fuera de rango y `[0,0]`)
+  - si quedan `< 2` puntos, devuelve `null` y el placemark se omite
+  - usa `escapeXml(seg.kmlId ?? seg.name ?? '')` y `escapeXml(seg.notes ?? '')`
+  - `kmlMeta`: omite vacíos/nulos pero deja a `escapeXml` la coerción de tipos
+- `routeToKml` filtra los `null` antes de unir, y emite `console.warn` con el conteo de omitidos
+- Nuevo `sanitizeKmlFileName(name)` que elimina `/ \ : * ? " < > |`, controles, espacios/puntos finales y fuerza extensión `.kml`
+- `downloadKml` aplica `sanitizeKmlFileName` antes de descargar
 
-## Cambios funcionales
+### 2. `src/pages/SettingsPage.tsx` — feedback real
 
-### 1. `src/components/MapSearchBox.tsx`
-- Convertir a `forwardRef` exponiendo vía `useImperativeHandle`:
-  ```ts
-  export interface MapSearchBoxHandle {
-    focus: () => void;
-  }
-  ```
-- `focus()` hace: `setOpen(true)` + `inputRef.current?.focus()` + `select()` del texto actual. **No** toca el query ni el modo activo.
+Envolver con `try/catch` los dos handlers (Exportar KML / Exportar como…):
 
-### 2. `src/pages/MapPage.tsx`
-- `searchBoxRef = useRef<MapSearchBoxHandle>(null)`.
-- `const [mapRefreshRequest, setMapRefreshRequest] = useState(0)`.
-- `handleFocusSearch = () => searchBoxRef.current?.focus()`.
-- `handleRefreshMap = () => { setMapRefreshRequest(n => n + 1); toast.success('Mapa actualizado', { duration: 1200 }); }`.
-- **Atajos de teclado** (`useEffect` global con `keydown`):
-  - Activos solo si `visible === true`.
-  - Ignorados si el `event.target` es `INPUT/TEXTAREA/SELECT/[contenteditable]`.
-  - Ignorados si `creatorMode`, `areaSelectionMode`, diálogos abiertos o `state.isNavigating` con overlay activo.
-  - `/` (sin modificadores) o `Ctrl/Cmd+K` → `handleFocusSearch()` + `preventDefault()`.
-- **Dos FAB nuevos** integrados en la columna derecha existente (junto a "Centrar GPS"/"Orientación"), respetando el patrón visual ya documentado en `mem://ui/map/floating-controls`:
-  - Icono `Search` (lucide) — `title="Buscar (/)"`.
-  - Icono `RefreshCw` (lucide) — `title="Refrescar mapa"`.
-  - **Visibles únicamente** cuando `!creatorMode && !areaSelectionMode` y la barra superior `MapSearchBox` está renderizada.
-- Pasar `mapRefreshRequest` como prop al `<GoogleMapDisplay>` y al fallback `<MapDisplay>`.
+```ts
+try {
+  const kml = routeToKml(route);
+  downloadKml(kml, ...);
+  onMarkClean?.();
+  toast.success('… exportado correctamente.');
+} catch (e: any) {
+  console.error('[Export KML] Error:', e);
+  toast.error(`Error exportando KML: ${e?.message || e}`);
+}
+```
 
-### 3. `src/components/GoogleMapDisplay.tsx` y `src/components/MapDisplay.tsx`
+En "Exportar como…", si el `prompt` devuelve cadena vacía o solo espacios → cancelar.
 
-Nueva prop opcional `mapRefreshRequest?: number` (default 0).
+### 3. `src/pages/Index.tsx` — `handleUnsavedExport`
 
-**Repintado real (corrección obligatoria):**
-- Añadir `mapRefreshRequest` al array de dependencias del `useEffect` principal de dibujo de overlays (el que compara `prevFingerprintRef`).
-- Dentro de un `useEffect` previo dedicado a `mapRefreshRequest`:
-  1. Si `mapRefreshRequest === 0` o el contenedor no es visible → no hacer nada.
-  2. Resetear `prevFingerprintRef.current = '__force_repaint__'` para que el efecto de dibujo reconstruya polilíneas/marcadores aunque el fingerprint no haya cambiado.
-  3. Disparar resize del proveedor:
-     - Google: `google.maps.event.trigger(map, 'resize')`.
-     - Leaflet: `map.invalidateSize()`.
-  4. **Recuperación segura** (solo si procede):
-     - Calcular `visibleSegs = getVisibleMapSegments(segments, hiddenLayers)`.
-     - Considerar "mapa perdido" si:
-       - el centro actual está en `[0,0]` (con tolerancia `< 0.01`), o
-       - no hay polilíneas dibujadas (`polylinesRef.current.size === 0` / equivalente Leaflet) **a pesar de que** `visibleSegs.length > 0`.
-     - Si está perdido y hay `visibleSegs`: llamar `smartFit(visibleSegs, { animate: false })`.
-     - Si no está perdido: **no mover el mapa**, solo repintar.
+Mismo `try/catch` con `console.error` y `toast.error` (importar `toast` de `sonner` si no lo está). Si el export falla, **no** marcar limpio ni continuar al siguiente archivo: el usuario debe poder reintentar.
 
-**Importante:** nunca usar `[0,0]` como destino. La recuperación delega siempre en `smartFit` con `getVisibleMapSegments`, que ya filtra coordenadas inválidas (utilidades existentes `coord-validation` + `map-visible-segments`).
+### 4. Tests — nuevo `src/test/kml-export.test.ts`
 
-## Detalles técnicos
+- Segmento con `kmlMeta.osmId: 12345` (number) → no lanza, contiene `<Data name="osmId"><value>12345</value></Data>`
+- Caracteres `<`, `>`, `&`, `"`, `'` en `name`, `notes`, `route.name`, `kmlMeta` → escapados a `&lt; &gt; &amp; &quot; &apos;`
+- Segmento con coordenadas inválidas: si quedan ≥2 válidas se exporta solo con esas; si quedan <2 se omite el placemark
+- `sanitizeKmlFileName`: elimina caracteres reservados, fuerza `.kml`, conserva espacios normales
 
-- **Sin cambios en estado operativo**: refrescar no modifica `route.segments`, `hiddenLayers`, selección, navegación, modo RST, bloque ni track. Es puramente render.
-- **Sin cambios en KML/Overpass**: no se vuelve a parsear ni a consultar nada.
-- **No interfiere con creación manual**: los FAB se ocultan cuando `creatorMode` está activo, así no roban clics.
-- **Compatible con persistent viewport** (`mem://architecture/persistent-viewports`): el repintado se invoca aunque `MapPage` haya estado oculto, porque cuando el usuario pulsa Refrescar el contenedor ya es visible.
-- **Accesibilidad**: ambos FAB con `aria-label` y `title` en español; foco visible por defecto Radix/shadcn.
+### 5. Verificación
 
-## Pruebas a realizar
+- `npx tsc --noEmit`
+- `bunx vitest run`
 
-1. **Atajo `/`**: con foco en el body abre y enfoca el buscador. Con foco en un input cualquiera, no actúa.
-2. **`Ctrl+K` / `Cmd+K`**: idéntico, evita acción del navegador con `preventDefault`.
-3. **Botón Buscar**: abre el panel y enfoca; no altera el query previo.
-4. **Refrescar con KML visible**: no mueve el mapa, no borra tramos, no cambia estado; toast breve.
-5. **Refrescar con mapa "perdido"** (simulado vaciando `polylinesRef`): repinta y recentra con `smartFit` sobre tramos visibles. Nunca centra en [0,0].
-6. **Cambiar capa → borrar tramo → volver al mapa → Refrescar**: si la vista quedó mal, recupera; si estaba bien, no la mueve.
-7. **Modos críticos**: en creación manual, área y navegación, los FAB no se muestran y los atajos no actúan.
-8. **Typecheck** (`tsc --noEmit`) y **tests** (`vitest run`) verdes.
+## Lo que NO se toca
 
-## Archivos modificados
-
-- `src/components/MapSearchBox.tsx` — `forwardRef` + `useImperativeHandle`.
-- `src/pages/MapPage.tsx` — ref, estado `mapRefreshRequest`, handlers, atajos, dos FAB.
-- `src/components/GoogleMapDisplay.tsx` — prop + efecto de repintado/recuperación.
-- `src/components/MapDisplay.tsx` — prop + efecto de repintado/recuperación (Leaflet).
-
-## Limitaciones conocidas
-
-- La heurística de "mapa perdido" se basa en centro ≈ [0,0] o ausencia total de polilíneas con datos disponibles. No detecta casos sutiles (p. ej. zoom equivocado pero centro correcto): en esos casos el botón solo repinta y el operador puede usar el buscador o "Centrar GPS" para reencuadrar.
-- Los atajos de teclado solo actúan en escritorio; en móvil el acceso es vía FAB.
+Importación KML, esquema Zod de campaña, mapa, navegación, RST, optimizador, gabinete.

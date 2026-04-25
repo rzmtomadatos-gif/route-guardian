@@ -1,7 +1,59 @@
-import type { Route, Segment } from '@/types/route';
+import type { Route, Segment, LatLng } from '@/types/route';
+import { isValidLatLng } from '@/utils/coord-validation';
 
 /**
- * Export a Route to KML format, preserving layers as Folders.
+ * Escapa caracteres XML aceptando cualquier valor.
+ *
+ * Reglas de coerción (en este orden):
+ *  - null / undefined → ""
+ *  - string           → tal cual
+ *  - number / boolean → String(value)
+ *  - object / array   → JSON.stringify(value), o "" si falla
+ *  - cualquier otro   → String(value), o "" si falla
+ *
+ * Imprescindible: nunca llamamos `.replace()` sobre algo que no sea string.
+ * Esto evita el `TypeError: value.replace is not a function` que rompía la
+ * exportación cuando `kmlMeta.osmId` venía como number desde Overpass.
+ */
+function escapeXml(value: unknown): string {
+  let str: string;
+
+  if (value === null || value === undefined) {
+    str = '';
+  } else if (typeof value === 'string') {
+    str = value;
+  } else if (typeof value === 'number' || typeof value === 'boolean') {
+    str = String(value);
+  } else if (typeof value === 'object') {
+    try {
+      str = JSON.stringify(value) ?? '';
+    } catch {
+      str = '';
+    }
+  } else {
+    try {
+      str = String(value);
+    } catch {
+      str = '';
+    }
+  }
+
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Convierte un Route en KML preservando capas como Folders.
+ *
+ * Endurecimiento frente a datos reales de campo:
+ *  - Coordenadas se filtran con `isValidLatLng` (descarta NaN, fuera de rango y [0,0]).
+ *  - Si tras filtrar quedan menos de 2 puntos, el Placemark se omite (una LineString
+ *    con un solo punto es KML inválido y rompe Google Earth).
+ *  - Todos los textos pasan por `escapeXml`, que tolera number/boolean/object.
  */
 export function routeToKml(route: Route): string {
   const layerMap = new Map<string, Segment[]>();
@@ -16,24 +68,37 @@ export function routeToKml(route: Route): string {
     }
   });
 
-  const segmentToPlacemark = (seg: Segment): string => {
-    const coords = seg.coordinates
-      .map((c) => `${c.lng},${c.lat},0`)
-      .join(' ');
+  let omittedCount = 0;
 
-    // Build ExtendedData from kmlMeta
+  const segmentToPlacemark = (seg: Segment): string | null => {
+    const validCoords: LatLng[] = Array.isArray(seg.coordinates)
+      ? seg.coordinates.filter(isValidLatLng)
+      : [];
+
+    if (validCoords.length < 2) {
+      omittedCount += 1;
+      return null;
+    }
+
+    const coords = validCoords.map((c) => `${c.lng},${c.lat},0`).join(' ');
+
     const extData: string[] = [];
-    if (seg.kmlMeta) {
+    if (seg.kmlMeta && typeof seg.kmlMeta === 'object') {
       Object.entries(seg.kmlMeta).forEach(([key, value]) => {
-        if (value) {
-          extData.push(`        <Data name="${escapeXml(key)}"><value>${escapeXml(value)}</value></Data>`);
-        }
+        // Mantener el comportamiento previo: omitir vacíos / nulos.
+        if (value === undefined || value === null || value === '') return;
+        extData.push(
+          `        <Data name="${escapeXml(key)}"><value>${escapeXml(value)}</value></Data>`,
+        );
       });
     }
 
+    const placemarkName = escapeXml(seg.kmlId ?? seg.name ?? '');
+    const placemarkDesc = escapeXml(seg.notes ?? '');
+
     return `    <Placemark>
-      <name>${escapeXml(seg.kmlId || seg.name)}</name>
-      <description>${escapeXml(seg.notes || '')}</description>
+      <name>${placemarkName}</name>
+      <description>${placemarkDesc}</description>
       ${extData.length > 0 ? `<ExtendedData>\n${extData.join('\n')}\n      </ExtendedData>` : ''}
       <LineString>
         <coordinates>${coords}</coordinates>
@@ -43,18 +108,28 @@ export function routeToKml(route: Route): string {
 
   const folders: string[] = [];
 
-  // Layers as folders
   const sortedLayers = Array.from(layerMap.keys()).sort();
   for (const layerName of sortedLayers) {
     const segs = layerMap.get(layerName)!;
+    const placemarks = segs
+      .map(segmentToPlacemark)
+      .filter((p): p is string => p !== null);
     folders.push(`  <Folder>
     <name>${escapeXml(layerName)}</name>
-${segs.map(segmentToPlacemark).join('\n')}
+${placemarks.join('\n')}
   </Folder>`);
   }
 
-  // Segments without layer at root level
-  const rootPlacemarks = noLayer.map(segmentToPlacemark).join('\n');
+  const rootPlacemarks = noLayer
+    .map(segmentToPlacemark)
+    .filter((p): p is string => p !== null)
+    .join('\n');
+
+  if (omittedCount > 0) {
+    console.warn(
+      `[KML Export] Se omitieron ${omittedCount} tramo(s) por coordenadas inválidas o insuficientes (<2 puntos).`,
+    );
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -66,24 +141,37 @@ ${rootPlacemarks}
 </kml>`;
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+/**
+ * Limpia un nombre de archivo para descarga.
+ *  - Elimina caracteres reservados en sistemas de archivos: / \ : * ? " < > |
+ *  - Elimina caracteres de control.
+ *  - Recorta espacios y puntos al final (problemáticos en Windows).
+ *  - Asegura que termina en `.kml`.
+ *  - Si tras limpiar queda vacío, devuelve "ruta.kml".
+ *  - Conserva espacios normales internos.
+ */
+export function sanitizeKmlFileName(rawName: string): string {
+  const cleaned = (rawName ?? '')
+    .replace(/[\/\\:*?"<>|]/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .replace(/[\s.]+$/g, '')
+    .trim();
+
+  const base = cleaned.length > 0 ? cleaned : 'ruta';
+  return base.toLowerCase().endsWith('.kml') ? base : `${base}.kml`;
 }
 
 /**
- * Download KML string as a file.
+ * Descarga un string KML como archivo.
  */
 export function downloadKml(kmlContent: string, fileName: string): void {
+  const safeName = sanitizeKmlFileName(fileName);
   const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = fileName.endsWith('.kml') ? fileName : `${fileName}.kml`;
+  a.download = safeName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
