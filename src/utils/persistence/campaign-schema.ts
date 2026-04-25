@@ -93,6 +93,9 @@ const routeSchema = z.object({
   operator: z.string().max(200).optional(),
   vehicle: z.string().max(200).optional(),
   weather: z.string().max(500).optional(),
+  client: z.string().max(300).optional(),
+  company: z.string().max(300).optional(),
+  driver: z.string().max(200).optional(),
 }).strict();
 
 // ── Incident — strict with real enums ──

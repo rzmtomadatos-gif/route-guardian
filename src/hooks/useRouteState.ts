@@ -1649,8 +1649,8 @@ export function useRouteState() {
     return { allowed: true };
   }, [setState, setStateRaw]);
 
-  /** Update route context fields (operator, vehicle, weather) */
-  const updateRouteContext = useCallback((updates: { operator?: string; vehicle?: string; weather?: string }) => {
+  /** Update route context fields (operator, vehicle, weather, client, company, driver) */
+  const updateRouteContext = useCallback((updates: { operator?: string; vehicle?: string; weather?: string; client?: string; company?: string; driver?: string }) => {
     setState((s) => {
       if (!s.route) return s;
       return { ...s, route: { ...s.route, ...updates } };
