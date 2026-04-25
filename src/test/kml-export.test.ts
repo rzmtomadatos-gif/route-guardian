@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { routeToKml, sanitizeKmlFileName } from '@/utils/kml-export';
+import { routeToKml, sanitizeKmlFileName, uniqueKmlFileName } from '@/utils/kml-export';
 import type { Route, Segment } from '@/types/route';
 
 function makeSegment(overrides: Partial<Segment> = {}): Segment {
