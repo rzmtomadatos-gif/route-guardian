@@ -342,13 +342,17 @@ function buildQualityFindings(
   exportSegments: Segment[],
   incidents: Incident[],
   f5Events: F5Event[],
-  fixes: AutoFixRecord[],
+  applied: AutoFixRecord[],
+  skipped: AutoFixSkipped[],
+  scopedCorrections: SegmentCorrection[],
+  rawById: Map<string, Segment>,
+  fixedById: Map<string, Segment>,
   rstMode: boolean,
 ): QualityFinding[] {
   const findings: QualityFinding[] = [];
 
-  // 1. Autofixes (cada uno como REVISAR)
-  fixes.forEach((fx) => {
+  // 1a. Autofixes APLICADOS (REVISAR)
+  applied.forEach((fx) => {
     findings.push({
       sheet: '05_DETALLE_TECNICO_TRAMOS',
       row: fx.segmentId,
@@ -357,6 +361,37 @@ function buildQualityFindings(
       field: fx.field,
       status: 'REVISAR',
       reason: `${fx.reason} (original=${JSON.stringify(fx.original)} → aplicado=${JSON.stringify(fx.applied)})`,
+    });
+  });
+
+  // 1b. Autofixes OMITIDOS por corrección de gabinete (REVISAR o ERROR)
+  skipped.forEach((sk) => {
+    findings.push({
+      sheet: '05_DETALLE_TECNICO_TRAMOS',
+      row: sk.segmentId,
+      segmentId: sk.segmentId,
+      segmentName: sk.segmentName,
+      field: sk.field,
+      status: sk.severity,
+      reason: `Autofix omitido por corrección de gabinete: ${sk.reason}`,
+    });
+  });
+
+  // 1c. Correcciones de gabinete activas — auditoría obligatoria, valor original tomado del RAW
+  scopedCorrections.forEach((c) => {
+    const raw = rawById.get(c.segmentId);
+    if (!raw) return;
+    const consolidated = fixedById.get(c.segmentId);
+    const rawValue = readFieldFromSegment(raw, c.field);
+    const finalValue = consolidated ? readFieldFromSegment(consolidated, c.field) : c.newValue;
+    findings.push({
+      sheet: '05_DETALLE_TECNICO_TRAMOS',
+      row: c.segmentId,
+      segmentId: c.segmentId,
+      segmentName: raw.name,
+      field: getFieldLabel(c.field),
+      status: 'REVISAR',
+      reason: `Corrección de gabinete · original=${formatCorrectionValue(rawValue)} → consolidado=${formatCorrectionValue(finalValue)} · «${c.reason || 'sin motivo registrado'}» · por ${c.correctedBy} el ${fmtDate(c.correctedAt)}`,
     });
   });
 
