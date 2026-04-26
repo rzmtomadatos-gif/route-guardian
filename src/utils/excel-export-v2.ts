@@ -10,9 +10,22 @@
  *  - El export clásico (excel-export.ts) no se toca.
  */
 
-import type { Route, Segment, Incident, F5Event } from '@/types/route';
+import type {
+  Route,
+  Segment,
+  Incident,
+  F5Event,
+  SegmentCorrection,
+  CorrectableField,
+} from '@/types/route';
 import type { PersistentEvent, EventType } from '@/utils/persistence';
 import { segmentDistanceKm, haversineMeters } from '@/utils/geo-distance';
+import {
+  getConsolidatedSegments,
+  getActiveCorrectionsByField,
+  readFieldFromSegment,
+} from '@/utils/gabinete/consolidate';
+import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 
 // ───────── Constantes ─────────
 const NA = 'NO REGISTRADO';
