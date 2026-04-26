@@ -142,12 +142,21 @@ export interface AutoFixRecord {
   reason: string;
 }
 
+export interface AutoFixSkipped {
+  segmentId: string;
+  segmentName: string;
+  field: string;
+  reason: string;
+  severity: 'REVISAR' | 'ERROR';
+}
+
 interface ExportContext {
   route: Route;
   incidents: Incident[];
   f5Events: F5Event[];
   persistentEvents: PersistentEvent[];
   selectedIds?: Set<string>;
+  segmentCorrections: SegmentCorrection[];
 }
 
 // ───────── Utilidades ─────────
