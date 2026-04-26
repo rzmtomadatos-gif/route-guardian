@@ -1095,8 +1095,15 @@ function bannerRow(sheet: any, range: string, text: string) {
 // ───────── API pública ─────────
 export interface ExportV2Result {
   fileName: string;
-  fixes: AutoFixRecord[];
+  /** Autofixes APLICADOS sobre la copia (no incluye los omitidos). */
+  applied: AutoFixRecord[];
+  /** Autofixes OMITIDOS por corrección de gabinete. */
+  skipped: AutoFixSkipped[];
+  /** Correcciones de gabinete activas dentro del scope exportado. */
+  corrections: SegmentCorrection[];
   findings: QualityFinding[];
+  /** @deprecated Usar `applied`. Conservado por compatibilidad temporal. */
+  fixes: AutoFixRecord[];
 }
 
 export async function exportRouteToExcelV2(
@@ -1107,6 +1114,8 @@ export async function exportRouteToExcelV2(
     selectedIds?: Set<string>;
     f5Events?: F5Event[];
     persistentEvents?: PersistentEvent[];
+    /** Correcciones de gabinete (append-only). El export las consume en lectura. */
+    segmentCorrections?: SegmentCorrection[];
   },
 ): Promise<ExportV2Result> {
   const ctx: ExportContext = {
@@ -1115,9 +1124,10 @@ export async function exportRouteToExcelV2(
     f5Events: options?.f5Events || [],
     persistentEvents: options?.persistentEvents || [],
     selectedIds: options?.selectedIds,
+    segmentCorrections: options?.segmentCorrections || [],
   };
 
-  const { wb, fixes, findings } = await buildWorkbook(ctx, rstMode);
+  const { wb, applied, skipped, scopedCorrections, findings } = await buildWorkbook(ctx, rstMode);
 
   const ts = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -1136,8 +1146,16 @@ export async function exportRouteToExcelV2(
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-  return { fileName, fixes, findings };
+  return { fileName, applied, skipped, corrections: scopedCorrections, findings, fixes: applied };
 }
 
 // Export internals para tests
-export const __testing = { autoFixCopy, buildQualityFindings, safe, fmtDate, formatDuration, statusLabel };
+export const __testing = {
+  autoFixCopy,
+  buildQualityFindings,
+  buildWorkbook,
+  safe,
+  fmtDate,
+  formatDuration,
+  statusLabel,
+};
