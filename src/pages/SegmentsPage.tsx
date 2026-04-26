@@ -269,6 +269,7 @@ export default function SegmentsPage({
       const result = await exportRouteToExcelV2(route, incidents, state.rstMode, {
         selectedIds: selectedIds && selectedIds.size > 0 ? selectedIds : undefined,
         persistentEvents: events,
+        segmentCorrections: state.segmentCorrections ?? [],
       });
       const reviewCount = result.findings.filter((f) => f.status !== 'OK').length;
       if (reviewCount > 0) {

@@ -10,9 +10,22 @@
  *  - El export clásico (excel-export.ts) no se toca.
  */
 
-import type { Route, Segment, Incident, F5Event } from '@/types/route';
+import type {
+  Route,
+  Segment,
+  Incident,
+  F5Event,
+  SegmentCorrection,
+  CorrectableField,
+} from '@/types/route';
 import type { PersistentEvent, EventType } from '@/utils/persistence';
 import { segmentDistanceKm, haversineMeters } from '@/utils/geo-distance';
+import {
+  getConsolidatedSegments,
+  getActiveCorrectionsByField,
+  readFieldFromSegment,
+} from '@/utils/gabinete/consolidate';
+import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 
 // ───────── Constantes ─────────
 const NA = 'NO REGISTRADO';
@@ -129,12 +142,21 @@ export interface AutoFixRecord {
   reason: string;
 }
 
+export interface AutoFixSkipped {
+  segmentId: string;
+  segmentName: string;
+  field: string;
+  reason: string;
+  severity: 'REVISAR' | 'ERROR';
+}
+
 interface ExportContext {
   route: Route;
   incidents: Incident[];
   f5Events: F5Event[];
   persistentEvents: PersistentEvent[];
   selectedIds?: Set<string>;
+  segmentCorrections: SegmentCorrection[];
 }
 
 // ───────── Utilidades ─────────
@@ -198,24 +220,56 @@ function statusFill(label: string): string | null {
 // ───────── Autofix sobre copia ─────────
 /**
  * Aplica correcciones automáticas SOLO sobre un clon del array.
- * Devuelve la copia corregida + lista de correcciones aplicadas para auditoría.
+ *
+ * `protectedByField`: para cada segId, conjunto de campos con corrección de
+ * gabinete activa. El autofix NUNCA pisa esos campos: emite un `skipped`
+ * (REVISAR o ERROR según gravedad).
+ *
+ * `startedAt`/`endedAt` NO son `CorrectableField` → no son protegibles por
+ * gabinete; se siguen infiriendo cuando faltan (autofix `applied` REVISAR).
+ *
  * El estado persistido NO se toca.
  */
-function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRecord[] } {
-  const fixes: AutoFixRecord[] = [];
+function autoFixCopy(
+  segments: Segment[],
+  protectedByField?: Map<string, Set<CorrectableField>>,
+): { fixed: Segment[]; applied: AutoFixRecord[]; skipped: AutoFixSkipped[] } {
+  const applied: AutoFixRecord[] = [];
+  const skipped: AutoFixSkipped[] = [];
   let maxTrack = 0;
   segments.forEach((s) => {
     if (s.trackNumber !== null && s.trackNumber > maxTrack) maxTrack = s.trackNumber;
     s.trackHistory.forEach((t) => { if (t > maxTrack) maxTrack = t; });
   });
 
-  const fixed = segments.map((seg) => {
-    // Clon profundo superficial — no mutamos nada del original
-    const copy: Segment = { ...seg, kmlMeta: { ...seg.kmlMeta }, trackHistory: [...seg.trackHistory], coordinates: seg.coordinates };
+  const isProtected = (segId: string, field: CorrectableField): boolean =>
+    protectedByField?.get(segId)?.has(field) ?? false;
 
-    // Caso 1: completado pero marcado no grabable — revertir
+  const fixed = segments.map((seg) => {
+    const copy: Segment = {
+      ...seg,
+      kmlMeta: { ...seg.kmlMeta },
+      trackHistory: [...seg.trackHistory],
+      coordinates: seg.coordinates,
+    };
+
+    // Caso 1: completado pero marcado no grabable
     if (copy.status === 'completado' && copy.nonRecordable) {
-      fixes.push({
+      const statusProtected = isProtected(copy.id, 'status');
+      const nrProtected = isProtected(copy.id, 'nonRecordable');
+      if (statusProtected || nrProtected) {
+        skipped.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: statusProtected ? 'status' : 'nonRecordable',
+          severity: 'ERROR',
+          reason:
+            'Inconsistencia crítica: tramo completado y no grabable simultáneamente con corrección de gabinete activa. Resolver manualmente.',
+        });
+        // NO mutamos: respetar la decisión humana, dejar el conflicto visible.
+        return copy;
+      }
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'status',
@@ -232,20 +286,30 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     if (copy.status !== 'completado') return copy;
 
     if (copy.trackNumber === null) {
-      maxTrack++;
-      fixes.push({
-        segmentId: copy.id,
-        segmentName: copy.name,
-        field: 'trackNumber',
-        original: null,
-        applied: maxTrack,
-        reason: 'Autofix: track inferido (completado sin track).',
-      });
-      copy.trackNumber = maxTrack;
+      if (isProtected(copy.id, 'trackNumber')) {
+        skipped.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: 'trackNumber',
+          severity: 'REVISAR',
+          reason: 'Track null tras corrección de gabinete; verificar consolidado.',
+        });
+      } else {
+        maxTrack++;
+        applied.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: 'trackNumber',
+          original: null,
+          applied: maxTrack,
+          reason: 'Autofix: track inferido (completado sin track).',
+        });
+        copy.trackNumber = maxTrack;
+      }
     }
     if (!copy.startedAt) {
       const inferred = copy.timestampInicio || new Date().toISOString();
-      fixes.push({
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'startedAt',
@@ -257,7 +321,7 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     }
     if (!copy.endedAt) {
       const inferred = copy.timestampFin || new Date().toISOString();
-      fixes.push({
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'endedAt',
@@ -270,7 +334,7 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     return copy;
   });
 
-  return { fixed, fixes };
+  return { fixed, applied, skipped };
 }
 
 // ───────── Validación de calidad (auditoría real) ─────────
@@ -278,13 +342,17 @@ function buildQualityFindings(
   exportSegments: Segment[],
   incidents: Incident[],
   f5Events: F5Event[],
-  fixes: AutoFixRecord[],
+  applied: AutoFixRecord[],
+  skipped: AutoFixSkipped[],
+  scopedCorrections: SegmentCorrection[],
+  rawById: Map<string, Segment>,
+  fixedById: Map<string, Segment>,
   rstMode: boolean,
 ): QualityFinding[] {
   const findings: QualityFinding[] = [];
 
-  // 1. Autofixes (cada uno como REVISAR)
-  fixes.forEach((fx) => {
+  // 1a. Autofixes APLICADOS (REVISAR)
+  applied.forEach((fx) => {
     findings.push({
       sheet: '05_DETALLE_TECNICO_TRAMOS',
       row: fx.segmentId,
@@ -293,6 +361,37 @@ function buildQualityFindings(
       field: fx.field,
       status: 'REVISAR',
       reason: `${fx.reason} (original=${JSON.stringify(fx.original)} → aplicado=${JSON.stringify(fx.applied)})`,
+    });
+  });
+
+  // 1b. Autofixes OMITIDOS por corrección de gabinete (REVISAR o ERROR)
+  skipped.forEach((sk) => {
+    findings.push({
+      sheet: '05_DETALLE_TECNICO_TRAMOS',
+      row: sk.segmentId,
+      segmentId: sk.segmentId,
+      segmentName: sk.segmentName,
+      field: sk.field,
+      status: sk.severity,
+      reason: `Autofix omitido por corrección de gabinete: ${sk.reason}`,
+    });
+  });
+
+  // 1c. Correcciones de gabinete activas — auditoría obligatoria, valor original tomado del RAW
+  scopedCorrections.forEach((c) => {
+    const raw = rawById.get(c.segmentId);
+    if (!raw) return;
+    const consolidated = fixedById.get(c.segmentId);
+    const rawValue = readFieldFromSegment(raw, c.field);
+    const finalValue = consolidated ? readFieldFromSegment(consolidated, c.field) : c.newValue;
+    findings.push({
+      sheet: '05_DETALLE_TECNICO_TRAMOS',
+      row: c.segmentId,
+      segmentId: c.segmentId,
+      segmentName: raw.name,
+      field: getFieldLabel(c.field),
+      status: 'REVISAR',
+      reason: `Corrección de gabinete · original=${formatCorrectionValue(rawValue)} → consolidado=${formatCorrectionValue(finalValue)} · «${c.reason || 'sin motivo registrado'}» · por ${c.correctedBy} el ${fmtDate(c.correctedAt)}`,
     });
   });
 
@@ -398,9 +497,11 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   wb.properties.date1904 = false;
 
   const route = ctx.route;
-  const allSegments = ctx.selectedIds && ctx.selectedIds.size > 0
+  const rawSegments = ctx.selectedIds && ctx.selectedIds.size > 0
     ? route.segments.filter((s) => ctx.selectedIds!.has(s.id))
     : route.segments;
+  const rawIds = new Set(rawSegments.map((s) => s.id));
+  const rawById = new Map<string, Segment>(rawSegments.map((s) => [s.id, s]));
 
   const allIncidents = ctx.selectedIds && ctx.selectedIds.size > 0
     ? ctx.incidents.filter((i) => ctx.selectedIds!.has(i.segmentId))
@@ -410,9 +511,38 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ? ctx.f5Events.filter((e) => ctx.selectedIds!.has(e.segmentId))
     : ctx.f5Events;
 
-  // Autofix SOLO sobre copia
-  const { fixed: segments, fixes } = autoFixCopy(allSegments);
-  const findings = buildQualityFindings(segments, allIncidents, allF5, fixes, rstMode);
+  // Pipeline gabinete → consolidado → autofix protegido
+  // Filtrar correcciones a solo activas Y dentro del scope (ajuste obligatorio #5)
+  const scopedCorrections = ctx.segmentCorrections.filter(
+    (c) => c.active && rawIds.has(c.segmentId),
+  );
+
+  const consolidatedSegments = getConsolidatedSegments(rawSegments, scopedCorrections);
+
+  // Mapa { segId → Map<field, corrección activa> } a partir del scope
+  const activeByField = new Map<string, Map<CorrectableField, SegmentCorrection>>();
+  rawSegments.forEach((s) => {
+    const m = getActiveCorrectionsByField(s.id, scopedCorrections);
+    if (m.size > 0) {
+      const setMap = new Map<CorrectableField, SegmentCorrection>();
+      m.forEach((corr, field) => setMap.set(field, corr));
+      activeByField.set(s.id, setMap);
+    }
+  });
+  const protectedFields = new Map<string, Set<CorrectableField>>();
+  activeByField.forEach((fmap, segId) => {
+    protectedFields.set(segId, new Set(fmap.keys()));
+  });
+
+  // Autofix SOLO sobre copia (consolidada), respetando campos protegidos
+  const { fixed: segments, applied, skipped } = autoFixCopy(consolidatedSegments, protectedFields);
+  const fixedById = new Map<string, Segment>(segments.map((s) => [s.id, s]));
+
+  const findings = buildQualityFindings(
+    segments, allIncidents, allF5,
+    applied, skipped, scopedCorrections,
+    rawById, fixedById, rstMode,
+  );
 
   // ───────── 01_PORTADA ─────────
   const sh1 = wb.addWorksheet('01_PORTADA', { views: [{ showGridLines: false }] });
@@ -498,7 +628,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['Tiempo total grabación', formatDuration(Math.floor(totalRecMs / 1000))],
     ['Incidencias totales', allIncidents.length],
     ['Incidencias críticas (invalidan bloque)', allIncidents.filter((i) => i.invalidatedBlock).length],
-    ['Autofixes aplicados (revisar)', fixes.length],
+    ['Autofixes aplicados (revisar)', applied.length],
+    ['Autofixes omitidos por corrección de gabinete', skipped.length],
+    ['Correcciones de gabinete activas', scopedCorrections.length],
   ];
   kpis.forEach((kv, i) => {
     const r = sh2.getRow(i + 3);
@@ -625,10 +757,13 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     'Carretera', 'Tipo KML', 'Calzada', 'Sentido', 'PK Inicial', 'PK Final',
     'Tipo', 'Dirección', 'Track planificado', 'Tracks anteriores', 'Notas',
     'Incidencias (total)', 'SEG_INICIO_TRACK', 'SEG_FIN_TRACK',
+    // ── Trazabilidad de gabinete ──
+    'CORREGIDO_GABINETE', 'CAMPOS_CORREGIDOS', 'VALORES_ORIGINALES',
+    'VALORES_CONSOLIDADOS', 'MOTIVO_CORRECCION', 'CORREGIDO_POR', 'FECHA_CORRECCION',
   ];
   setHeaders(sh5, headers5, headers5.map((h) => Math.max(h.length + 2, 12)));
 
-  const fixedIds = new Set(fixes.map((f) => f.segmentId));
+  const appliedIds = new Set(applied.map((f) => f.segmentId));
   segments.forEach((s, idx) => {
     const segIncs = allIncidents.filter((i) => i.segmentId === s.id);
     const km = segmentDistanceKm(s.coordinates);
@@ -636,6 +771,36 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     const start = s.coordinates[0];
     const end = s.coordinates[s.coordinates.length - 1];
     const stLab = statusLabel(s);
+
+    // ── Datos de gabinete para este tramo ──
+    const corrMap = activeByField.get(s.id);
+    const hasCorrections = !!corrMap && corrMap.size > 0;
+    const raw = rawById.get(s.id);
+    let corrFieldsStr = '';
+    let origValsStr = '';
+    let consolidValsStr = '';
+    let reasonsStr = '';
+    let authorsStr = '';
+    let lastDateStr = '';
+    if (hasCorrections && raw) {
+      const entries = Array.from(corrMap!.entries());
+      corrFieldsStr = entries.map(([f]) => getFieldLabel(f)).join('; ');
+      origValsStr = entries.map(([f]) =>
+        `${getFieldLabel(f)}=${formatCorrectionValue(readFieldFromSegment(raw, f))}`
+      ).join('\n');
+      consolidValsStr = entries.map(([f]) =>
+        `${getFieldLabel(f)}=${formatCorrectionValue(readFieldFromSegment(s, f))}`
+      ).join('\n');
+      reasonsStr = entries.map(([f, c]) =>
+        `${getFieldLabel(f)}: ${c.reason || 'sin motivo'}`
+      ).join('\n');
+      authorsStr = Array.from(new Set(entries.map(([, c]) => c.correctedBy))).join(', ');
+      const lastTs = entries
+        .map(([, c]) => c.correctedAt)
+        .sort()
+        .reverse()[0];
+      lastDateStr = fmtDate(lastTs);
+    }
 
     const r = sh5.getRow(idx + 2);
     r.values = [
@@ -677,15 +842,23 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
       segIncs.length,
       s.segmentStartSeconds ?? '',
       s.segmentEndSeconds ?? '',
+      hasCorrections ? 'Sí' : 'No',
+      corrFieldsStr,
+      origValsStr,
+      consolidValsStr,
+      reasonsStr,
+      authorsStr,
+      lastDateStr,
     ];
 
     const bg = idx % 2 === 0 ? COLORS.zebraEven : COLORS.zebraOdd;
-    const wasFixed = fixedIds.has(s.id);
+    const wasAutofixed = appliedIds.has(s.id);
+    // Precedencia: corrección humana > autofix > zebra
+    const rowFill = hasCorrections ? COLORS.review : (wasAutofixed ? COLORS.review : bg);
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle' };
-      const fill = wasFixed ? COLORS.review : bg;
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      c.alignment = { vertical: 'middle', wrapText: col >= 41 && col <= 44 };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
       if (typeof c.value === 'object' && c.value && 'hyperlink' in (c.value as any)) {
         c.font = { color: { argb: 'FF1F6FEB' }, underline: true };
       }
@@ -696,8 +869,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
           c.font = { bold: true };
         }
       }
-      if (c.value === NA || c.value === '') {
-        // marca visual sutil
+      // Marca visual fuerte para "CORREGIDO_GABINETE = Sí"
+      if (col === 39 && c.value === 'Sí') {
+        c.font = { bold: true, color: { argb: 'FFB45309' } };
       }
     });
   });
@@ -862,6 +1036,11 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['Track invalidado por', 'Track que invalidó este bloque y forzó re-grabación.'],
     ['SEG_INICIO_TRACK / SEG_FIN_TRACK', 'Modo Garmin: segundos desde inicio del track al inicio/fin del tramo.'],
     ['Autofix', 'Corrección automática aplicada SOLO sobre la copia de exportación. El estado persistido NO se modifica.'],
+    ['Autofix omitido', 'Corrección automática NO aplicada porque existe una corrección de gabinete activa sobre el mismo campo. La decisión humana prevalece.'],
+    ['CORREGIDO_GABINETE', 'Indica si el tramo tiene al menos una corrección manual de gabinete activa sobre alguno de sus campos.'],
+    ['VALORES_ORIGINALES', 'Valores tal y como llegaron del campo (dato crudo). Trazabilidad inmutable: el dato original nunca se modifica.'],
+    ['VALORES_CONSOLIDADOS', 'Resultado vigente tras aplicar las correcciones de gabinete. Coincide con la vista «Consolidado actual».'],
+    ['Corrección de gabinete', 'Decisión humana auditada (autor, fecha, motivo) registrada de forma append-only. Reversible sin tocar el dato de campo.'],
     ['NO REGISTRADO', 'Dato no presente en la campaña. La aplicación nunca inventa valores.'],
     ['REVISAR', 'Hallazgo que requiere validación humana antes de cerrar la campaña.'],
     ['ERROR', 'Inconsistencia grave que impide auditar el dato.'],
@@ -880,7 +1059,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     });
   });
 
-  return { wb, fixes, findings };
+  return { wb, applied, skipped, scopedCorrections, findings };
 }
 
 // ───────── Helpers de estilo ─────────
@@ -916,8 +1095,15 @@ function bannerRow(sheet: any, range: string, text: string) {
 // ───────── API pública ─────────
 export interface ExportV2Result {
   fileName: string;
-  fixes: AutoFixRecord[];
+  /** Autofixes APLICADOS sobre la copia (no incluye los omitidos). */
+  applied: AutoFixRecord[];
+  /** Autofixes OMITIDOS por corrección de gabinete. */
+  skipped: AutoFixSkipped[];
+  /** Correcciones de gabinete activas dentro del scope exportado. */
+  corrections: SegmentCorrection[];
   findings: QualityFinding[];
+  /** @deprecated Usar `applied`. Conservado por compatibilidad temporal. */
+  fixes: AutoFixRecord[];
 }
 
 export async function exportRouteToExcelV2(
@@ -928,6 +1114,8 @@ export async function exportRouteToExcelV2(
     selectedIds?: Set<string>;
     f5Events?: F5Event[];
     persistentEvents?: PersistentEvent[];
+    /** Correcciones de gabinete (append-only). El export las consume en lectura. */
+    segmentCorrections?: SegmentCorrection[];
   },
 ): Promise<ExportV2Result> {
   const ctx: ExportContext = {
@@ -936,9 +1124,10 @@ export async function exportRouteToExcelV2(
     f5Events: options?.f5Events || [],
     persistentEvents: options?.persistentEvents || [],
     selectedIds: options?.selectedIds,
+    segmentCorrections: options?.segmentCorrections || [],
   };
 
-  const { wb, fixes, findings } = await buildWorkbook(ctx, rstMode);
+  const { wb, applied, skipped, scopedCorrections, findings } = await buildWorkbook(ctx, rstMode);
 
   const ts = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -957,8 +1146,16 @@ export async function exportRouteToExcelV2(
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-  return { fileName, fixes, findings };
+  return { fileName, applied, skipped, corrections: scopedCorrections, findings, fixes: applied };
 }
 
 // Export internals para tests
-export const __testing = { autoFixCopy, buildQualityFindings, safe, fmtDate, formatDuration, statusLabel };
+export const __testing = {
+  autoFixCopy,
+  buildQualityFindings,
+  buildWorkbook,
+  safe,
+  fmtDate,
+  formatDuration,
+  statusLabel,
+};

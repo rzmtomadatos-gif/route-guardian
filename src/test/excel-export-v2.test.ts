@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { __testing } from '@/utils/excel-export-v2';
-import type { Segment, Incident, F5Event } from '@/types/route';
+import type {
+  Segment,
+  Incident,
+  F5Event,
+  SegmentCorrection,
+  CorrectableField,
+} from '@/types/route';
 
-const { autoFixCopy, buildQualityFindings, safe, statusLabel, formatDuration } = __testing;
+const {
+  autoFixCopy,
+  buildQualityFindings,
+  safe,
+  statusLabel,
+  formatDuration,
+} = __testing;
 
 function mkSeg(overrides: Partial<Segment> = {}): Segment {
   return {
@@ -21,6 +33,46 @@ function mkSeg(overrides: Partial<Segment> = {}): Segment {
     kmlMeta: {},
     ...overrides,
   };
+}
+
+function mkCorrection(
+  segmentId: string,
+  field: CorrectableField,
+  newValue: unknown,
+  overrides: Partial<SegmentCorrection> = {},
+): SegmentCorrection {
+  return {
+    id: `corr-${segmentId}-${field}`,
+    segmentId,
+    field,
+    previousValue: null,
+    newValue,
+    reason: 'Motivo de prueba',
+    correctedBy: 'gabinete@test',
+    correctedByRole: 'gabinete',
+    correctedAt: '2026-02-01T12:00:00Z',
+    active: true,
+    ...overrides,
+  };
+}
+
+/** Helper alineado con el contrato actual de buildQualityFindings (9 args). */
+function findings(
+  segs: Segment[],
+  incidents: Incident[] = [],
+  f5: F5Event[] = [],
+  applied: ReturnType<typeof autoFixCopy>['applied'] = [],
+  skipped: ReturnType<typeof autoFixCopy>['skipped'] = [],
+  corrections: SegmentCorrection[] = [],
+  rstMode = true,
+) {
+  const rawById = new Map(segs.map((s) => [s.id, s]));
+  const fixedById = new Map(segs.map((s) => [s.id, s]));
+  return buildQualityFindings(
+    segs, incidents, f5,
+    applied, skipped, corrections,
+    rawById, fixedById, rstMode,
+  );
 }
 
 describe('safe()', () => {
@@ -63,22 +115,24 @@ describe('autoFixCopy() — does NOT mutate originals', () => {
   it('infers track and timestamps for completado without them', () => {
     const segs = [mkSeg({ status: 'completado', trackNumber: null })];
     const before = JSON.parse(JSON.stringify(segs));
-    const { fixed, fixes } = autoFixCopy(segs);
+    const { fixed, applied, skipped } = autoFixCopy(segs);
     expect(segs).toEqual(before); // original intact
     expect(fixed[0].trackNumber).toBe(1);
     expect(fixed[0].startedAt).toBeTruthy();
     expect(fixed[0].endedAt).toBeTruthy();
-    expect(fixes.length).toBeGreaterThanOrEqual(3);
-    expect(fixes.every((f) => f.reason.startsWith('Autofix:'))).toBe(true);
+    expect(applied.length).toBeGreaterThanOrEqual(3);
+    expect(skipped).toHaveLength(0);
+    expect(applied.every((f) => f.reason.startsWith('Autofix:'))).toBe(true);
   });
 
   it('reverts completado+nonRecordable to posible_repetir on copy only', () => {
     const segs = [mkSeg({ status: 'completado', nonRecordable: true, trackNumber: 5 })];
-    const { fixed, fixes } = autoFixCopy(segs);
+    const { fixed, applied, skipped } = autoFixCopy(segs);
     expect(segs[0].status).toBe('completado');
     expect(fixed[0].status).toBe('posible_repetir');
     expect(fixed[0].trackNumber).toBeNull();
-    expect(fixes[0].field).toBe('status');
+    expect(applied[0].field).toBe('status');
+    expect(skipped).toHaveLength(0);
   });
 
   it('does not touch already-valid segments', () => {
@@ -88,9 +142,64 @@ describe('autoFixCopy() — does NOT mutate originals', () => {
       startedAt: '2026-01-01T10:00:00Z',
       endedAt: '2026-01-01T10:05:00Z',
     })];
-    const { fixed, fixes } = autoFixCopy(segs);
-    expect(fixes).toHaveLength(0);
+    const { fixed, applied, skipped } = autoFixCopy(segs);
+    expect(applied).toHaveLength(0);
+    expect(skipped).toHaveLength(0);
     expect(fixed[0]).toEqual(segs[0]);
+  });
+});
+
+describe('autoFixCopy() — protección de campos por gabinete', () => {
+  it('omite el autofix de trackNumber si el campo está protegido', () => {
+    const segs = [mkSeg({ id: 's1', status: 'completado', trackNumber: null, companySegmentId: 'X' })];
+    const protectedFields = new Map<string, Set<CorrectableField>>([
+      ['s1', new Set(['trackNumber'])],
+    ]);
+    const { fixed, applied, skipped } = autoFixCopy(segs, protectedFields);
+    expect(fixed[0].trackNumber).toBeNull();
+    expect(applied.find((a) => a.field === 'trackNumber')).toBeUndefined();
+    expect(skipped.find((s) => s.field === 'trackNumber' && s.severity === 'REVISAR')).toBeTruthy();
+  });
+
+  it('emite ERROR cuando completado+nonRecordable y status protegido', () => {
+    const segs = [mkSeg({
+      id: 's1', status: 'completado', nonRecordable: true, trackNumber: 5,
+    })];
+    const protectedFields = new Map<string, Set<CorrectableField>>([
+      ['s1', new Set(['status'])],
+    ]);
+    const { fixed, applied, skipped } = autoFixCopy(segs, protectedFields);
+    // No mutación: estado se mantiene como gabinete decidió
+    expect(fixed[0].status).toBe('completado');
+    expect(fixed[0].nonRecordable).toBe(true);
+    expect(applied).toHaveLength(0);
+    expect(skipped[0].severity).toBe('ERROR');
+    expect(skipped[0].reason).toContain('Inconsistencia crítica');
+  });
+
+  it('emite ERROR cuando completado+nonRecordable y nonRecordable protegido', () => {
+    const segs = [mkSeg({
+      id: 's1', status: 'completado', nonRecordable: true, trackNumber: 5,
+    })];
+    const protectedFields = new Map<string, Set<CorrectableField>>([
+      ['s1', new Set(['nonRecordable'])],
+    ]);
+    const { applied, skipped } = autoFixCopy(segs, protectedFields);
+    expect(applied).toHaveLength(0);
+    expect(skipped[0].severity).toBe('ERROR');
+    expect(skipped[0].field).toBe('nonRecordable');
+  });
+
+  it('startedAt/endedAt NO son protegibles (no están en CorrectableField) y siempre se infieren', () => {
+    const segs = [mkSeg({
+      id: 's1', status: 'completado', trackNumber: 1,
+      timestampInicio: '2026-01-01T10:00:00Z',
+      timestampFin: '2026-01-01T10:05:00Z',
+    })];
+    // Aunque añadiéramos protección espuria, no aplica: startedAt no es CorrectableField.
+    const { applied } = autoFixCopy(segs);
+    expect(applied.find((a) => a.field === 'startedAt')).toBeTruthy();
+    expect(applied.find((a) => a.field === 'endedAt')).toBeTruthy();
   });
 });
 
@@ -103,16 +212,16 @@ describe('buildQualityFindings()', () => {
       endedAt: '2026-01-01T10:05:00Z',
       companySegmentId: 'BOA_00001',
     })];
-    const findings = buildQualityFindings(segs, [], [], [], true);
-    expect(findings).toHaveLength(1);
-    expect(findings[0].status).toBe('OK');
+    const f = findings(segs);
+    expect(f).toHaveLength(1);
+    expect(f[0].status).toBe('OK');
   });
 
   it('flags autofix records as REVISAR', () => {
     const segs = [mkSeg({ status: 'completado', companySegmentId: 'BOA_1' })];
-    const { fixed, fixes } = autoFixCopy(segs);
-    const findings = buildQualityFindings(fixed, [], [], fixes, true);
-    expect(findings.some((f) => f.status === 'REVISAR' && f.reason.includes('Autofix'))).toBe(true);
+    const { fixed, applied, skipped } = autoFixCopy(segs);
+    const f = findings(fixed, [], [], applied, skipped);
+    expect(f.some((x) => x.status === 'REVISAR' && x.reason.includes('Autofix'))).toBe(true);
   });
 
   it('flags duplicate tracks in RST OFF', () => {
@@ -120,15 +229,15 @@ describe('buildQualityFindings()', () => {
       mkSeg({ id: 'a', status: 'completado', trackNumber: 5, companySegmentId: 'X1' }),
       mkSeg({ id: 'b', status: 'completado', trackNumber: 5, companySegmentId: 'X2' }),
     ];
-    const findings = buildQualityFindings(segs, [], [], [], false);
-    const dups = findings.filter((f) => f.field === 'trackNumber' && f.reason.includes('repetido'));
+    const f = findings(segs, [], [], [], [], [], false);
+    const dups = f.filter((x) => x.field === 'trackNumber' && x.reason.includes('repetido'));
     expect(dups).toHaveLength(2);
   });
 
   it('flags missing companySegmentId', () => {
     const segs = [mkSeg({ companySegmentId: undefined })];
-    const findings = buildQualityFindings(segs, [], [], [], true);
-    expect(findings.some((f) => f.field === 'companySegmentId')).toBe(true);
+    const f = findings(segs);
+    expect(f.some((x) => x.field === 'companySegmentId')).toBe(true);
   });
 
   it('flags incident that invalidated block as REVISAR', () => {
@@ -137,8 +246,8 @@ describe('buildQualityFindings()', () => {
       id: 'i1', segmentId: 's1', category: 'obra', impact: 'critica_invalida_bloque',
       timestamp: '2026-01-01T10:00:00Z', invalidatedBlock: true, trackAtIncident: 3,
     };
-    const findings = buildQualityFindings(segs, [inc], [], [], true);
-    expect(findings.some((f) => f.field === 'invalidatedBlock' && f.status === 'REVISAR')).toBe(true);
+    const f = findings(segs, [inc]);
+    expect(f.some((x) => x.field === 'invalidatedBlock' && x.status === 'REVISAR')).toBe(true);
   });
 
   it('flags unconfirmed F5 in RST mode', () => {
@@ -147,7 +256,74 @@ describe('buildQualityFindings()', () => {
       segmentId: 's1', eventType: 'inicio', distanceMarker: null,
       confirmedAt: '2026-01-01T10:00:00Z', confirmedByUser: false,
     };
-    const findings = buildQualityFindings(segs, [], [evt], [], true);
-    expect(findings.some((f) => f.sheet === '07_EVENTOS_F5' && f.status === 'REVISAR')).toBe(true);
+    const f = findings(segs, [], [evt]);
+    expect(f.some((x) => x.sheet === '07_EVENTOS_F5' && x.status === 'REVISAR')).toBe(true);
+  });
+});
+
+describe('buildQualityFindings() — correcciones de gabinete', () => {
+  it('emite finding REVISAR por cada corrección activa, leyendo el original del RAW', () => {
+    const raw = mkSeg({ id: 's1', workDay: undefined, companySegmentId: 'BOA_1' });
+    const consolidated = mkSeg({ id: 's1', workDay: 1, companySegmentId: 'BOA_1' });
+    const corr = mkCorrection('s1', 'workDay', 1, {
+      previousValue: undefined,
+      reason: 'Tramos huérfanos del primer día',
+      correctedBy: 'ana@vialroute',
+    });
+    const rawById = new Map([['s1', raw]]);
+    const fixedById = new Map([['s1', consolidated]]);
+    const result = buildQualityFindings(
+      [consolidated], [], [],
+      [], [], [corr],
+      rawById, fixedById, true,
+    );
+    const corrFinding = result.find((f) => f.reason.includes('Corrección de gabinete'));
+    expect(corrFinding).toBeTruthy();
+    expect(corrFinding!.status).toBe('REVISAR');
+    expect(corrFinding!.reason).toContain('original=—'); // workDay raw era undefined
+    expect(corrFinding!.reason).toContain('consolidado=1');
+    expect(corrFinding!.reason).toContain('ana@vialroute');
+    expect(corrFinding!.reason).toContain('Tramos huérfanos');
+  });
+
+  it('VALORES_ORIGINALES sale del raw, no de previousValue (cuando hay supersede)', () => {
+    // Simulamos: raw.workDay = undefined → corr#1 puso 99 (superseded) → corr#2 puso 1 (activa).
+    // El finding debe mostrar original=undefined (raw), no 99 (previousValue de corr#2).
+    const raw = mkSeg({ id: 's1', workDay: undefined, companySegmentId: 'X' });
+    const consolidated = mkSeg({ id: 's1', workDay: 1, companySegmentId: 'X' });
+    const activeCorr = mkCorrection('s1', 'workDay', 1, {
+      previousValue: 99, // valor intermedio, NO debe usarse
+    });
+    const rawById = new Map([['s1', raw]]);
+    const fixedById = new Map([['s1', consolidated]]);
+    const result = buildQualityFindings(
+      [consolidated], [], [],
+      [], [], [activeCorr],
+      rawById, fixedById, true,
+    );
+    const corrFinding = result.find((f) => f.reason.includes('Corrección de gabinete'));
+    expect(corrFinding!.reason).toContain('original=—'); // raw=undefined → "—"
+    expect(corrFinding!.reason).not.toContain('original=99');
+  });
+
+  it('autofix omitido se reporta diferenciado del aplicado y respeta severity', () => {
+    const segs = [mkSeg({ id: 's1', status: 'completado', companySegmentId: 'X', trackNumber: null })];
+    const { applied, skipped } = autoFixCopy(segs, new Map([['s1', new Set(['trackNumber'])]]));
+    const f = findings(segs, [], [], applied, skipped);
+    const skippedFinding = f.find((x) => x.reason.includes('Autofix omitido'));
+    expect(skippedFinding).toBeTruthy();
+    expect(skippedFinding!.status).toBe('REVISAR');
+    // applied.length no incluye al skipped
+    expect(applied.find((a) => a.field === 'trackNumber')).toBeUndefined();
+  });
+
+  it('conflicto crítico (completado+nonRecordable protegido) sale como ERROR en findings', () => {
+    const segs = [mkSeg({
+      id: 's1', status: 'completado', nonRecordable: true, trackNumber: 5, companySegmentId: 'X',
+    })];
+    const { applied, skipped } = autoFixCopy(segs, new Map([['s1', new Set(['status'])]]));
+    const f = findings(segs, [], [], applied, skipped);
+    const errFinding = f.find((x) => x.status === 'ERROR' && x.reason.includes('Inconsistencia crítica'));
+    expect(errFinding).toBeTruthy();
   });
 });
