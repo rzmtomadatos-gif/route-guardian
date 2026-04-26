@@ -1059,7 +1059,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     });
   });
 
-  return { wb, fixes, findings };
+  return { wb, applied, skipped, scopedCorrections, findings };
 }
 
 // ───────── Helpers de estilo ─────────
