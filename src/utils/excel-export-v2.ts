@@ -220,24 +220,56 @@ function statusFill(label: string): string | null {
 // ───────── Autofix sobre copia ─────────
 /**
  * Aplica correcciones automáticas SOLO sobre un clon del array.
- * Devuelve la copia corregida + lista de correcciones aplicadas para auditoría.
+ *
+ * `protectedByField`: para cada segId, conjunto de campos con corrección de
+ * gabinete activa. El autofix NUNCA pisa esos campos: emite un `skipped`
+ * (REVISAR o ERROR según gravedad).
+ *
+ * `startedAt`/`endedAt` NO son `CorrectableField` → no son protegibles por
+ * gabinete; se siguen infiriendo cuando faltan (autofix `applied` REVISAR).
+ *
  * El estado persistido NO se toca.
  */
-function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRecord[] } {
-  const fixes: AutoFixRecord[] = [];
+function autoFixCopy(
+  segments: Segment[],
+  protectedByField?: Map<string, Set<CorrectableField>>,
+): { fixed: Segment[]; applied: AutoFixRecord[]; skipped: AutoFixSkipped[] } {
+  const applied: AutoFixRecord[] = [];
+  const skipped: AutoFixSkipped[] = [];
   let maxTrack = 0;
   segments.forEach((s) => {
     if (s.trackNumber !== null && s.trackNumber > maxTrack) maxTrack = s.trackNumber;
     s.trackHistory.forEach((t) => { if (t > maxTrack) maxTrack = t; });
   });
 
-  const fixed = segments.map((seg) => {
-    // Clon profundo superficial — no mutamos nada del original
-    const copy: Segment = { ...seg, kmlMeta: { ...seg.kmlMeta }, trackHistory: [...seg.trackHistory], coordinates: seg.coordinates };
+  const isProtected = (segId: string, field: CorrectableField): boolean =>
+    protectedByField?.get(segId)?.has(field) ?? false;
 
-    // Caso 1: completado pero marcado no grabable — revertir
+  const fixed = segments.map((seg) => {
+    const copy: Segment = {
+      ...seg,
+      kmlMeta: { ...seg.kmlMeta },
+      trackHistory: [...seg.trackHistory],
+      coordinates: seg.coordinates,
+    };
+
+    // Caso 1: completado pero marcado no grabable
     if (copy.status === 'completado' && copy.nonRecordable) {
-      fixes.push({
+      const statusProtected = isProtected(copy.id, 'status');
+      const nrProtected = isProtected(copy.id, 'nonRecordable');
+      if (statusProtected || nrProtected) {
+        skipped.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: statusProtected ? 'status' : 'nonRecordable',
+          severity: 'ERROR',
+          reason:
+            'Inconsistencia crítica: tramo completado y no grabable simultáneamente con corrección de gabinete activa. Resolver manualmente.',
+        });
+        // NO mutamos: respetar la decisión humana, dejar el conflicto visible.
+        return copy;
+      }
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'status',
@@ -254,20 +286,30 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     if (copy.status !== 'completado') return copy;
 
     if (copy.trackNumber === null) {
-      maxTrack++;
-      fixes.push({
-        segmentId: copy.id,
-        segmentName: copy.name,
-        field: 'trackNumber',
-        original: null,
-        applied: maxTrack,
-        reason: 'Autofix: track inferido (completado sin track).',
-      });
-      copy.trackNumber = maxTrack;
+      if (isProtected(copy.id, 'trackNumber')) {
+        skipped.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: 'trackNumber',
+          severity: 'REVISAR',
+          reason: 'Track null tras corrección de gabinete; verificar consolidado.',
+        });
+      } else {
+        maxTrack++;
+        applied.push({
+          segmentId: copy.id,
+          segmentName: copy.name,
+          field: 'trackNumber',
+          original: null,
+          applied: maxTrack,
+          reason: 'Autofix: track inferido (completado sin track).',
+        });
+        copy.trackNumber = maxTrack;
+      }
     }
     if (!copy.startedAt) {
       const inferred = copy.timestampInicio || new Date().toISOString();
-      fixes.push({
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'startedAt',
@@ -279,7 +321,7 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     }
     if (!copy.endedAt) {
       const inferred = copy.timestampFin || new Date().toISOString();
-      fixes.push({
+      applied.push({
         segmentId: copy.id,
         segmentName: copy.name,
         field: 'endedAt',
@@ -292,7 +334,7 @@ function autoFixCopy(segments: Segment[]): { fixed: Segment[]; fixes: AutoFixRec
     return copy;
   });
 
-  return { fixed, fixes };
+  return { fixed, applied, skipped };
 }
 
 // ───────── Validación de calidad (auditoría real) ─────────
