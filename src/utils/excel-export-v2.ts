@@ -757,10 +757,13 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     'Carretera', 'Tipo KML', 'Calzada', 'Sentido', 'PK Inicial', 'PK Final',
     'Tipo', 'Dirección', 'Track planificado', 'Tracks anteriores', 'Notas',
     'Incidencias (total)', 'SEG_INICIO_TRACK', 'SEG_FIN_TRACK',
+    // ── Trazabilidad de gabinete ──
+    'CORREGIDO_GABINETE', 'CAMPOS_CORREGIDOS', 'VALORES_ORIGINALES',
+    'VALORES_CONSOLIDADOS', 'MOTIVO_CORRECCION', 'CORREGIDO_POR', 'FECHA_CORRECCION',
   ];
   setHeaders(sh5, headers5, headers5.map((h) => Math.max(h.length + 2, 12)));
 
-  const fixedIds = new Set(fixes.map((f) => f.segmentId));
+  const appliedIds = new Set(applied.map((f) => f.segmentId));
   segments.forEach((s, idx) => {
     const segIncs = allIncidents.filter((i) => i.segmentId === s.id);
     const km = segmentDistanceKm(s.coordinates);
@@ -768,6 +771,36 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     const start = s.coordinates[0];
     const end = s.coordinates[s.coordinates.length - 1];
     const stLab = statusLabel(s);
+
+    // ── Datos de gabinete para este tramo ──
+    const corrMap = activeByField.get(s.id);
+    const hasCorrections = !!corrMap && corrMap.size > 0;
+    const raw = rawById.get(s.id);
+    let corrFieldsStr = '';
+    let origValsStr = '';
+    let consolidValsStr = '';
+    let reasonsStr = '';
+    let authorsStr = '';
+    let lastDateStr = '';
+    if (hasCorrections && raw) {
+      const entries = Array.from(corrMap!.entries());
+      corrFieldsStr = entries.map(([f]) => getFieldLabel(f)).join('; ');
+      origValsStr = entries.map(([f]) =>
+        `${getFieldLabel(f)}=${formatCorrectionValue(readFieldFromSegment(raw, f))}`
+      ).join('\n');
+      consolidValsStr = entries.map(([f]) =>
+        `${getFieldLabel(f)}=${formatCorrectionValue(readFieldFromSegment(s, f))}`
+      ).join('\n');
+      reasonsStr = entries.map(([f, c]) =>
+        `${getFieldLabel(f)}: ${c.reason || 'sin motivo'}`
+      ).join('\n');
+      authorsStr = Array.from(new Set(entries.map(([, c]) => c.correctedBy))).join(', ');
+      const lastTs = entries
+        .map(([, c]) => c.correctedAt)
+        .sort()
+        .reverse()[0];
+      lastDateStr = fmtDate(lastTs);
+    }
 
     const r = sh5.getRow(idx + 2);
     r.values = [
@@ -809,15 +842,23 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
       segIncs.length,
       s.segmentStartSeconds ?? '',
       s.segmentEndSeconds ?? '',
+      hasCorrections ? 'Sí' : 'No',
+      corrFieldsStr,
+      origValsStr,
+      consolidValsStr,
+      reasonsStr,
+      authorsStr,
+      lastDateStr,
     ];
 
     const bg = idx % 2 === 0 ? COLORS.zebraEven : COLORS.zebraOdd;
-    const wasFixed = fixedIds.has(s.id);
+    const wasAutofixed = appliedIds.has(s.id);
+    // Precedencia: corrección humana > autofix > zebra
+    const rowFill = hasCorrections ? COLORS.review : (wasAutofixed ? COLORS.review : bg);
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle' };
-      const fill = wasFixed ? COLORS.review : bg;
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      c.alignment = { vertical: 'middle', wrapText: col >= 41 && col <= 44 };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
       if (typeof c.value === 'object' && c.value && 'hyperlink' in (c.value as any)) {
         c.font = { color: { argb: 'FF1F6FEB' }, underline: true };
       }
@@ -828,8 +869,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
           c.font = { bold: true };
         }
       }
-      if (c.value === NA || c.value === '') {
-        // marca visual sutil
+      // Marca visual fuerte para "CORREGIDO_GABINETE = Sí"
+      if (col === 39 && c.value === 'Sí') {
+        c.font = { bold: true, color: { argb: 'FFB45309' } };
       }
     });
   });
