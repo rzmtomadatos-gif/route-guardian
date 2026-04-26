@@ -497,9 +497,11 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   wb.properties.date1904 = false;
 
   const route = ctx.route;
-  const allSegments = ctx.selectedIds && ctx.selectedIds.size > 0
+  const rawSegments = ctx.selectedIds && ctx.selectedIds.size > 0
     ? route.segments.filter((s) => ctx.selectedIds!.has(s.id))
     : route.segments;
+  const rawIds = new Set(rawSegments.map((s) => s.id));
+  const rawById = new Map<string, Segment>(rawSegments.map((s) => [s.id, s]));
 
   const allIncidents = ctx.selectedIds && ctx.selectedIds.size > 0
     ? ctx.incidents.filter((i) => ctx.selectedIds!.has(i.segmentId))
@@ -509,9 +511,38 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ? ctx.f5Events.filter((e) => ctx.selectedIds!.has(e.segmentId))
     : ctx.f5Events;
 
-  // Autofix SOLO sobre copia
-  const { fixed: segments, fixes } = autoFixCopy(allSegments);
-  const findings = buildQualityFindings(segments, allIncidents, allF5, fixes, rstMode);
+  // Pipeline gabinete → consolidado → autofix protegido
+  // Filtrar correcciones a solo activas Y dentro del scope (ajuste obligatorio #5)
+  const scopedCorrections = ctx.segmentCorrections.filter(
+    (c) => c.active && rawIds.has(c.segmentId),
+  );
+
+  const consolidatedSegments = getConsolidatedSegments(rawSegments, scopedCorrections);
+
+  // Mapa { segId → Map<field, corrección activa> } a partir del scope
+  const activeByField = new Map<string, Map<CorrectableField, SegmentCorrection>>();
+  rawSegments.forEach((s) => {
+    const m = getActiveCorrectionsByField(s.id, scopedCorrections);
+    if (m.size > 0) {
+      const setMap = new Map<CorrectableField, SegmentCorrection>();
+      m.forEach((corr, field) => setMap.set(field, corr));
+      activeByField.set(s.id, setMap);
+    }
+  });
+  const protectedFields = new Map<string, Set<CorrectableField>>();
+  activeByField.forEach((fmap, segId) => {
+    protectedFields.set(segId, new Set(fmap.keys()));
+  });
+
+  // Autofix SOLO sobre copia (consolidada), respetando campos protegidos
+  const { fixed: segments, applied, skipped } = autoFixCopy(consolidatedSegments, protectedFields);
+  const fixedById = new Map<string, Segment>(segments.map((s) => [s.id, s]));
+
+  const findings = buildQualityFindings(
+    segments, allIncidents, allF5,
+    applied, skipped, scopedCorrections,
+    rawById, fixedById, rstMode,
+  );
 
   // ───────── 01_PORTADA ─────────
   const sh1 = wb.addWorksheet('01_PORTADA', { views: [{ showGridLines: false }] });
