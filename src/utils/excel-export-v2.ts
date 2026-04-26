@@ -628,7 +628,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['Tiempo total grabación', formatDuration(Math.floor(totalRecMs / 1000))],
     ['Incidencias totales', allIncidents.length],
     ['Incidencias críticas (invalidan bloque)', allIncidents.filter((i) => i.invalidatedBlock).length],
-    ['Autofixes aplicados (revisar)', fixes.length],
+    ['Autofixes aplicados (revisar)', applied.length],
+    ['Autofixes omitidos por corrección de gabinete', skipped.length],
+    ['Correcciones de gabinete activas', scopedCorrections.length],
   ];
   kpis.forEach((kv, i) => {
     const r = sh2.getRow(i + 3);
