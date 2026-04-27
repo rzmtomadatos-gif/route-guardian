@@ -1195,6 +1195,8 @@ export async function exportRouteToExcelV2(
     persistentEvents?: PersistentEvent[];
     /** Correcciones de gabinete (append-only). El export las consume en lectura. */
     segmentCorrections?: SegmentCorrection[];
+    /** Logs GPS reales por jornada y track. Necesario para distancias acumuladas reales. */
+    trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
   },
 ): Promise<ExportV2Result> {
   const ctx: ExportContext = {
@@ -1204,6 +1206,7 @@ export async function exportRouteToExcelV2(
     persistentEvents: options?.persistentEvents || [],
     selectedIds: options?.selectedIds,
     segmentCorrections: options?.segmentCorrections || [],
+    trackGpsLogsByDay: options?.trackGpsLogsByDay,
   };
 
   const { wb, applied, skipped, scopedCorrections, findings } = await buildWorkbook(ctx, rstMode);
