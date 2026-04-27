@@ -270,6 +270,7 @@ export default function SegmentsPage({
         selectedIds: selectedIds && selectedIds.size > 0 ? selectedIds : undefined,
         persistentEvents: events,
         segmentCorrections: state.segmentCorrections ?? [],
+        trackGpsLogsByDay: state.trackGpsLogsByDay ?? {},
       });
       const reviewCount = result.findings.filter((f) => f.status !== 'OK').length;
       if (reviewCount > 0) {

@@ -17,6 +17,7 @@ import type {
   F5Event,
   SegmentCorrection,
   CorrectableField,
+  TrackGpsPoint,
 } from '@/types/route';
 import type { PersistentEvent, EventType } from '@/utils/persistence';
 import { segmentDistanceKm, haversineMeters } from '@/utils/geo-distance';
@@ -157,6 +158,8 @@ interface ExportContext {
   persistentEvents: PersistentEvent[];
   selectedIds?: Set<string>;
   segmentCorrections: SegmentCorrection[];
+  /** Logs GPS reales por jornada y track. Solo se usa para distancias acumuladas reales. */
+  trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
 }
 
 // ───────── Utilidades ─────────
@@ -194,6 +197,61 @@ function formatDuration(seconds: number | null): string {
   const s = seconds % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
   return `${m}m ${s}s`;
+}
+
+/**
+ * Formatea segundos de grabación dentro de un track como `mm:ss`.
+ * Devuelve `NO REGISTRADO` si no hay valor numérico finito.
+ * No estima ni infiere: solo formatea lo que hay.
+ */
+function formatTrackSeconds(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return NA;
+  }
+  const total = Math.max(0, Math.floor(seconds as number));
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
+ * Calcula la distancia acumulada (en metros) desde el primer punto del track
+ * hasta el primer/último punto en fase `recording` perteneciente al `segmentId`.
+ *
+ * Solo usa GPS real. No interpola ni estima.
+ *
+ * @returns metros acumulados, o `null` si no hay datos suficientes.
+ */
+function computeCumulativeDistanceFromGps(
+  points: TrackGpsPoint[] | undefined | null,
+  segmentId: string,
+  edge: 'start' | 'end',
+): number | null {
+  if (!Array.isArray(points) || points.length < 2) return null;
+
+  // Recorrido acumulado por índice
+  const cumByIdx: number[] = new Array(points.length);
+  cumByIdx[0] = 0;
+  for (let i = 1; i < points.length; i++) {
+    cumByIdx[i] = cumByIdx[i - 1] + haversineMeters(points[i - 1], points[i]);
+  }
+
+  let firstIdx = -1;
+  let lastIdx = -1;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (p.phase === 'recording' && p.segmentId === segmentId) {
+      if (firstIdx === -1) firstIdx = i;
+      lastIdx = i;
+    }
+  }
+  if (firstIdx === -1) return null;
+  return edge === 'start' ? cumByIdx[firstIdx] : cumByIdx[lastIdx];
+}
+
+function formatKmFromMeters(meters: number | null): number | string {
+  if (meters === null || !Number.isFinite(meters)) return NA;
+  return Number((meters / 1000).toFixed(3));
 }
 
 function gmapsLink(lat: number, lng: number): string {
@@ -756,7 +814,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     'Lat inicio', 'Lng inicio', 'Lat fin', 'Lng fin', 'Maps inicio', 'Maps fin',
     'Carretera', 'Tipo KML', 'Calzada', 'Sentido', 'PK Inicial', 'PK Final',
     'Tipo', 'Dirección', 'Track planificado', 'Tracks anteriores', 'Notas',
-    'Incidencias (total)', 'SEG_INICIO_TRACK', 'SEG_FIN_TRACK',
+    'Incidencias (total)',
+    'INICIO_GRABACION (mm:ss)', 'FIN_GRABACION (mm:ss)',
+    'DIST_ACUM_INICIO_GPS (km)', 'DIST_ACUM_FIN_GPS (km)',
     // ── Trazabilidad de gabinete ──
     'CORREGIDO_GABINETE', 'CAMPOS_CORREGIDOS', 'VALORES_ORIGINALES',
     'VALORES_CONSOLIDADOS', 'MOTIVO_CORRECCION', 'CORREGIDO_POR', 'FECHA_CORRECCION',
@@ -840,8 +900,26 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
       s.trackHistory.length > 0 ? s.trackHistory.join(', ') : '',
       s.notes || '',
       segIncs.length,
-      s.segmentStartSeconds ?? '',
-      s.segmentEndSeconds ?? '',
+      formatTrackSeconds(s.segmentStartSeconds),
+      formatTrackSeconds(s.segmentEndSeconds),
+      formatKmFromMeters(
+        s.workDay != null && s.trackNumber != null
+          ? computeCumulativeDistanceFromGps(
+              ctx.trackGpsLogsByDay?.[s.workDay]?.[s.trackNumber],
+              s.id,
+              'start',
+            )
+          : null,
+      ),
+      formatKmFromMeters(
+        s.workDay != null && s.trackNumber != null
+          ? computeCumulativeDistanceFromGps(
+              ctx.trackGpsLogsByDay?.[s.workDay]?.[s.trackNumber],
+              s.id,
+              'end',
+            )
+          : null,
+      ),
       hasCorrections ? 'Sí' : 'No',
       corrFieldsStr,
       origValsStr,
@@ -857,7 +935,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     const rowFill = hasCorrections ? COLORS.review : (wasAutofixed ? COLORS.review : bg);
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle', wrapText: col >= 41 && col <= 44 };
+      c.alignment = { vertical: 'middle', wrapText: col >= 43 && col <= 46 };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
       if (typeof c.value === 'object' && c.value && 'hyperlink' in (c.value as any)) {
         c.font = { color: { argb: 'FF1F6FEB' }, underline: true };
@@ -870,7 +948,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
         }
       }
       // Marca visual fuerte para "CORREGIDO_GABINETE = Sí"
-      if (col === 39 && c.value === 'Sí') {
+      if (col === 41 && c.value === 'Sí') {
         c.font = { bold: true, color: { argb: 'FFB45309' } };
       }
     });
@@ -1034,7 +1112,8 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['Repetir', 'Tramo que necesita re-grabación (needsRepeat).'],
     ['No grabable', 'Tramo físicamente imposible de grabar (corte, inundación, acceso).'],
     ['Track invalidado por', 'Track que invalidó este bloque y forzó re-grabación.'],
-    ['SEG_INICIO_TRACK / SEG_FIN_TRACK', 'Modo Garmin: segundos desde inicio del track al inicio/fin del tramo.'],
+    ['INICIO_GRABACION (mm:ss) / FIN_GRABACION (mm:ss)', 'Minutos:segundos desde inicio del track al inicio/fin del tramo (modo Garmin). NO REGISTRADO si no hay dato.'],
+    ['DIST_ACUM_INICIO_GPS (km) / DIST_ACUM_FIN_GPS (km)', 'Distancia acumulada GPS real recorrida desde inicio del track hasta el primer/último punto GPS grabado dentro del tramo. NO REGISTRADO si no hay GPS suficiente. No se estima desde geometría KML.'],
     ['Autofix', 'Corrección automática aplicada SOLO sobre la copia de exportación. El estado persistido NO se modifica.'],
     ['Autofix omitido', 'Corrección automática NO aplicada porque existe una corrección de gabinete activa sobre el mismo campo. La decisión humana prevalece.'],
     ['CORREGIDO_GABINETE', 'Indica si el tramo tiene al menos una corrección manual de gabinete activa sobre alguno de sus campos.'],
@@ -1116,6 +1195,8 @@ export async function exportRouteToExcelV2(
     persistentEvents?: PersistentEvent[];
     /** Correcciones de gabinete (append-only). El export las consume en lectura. */
     segmentCorrections?: SegmentCorrection[];
+    /** Logs GPS reales por jornada y track. Necesario para distancias acumuladas reales. */
+    trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
   },
 ): Promise<ExportV2Result> {
   const ctx: ExportContext = {
@@ -1125,6 +1206,7 @@ export async function exportRouteToExcelV2(
     persistentEvents: options?.persistentEvents || [],
     selectedIds: options?.selectedIds,
     segmentCorrections: options?.segmentCorrections || [],
+    trackGpsLogsByDay: options?.trackGpsLogsByDay,
   };
 
   const { wb, applied, skipped, scopedCorrections, findings } = await buildWorkbook(ctx, rstMode);
@@ -1157,5 +1239,8 @@ export const __testing = {
   safe,
   fmtDate,
   formatDuration,
+  formatTrackSeconds,
+  computeCumulativeDistanceFromGps,
+  formatKmFromMeters,
   statusLabel,
 };

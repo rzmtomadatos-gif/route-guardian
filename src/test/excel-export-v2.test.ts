@@ -6,6 +6,7 @@ import type {
   F5Event,
   SegmentCorrection,
   CorrectableField,
+  TrackGpsPoint,
 } from '@/types/route';
 
 const {
@@ -14,6 +15,9 @@ const {
   safe,
   statusLabel,
   formatDuration,
+  formatTrackSeconds,
+  computeCumulativeDistanceFromGps,
+  formatKmFromMeters,
 } = __testing;
 
 function mkSeg(overrides: Partial<Segment> = {}): Segment {
@@ -325,5 +329,96 @@ describe('buildQualityFindings() — correcciones de gabinete', () => {
     const f = findings(segs, [], [], applied, skipped);
     const errFinding = f.find((x) => x.status === 'ERROR' && x.reason.includes('Inconsistencia crítica'));
     expect(errFinding).toBeTruthy();
+  });
+});
+
+describe('formatTrackSeconds()', () => {
+  it('returns NO REGISTRADO for null/undefined/NaN', () => {
+    expect(formatTrackSeconds(null)).toBe('NO REGISTRADO');
+    expect(formatTrackSeconds(undefined)).toBe('NO REGISTRADO');
+    expect(formatTrackSeconds(NaN)).toBe('NO REGISTRADO');
+  });
+  it('formats seconds as mm:ss with two digits', () => {
+    expect(formatTrackSeconds(0)).toBe('00:00');
+    expect(formatTrackSeconds(5)).toBe('00:05');
+    expect(formatTrackSeconds(65)).toBe('01:05');
+    expect(formatTrackSeconds(599)).toBe('09:59');
+    expect(formatTrackSeconds(3600)).toBe('60:00');
+  });
+  it('floors decimals and clamps negatives to 0', () => {
+    expect(formatTrackSeconds(12.9)).toBe('00:12');
+    expect(formatTrackSeconds(-30)).toBe('00:00');
+  });
+});
+
+describe('formatKmFromMeters()', () => {
+  it('NA when null', () => {
+    expect(formatKmFromMeters(null)).toBe('NO REGISTRADO');
+  });
+  it('converts to km with 3 decimals', () => {
+    expect(formatKmFromMeters(1234)).toBe(1.234);
+    expect(formatKmFromMeters(0)).toBe(0);
+  });
+});
+
+describe('computeCumulativeDistanceFromGps()', () => {
+  function pt(
+    lat: number, lng: number, phase: 'transport' | 'recording', segmentId: string | null = null,
+  ): TrackGpsPoint {
+    return {
+      timestamp: '2026-01-01T00:00:00Z',
+      lat, lng,
+      workDay: 1, trackNumber: 1,
+      phase,
+      segmentId,
+      source: 'gps',
+    };
+  }
+
+  it('returns null for empty/short arrays', () => {
+    expect(computeCumulativeDistanceFromGps(null, 's1', 'start')).toBeNull();
+    expect(computeCumulativeDistanceFromGps([], 's1', 'start')).toBeNull();
+    expect(computeCumulativeDistanceFromGps([pt(40, -3, 'recording', 's1')], 's1', 'start')).toBeNull();
+  });
+
+  it('returns null when segment never appears in recording phase', () => {
+    const points = [
+      pt(40.0, -3.0, 'transport'),
+      pt(40.001, -3.0, 'recording', 'OTHER'),
+    ];
+    expect(computeCumulativeDistanceFromGps(points, 's1', 'start')).toBeNull();
+  });
+
+  it('start uses cumulative distance to first matching recording point', () => {
+    // 3 puntos transport, luego empieza recording de s1 en idx=3
+    const points = [
+      pt(40.0000, -3.0, 'transport'),
+      pt(40.0010, -3.0, 'transport'),
+      pt(40.0020, -3.0, 'transport'),
+      pt(40.0030, -3.0, 'recording', 's1'),
+      pt(40.0040, -3.0, 'recording', 's1'),
+    ];
+    const startM = computeCumulativeDistanceFromGps(points, 's1', 'start');
+    const endM = computeCumulativeDistanceFromGps(points, 's1', 'end');
+    expect(startM).toBeGreaterThan(300); // ~333m
+    expect(startM).toBeLessThan(360);
+    expect(endM!).toBeGreaterThan(startM!);
+  });
+
+  it('ignores points of other segments when locating boundaries', () => {
+    const points = [
+      pt(40.0000, -3.0, 'transport'),
+      pt(40.0010, -3.0, 'recording', 'OTHER'),
+      pt(40.0020, -3.0, 'recording', 's1'),
+      pt(40.0030, -3.0, 'recording', 's1'),
+      pt(40.0040, -3.0, 'recording', 'OTHER'),
+    ];
+    const startM = computeCumulativeDistanceFromGps(points, 's1', 'start')!;
+    const endM = computeCumulativeDistanceFromGps(points, 's1', 'end')!;
+    // start corresponde al idx=2 (~222m), end al idx=3 (~333m)
+    expect(Math.round(startM)).toBeGreaterThan(200);
+    expect(Math.round(startM)).toBeLessThan(240);
+    expect(Math.round(endM)).toBeGreaterThan(310);
+    expect(Math.round(endM)).toBeLessThan(360);
   });
 });
