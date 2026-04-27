@@ -1099,7 +1099,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
 
   // ───────── 09_VALIDACION_CALIDAD ─────────
   const sh9 = wb.addWorksheet('09_VALIDACION_CALIDAD', { views: [{ state: 'frozen', ySplit: 2, showGridLines: false }] });
-  sh9.mergeCells('A1:G1');
+  sh9.mergeCells('A1:H1');
   const banner9 = sh9.getCell('A1');
   banner9.value = 'CHECKLIST DE AUDITORÍA — Revisar cada fila REVISAR/ERROR antes de cerrar la campaña';
   banner9.font = { bold: true, color: { argb: COLORS.bannerFg } };
@@ -1107,8 +1107,8 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   banner9.alignment = { vertical: 'middle', horizontal: 'center' };
   sh9.getRow(1).height = 22;
 
-  const headers9 = ['Estado', 'Hoja origen', 'ID Tramo', 'Tramo', 'Campo', 'Motivo', 'Acción recomendada'];
-  setHeaders(sh9, headers9, [12, 26, 26, 28, 22, 70, 28], 2);
+  const headers9 = ['Estado', 'Hoja origen', 'ID_EMPRESA', 'ID Tramo', 'Tramo', 'Campo', 'Motivo', 'Acción recomendada'];
+  setHeaders(sh9, headers9, [12, 26, 16, 26, 28, 22, 70, 28], 2);
   findings.forEach((f, idx) => {
     const r = sh9.getRow(idx + 3);
     let action = '';
@@ -1121,13 +1121,14 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     else if (f.field === 'coordinates') action = 'Re-importar geometría desde KML original.';
     else action = 'Revisar manualmente y corregir desde Gabinete.';
 
-    r.values = [f.status, f.sheet, f.segmentId, f.segmentName, f.field, f.reason, action];
+    const idEmpresa = f.segmentId === '-' ? '-' : safe(f.companySegmentId);
+    r.values = [f.status, f.sheet, idEmpresa, f.segmentId, f.segmentName, f.field, f.reason, action];
     const fill = f.status === 'OK' ? COLORS.ok : f.status === 'ERROR' ? COLORS.error : COLORS.review;
     r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
     r.getCell(1).font = { bold: true };
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle', wrapText: col === 6 || col === 7 };
+      c.alignment = { vertical: 'middle', wrapText: col === 7 || col === 8 };
     });
   });
   sh9.autoFilter = { from: { row: 2, column: 1 }, to: { row: findings.length + 2, column: headers9.length } };
