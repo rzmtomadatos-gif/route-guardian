@@ -1041,7 +1041,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     sh7.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF888888' } };
   } else {
     allF5.forEach((evt, idx) => {
-      const seg = route.segments.find((s) => s.id === evt.segmentId);
+      const seg = fixedById.get(evt.segmentId);
       const r = sh7.getRow(idx + 2);
       r.values = [
         fmtDate(evt.confirmedAt),
