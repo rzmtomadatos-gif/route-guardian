@@ -814,7 +814,9 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     'Lat inicio', 'Lng inicio', 'Lat fin', 'Lng fin', 'Maps inicio', 'Maps fin',
     'Carretera', 'Tipo KML', 'Calzada', 'Sentido', 'PK Inicial', 'PK Final',
     'Tipo', 'Dirección', 'Track planificado', 'Tracks anteriores', 'Notas',
-    'Incidencias (total)', 'SEG_INICIO_TRACK', 'SEG_FIN_TRACK',
+    'Incidencias (total)',
+    'INICIO_GRABACION (mm:ss)', 'FIN_GRABACION (mm:ss)',
+    'DIST_ACUM_INICIO_GPS (km)', 'DIST_ACUM_FIN_GPS (km)',
     // ── Trazabilidad de gabinete ──
     'CORREGIDO_GABINETE', 'CAMPOS_CORREGIDOS', 'VALORES_ORIGINALES',
     'VALORES_CONSOLIDADOS', 'MOTIVO_CORRECCION', 'CORREGIDO_POR', 'FECHA_CORRECCION',
@@ -898,8 +900,26 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
       s.trackHistory.length > 0 ? s.trackHistory.join(', ') : '',
       s.notes || '',
       segIncs.length,
-      s.segmentStartSeconds ?? '',
-      s.segmentEndSeconds ?? '',
+      formatTrackSeconds(s.segmentStartSeconds),
+      formatTrackSeconds(s.segmentEndSeconds),
+      formatKmFromMeters(
+        s.workDay != null && s.trackNumber != null
+          ? computeCumulativeDistanceFromGps(
+              ctx.trackGpsLogsByDay?.[s.workDay]?.[s.trackNumber],
+              s.id,
+              'start',
+            )
+          : null,
+      ),
+      formatKmFromMeters(
+        s.workDay != null && s.trackNumber != null
+          ? computeCumulativeDistanceFromGps(
+              ctx.trackGpsLogsByDay?.[s.workDay]?.[s.trackNumber],
+              s.id,
+              'end',
+            )
+          : null,
+      ),
       hasCorrections ? 'Sí' : 'No',
       corrFieldsStr,
       origValsStr,
