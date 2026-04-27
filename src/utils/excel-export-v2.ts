@@ -1239,5 +1239,8 @@ export const __testing = {
   safe,
   fmtDate,
   formatDuration,
+  formatTrackSeconds,
+  computeCumulativeDistanceFromGps,
+  formatKmFromMeters,
   statusLabel,
 };
