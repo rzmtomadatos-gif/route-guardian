@@ -17,6 +17,7 @@ import type {
   F5Event,
   SegmentCorrection,
   CorrectableField,
+  TrackGpsPoint,
 } from '@/types/route';
 import type { PersistentEvent, EventType } from '@/utils/persistence';
 import { segmentDistanceKm, haversineMeters } from '@/utils/geo-distance';
@@ -194,6 +195,61 @@ function formatDuration(seconds: number | null): string {
   const s = seconds % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
   return `${m}m ${s}s`;
+}
+
+/**
+ * Formatea segundos de grabación dentro de un track como `mm:ss`.
+ * Devuelve `NO REGISTRADO` si no hay valor numérico finito.
+ * No estima ni infiere: solo formatea lo que hay.
+ */
+function formatTrackSeconds(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return NA;
+  }
+  const total = Math.max(0, Math.floor(seconds as number));
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
+ * Calcula la distancia acumulada (en metros) desde el primer punto del track
+ * hasta el primer/último punto en fase `recording` perteneciente al `segmentId`.
+ *
+ * Solo usa GPS real. No interpola ni estima.
+ *
+ * @returns metros acumulados, o `null` si no hay datos suficientes.
+ */
+function computeCumulativeDistanceFromGps(
+  points: TrackGpsPoint[] | undefined | null,
+  segmentId: string,
+  edge: 'start' | 'end',
+): number | null {
+  if (!Array.isArray(points) || points.length < 2) return null;
+
+  // Recorrido acumulado por índice
+  const cumByIdx: number[] = new Array(points.length);
+  cumByIdx[0] = 0;
+  for (let i = 1; i < points.length; i++) {
+    cumByIdx[i] = cumByIdx[i - 1] + haversineMeters(points[i - 1], points[i]);
+  }
+
+  let firstIdx = -1;
+  let lastIdx = -1;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (p.phase === 'recording' && p.segmentId === segmentId) {
+      if (firstIdx === -1) firstIdx = i;
+      lastIdx = i;
+    }
+  }
+  if (firstIdx === -1) return null;
+  return edge === 'start' ? cumByIdx[firstIdx] : cumByIdx[lastIdx];
+}
+
+function formatKmFromMeters(meters: number | null): number | string {
+  if (meters === null || !Number.isFinite(meters)) return NA;
+  return Number((meters / 1000).toFixed(3));
 }
 
 function gmapsLink(lat: number, lng: number): string {
