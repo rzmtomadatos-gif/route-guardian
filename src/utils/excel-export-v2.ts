@@ -1273,6 +1273,7 @@ export const __testing = {
   buildQualityFindings,
   buildWorkbook,
   safe,
+  getIdEmpresa,
   fmtDate,
   formatDuration,
   formatTrackSeconds,
