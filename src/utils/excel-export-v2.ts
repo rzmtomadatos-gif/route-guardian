@@ -935,7 +935,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     const rowFill = hasCorrections ? COLORS.review : (wasAutofixed ? COLORS.review : bg);
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle', wrapText: col >= 41 && col <= 44 };
+      c.alignment = { vertical: 'middle', wrapText: col >= 43 && col <= 46 };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowFill } };
       if (typeof c.value === 'object' && c.value && 'hyperlink' in (c.value as any)) {
         c.font = { color: { argb: 'FF1F6FEB' }, underline: true };
@@ -948,7 +948,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
         }
       }
       // Marca visual fuerte para "CORREGIDO_GABINETE = Sí"
-      if (col === 39 && c.value === 'Sí') {
+      if (col === 41 && c.value === 'Sí') {
         c.font = { bold: true, color: { argb: 'FFB45309' } };
       }
     });
