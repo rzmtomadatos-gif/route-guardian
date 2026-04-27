@@ -170,6 +170,14 @@ function safe(value: unknown): string {
   return String(value);
 }
 
+/**
+ * Devuelve el ID oficial del tramo en campaña (companySegmentId).
+ * Si falta, devuelve NO REGISTRADO. Nunca cae a `segment.id` como sustituto.
+ */
+function getIdEmpresa(segment?: Segment | null): string {
+  return safe(segment?.companySegmentId);
+}
+
 function safeNum(value: unknown): number | string {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   return NA;
