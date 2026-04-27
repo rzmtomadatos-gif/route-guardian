@@ -6,6 +6,7 @@ import type {
   F5Event,
   SegmentCorrection,
   CorrectableField,
+  TrackGpsPoint,
 } from '@/types/route';
 
 const {
@@ -14,6 +15,9 @@ const {
   safe,
   statusLabel,
   formatDuration,
+  formatTrackSeconds,
+  computeCumulativeDistanceFromGps,
+  formatKmFromMeters,
 } = __testing;
 
 function mkSeg(overrides: Partial<Segment> = {}): Segment {
