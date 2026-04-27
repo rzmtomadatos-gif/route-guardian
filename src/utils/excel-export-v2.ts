@@ -129,6 +129,8 @@ export interface QualityFinding {
   row: string;
   segmentId: string;
   segmentName: string;
+  /** ID oficial del tramo en la campaña (companySegmentId). NO REGISTRADO si falta. */
+  companySegmentId?: string;
   field: string;
   status: 'OK' | 'REVISAR' | 'ERROR';
   reason: string;
@@ -166,6 +168,14 @@ interface ExportContext {
 function safe(value: unknown): string {
   if (value === null || value === undefined || value === '') return NA;
   return String(value);
+}
+
+/**
+ * Devuelve el ID oficial del tramo en campaña (companySegmentId).
+ * Si falta, devuelve NO REGISTRADO. Nunca cae a `segment.id` como sustituto.
+ */
+function getIdEmpresa(segment?: Segment | null): string {
+  return safe(segment?.companySegmentId);
 }
 
 function safeNum(value: unknown): number | string {
@@ -542,6 +552,31 @@ function buildQualityFindings(
       reason: 'Sin incidencias detectadas. La campaña pasa todas las validaciones automáticas.',
     });
   }
+
+  // Enriquecimiento final: rellenar companySegmentId en cada finding desde el
+  // tramo afectado. Si no existe, se mostrará NO REGISTRADO en la hoja 09.
+  // Nunca se cae a `segment.id` como sustituto silencioso.
+  const f5BySegment = new Map<string, F5Event>();
+  f5Events.forEach((e) => { f5BySegment.set(e.segmentId, e); });
+  const incidentBySegment = new Map<string, Incident>();
+  incidents.forEach((i) => { incidentBySegment.set(i.segmentId, i); });
+
+  findings.forEach((f) => {
+    if (f.companySegmentId !== undefined) return;
+    const seg = fixedById.get(f.segmentId) || rawById.get(f.segmentId);
+    if (seg?.companySegmentId) {
+      f.companySegmentId = seg.companySegmentId;
+      return;
+    }
+    const evt = f5BySegment.get(f.segmentId);
+    if (evt?.companySegmentId) {
+      f.companySegmentId = evt.companySegmentId;
+      return;
+    }
+    // No tocar el OK global
+    if (f.segmentId === '-') return;
+    f.companySegmentId = undefined; // se mostrará NO REGISTRADO en hoja 09
+  });
 
   return findings;
 }
@@ -964,12 +999,12 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     sh6.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF888888' } };
   } else {
     allIncidents.forEach((inc, idx) => {
-      const seg = route.segments.find((s) => s.id === inc.segmentId);
+      const seg = fixedById.get(inc.segmentId);
       const r = sh6.getRow(idx + 2);
       r.values = [
         fmtDate(inc.timestamp),
         seg?.name || inc.segmentId,
-        safe(seg?.companySegmentId),
+        getIdEmpresa(seg),
         safe(seg?.layer),
         INCIDENT_CATEGORY_LABELS[inc.category] || inc.category,
         IMPACT_LABELS[inc.impact] || inc.impact,
@@ -1006,7 +1041,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     sh7.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF888888' } };
   } else {
     allF5.forEach((evt, idx) => {
-      const seg = route.segments.find((s) => s.id === evt.segmentId);
+      const seg = fixedById.get(evt.segmentId);
       const r = sh7.getRow(idx + 2);
       r.values = [
         fmtDate(evt.confirmedAt),
@@ -1064,7 +1099,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
 
   // ───────── 09_VALIDACION_CALIDAD ─────────
   const sh9 = wb.addWorksheet('09_VALIDACION_CALIDAD', { views: [{ state: 'frozen', ySplit: 2, showGridLines: false }] });
-  sh9.mergeCells('A1:G1');
+  sh9.mergeCells('A1:H1');
   const banner9 = sh9.getCell('A1');
   banner9.value = 'CHECKLIST DE AUDITORÍA — Revisar cada fila REVISAR/ERROR antes de cerrar la campaña';
   banner9.font = { bold: true, color: { argb: COLORS.bannerFg } };
@@ -1072,8 +1107,8 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   banner9.alignment = { vertical: 'middle', horizontal: 'center' };
   sh9.getRow(1).height = 22;
 
-  const headers9 = ['Estado', 'Hoja origen', 'ID Tramo', 'Tramo', 'Campo', 'Motivo', 'Acción recomendada'];
-  setHeaders(sh9, headers9, [12, 26, 26, 28, 22, 70, 28], 2);
+  const headers9 = ['Estado', 'Hoja origen', 'ID_EMPRESA', 'ID Tramo', 'Tramo', 'Campo', 'Motivo', 'Acción recomendada'];
+  setHeaders(sh9, headers9, [12, 26, 16, 26, 28, 22, 70, 28], 2);
   findings.forEach((f, idx) => {
     const r = sh9.getRow(idx + 3);
     let action = '';
@@ -1086,13 +1121,14 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     else if (f.field === 'coordinates') action = 'Re-importar geometría desde KML original.';
     else action = 'Revisar manualmente y corregir desde Gabinete.';
 
-    r.values = [f.status, f.sheet, f.segmentId, f.segmentName, f.field, f.reason, action];
+    const idEmpresa = f.segmentId === '-' ? '-' : safe(f.companySegmentId);
+    r.values = [f.status, f.sheet, idEmpresa, f.segmentId, f.segmentName, f.field, f.reason, action];
     const fill = f.status === 'OK' ? COLORS.ok : f.status === 'ERROR' ? COLORS.error : COLORS.review;
     r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
     r.getCell(1).font = { bold: true };
     r.eachCell((c, col) => {
       c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
-      c.alignment = { vertical: 'middle', wrapText: col === 6 || col === 7 };
+      c.alignment = { vertical: 'middle', wrapText: col === 7 || col === 8 };
     });
   });
   sh9.autoFilter = { from: { row: 2, column: 1 }, to: { row: findings.length + 2, column: headers9.length } };
@@ -1102,7 +1138,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   sh10.columns = [{ width: 28 }, { width: 70 }];
   bannerRow(sh10, 'A1:B1', 'DICCIONARIO DE CAMPOS');
   const dict: Array<[string, string]> = [
-    ['ID_EMPRESA', 'Identificador único interno de empresa, formato p.ej. BOA_00012.'],
+    ['ID_EMPRESA', 'Identificador oficial del tramo dentro de la campaña/proyecto. Fuente: companySegmentId. Ejemplo: BOA26_00470. Si falta, se muestra NO REGISTRADO.'],
     ['Ident. KML', 'Identificador del tramo procedente del archivo KML original.'],
     ['Jornada', 'Día operativo (workDay). Avanza secuencialmente y nunca se reutiliza.'],
     ['Track', 'Número de bloque de grabación. En RST agrupa hasta 9 tramos.'],
@@ -1237,6 +1273,7 @@ export const __testing = {
   buildQualityFindings,
   buildWorkbook,
   safe,
+  getIdEmpresa,
   fmtDate,
   formatDuration,
   formatTrackSeconds,
