@@ -129,6 +129,8 @@ export interface QualityFinding {
   row: string;
   segmentId: string;
   segmentName: string;
+  /** ID oficial del tramo en la campaña (companySegmentId). NO REGISTRADO si falta. */
+  companySegmentId?: string;
   field: string;
   status: 'OK' | 'REVISAR' | 'ERROR';
   reason: string;
