@@ -999,12 +999,12 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     sh6.getRow(2).getCell(1).font = { italic: true, color: { argb: 'FF888888' } };
   } else {
     allIncidents.forEach((inc, idx) => {
-      const seg = route.segments.find((s) => s.id === inc.segmentId);
+      const seg = fixedById.get(inc.segmentId);
       const r = sh6.getRow(idx + 2);
       r.values = [
         fmtDate(inc.timestamp),
         seg?.name || inc.segmentId,
-        safe(seg?.companySegmentId),
+        getIdEmpresa(seg),
         safe(seg?.layer),
         INCIDENT_CATEGORY_LABELS[inc.category] || inc.category,
         IMPACT_LABELS[inc.impact] || inc.impact,
