@@ -553,6 +553,31 @@ function buildQualityFindings(
     });
   }
 
+  // Enriquecimiento final: rellenar companySegmentId en cada finding desde el
+  // tramo afectado. Si no existe, se mostrará NO REGISTRADO en la hoja 09.
+  // Nunca se cae a `segment.id` como sustituto silencioso.
+  const f5BySegment = new Map<string, F5Event>();
+  f5Events.forEach((e) => { f5BySegment.set(e.segmentId, e); });
+  const incidentBySegment = new Map<string, Incident>();
+  incidents.forEach((i) => { incidentBySegment.set(i.segmentId, i); });
+
+  findings.forEach((f) => {
+    if (f.companySegmentId !== undefined) return;
+    const seg = fixedById.get(f.segmentId) || rawById.get(f.segmentId);
+    if (seg?.companySegmentId) {
+      f.companySegmentId = seg.companySegmentId;
+      return;
+    }
+    const evt = f5BySegment.get(f.segmentId);
+    if (evt?.companySegmentId) {
+      f.companySegmentId = evt.companySegmentId;
+      return;
+    }
+    // No tocar el OK global
+    if (f.segmentId === '-') return;
+    f.companySegmentId = undefined; // se mostrará NO REGISTRADO en hoja 09
+  });
+
   return findings;
 }
 
