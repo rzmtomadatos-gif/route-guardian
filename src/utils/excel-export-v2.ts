@@ -158,6 +158,8 @@ interface ExportContext {
   persistentEvents: PersistentEvent[];
   selectedIds?: Set<string>;
   segmentCorrections: SegmentCorrection[];
+  /** Logs GPS reales por jornada y track. Solo se usa para distancias acumuladas reales. */
+  trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
 }
 
 // ───────── Utilidades ─────────
