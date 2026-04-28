@@ -147,6 +147,8 @@ export interface Incident {
   location?: LatLng;
   /** Track number at the time of the incident (for traceability if block invalidated) */
   trackAtIncident?: number | null;
+  /** Work day at the time of the incident (avoids confusing same track number across days) */
+  workDayAtIncident?: number | null;
   /** Whether this incident invalidated the entire block */
   invalidatedBlock?: boolean;
 }

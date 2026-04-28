@@ -254,3 +254,192 @@ describe('list helpers', () => {
     expect(getTrackPoints(undefined, 1, 1)).toEqual([]);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────
+// Tests para nueva visualización rica de gabinete
+// ───────────────────────────────────────────────────────────────────────
+
+import {
+  computeTrackGpsSegmentRows,
+  filterIncidentsForTrack,
+  getSegmentDisplayId,
+  getSegmentDisplayName,
+} from '@/utils/gabinete/track-gps-derived';
+import type { Incident, Segment } from '@/types/route';
+
+function mkSegment(partial: Partial<Segment> & { id: string }): Segment {
+  return {
+    id: partial.id,
+    routeId: 'r1',
+    trackNumber: null,
+    plannedTrackNumber: null,
+    trackHistory: [],
+    kmlId: '',
+    name: '',
+    notes: '',
+    coordinates: [],
+    direction: 'creciente',
+    type: 'tramo',
+    status: 'pendiente',
+    kmlMeta: {},
+    ...partial,
+  };
+}
+
+describe('getSegmentDisplayId / getSegmentDisplayName', () => {
+  it('prioriza companySegmentId, luego name, luego kmlId, luego id', () => {
+    expect(
+      getSegmentDisplayId(
+        mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012', name: 'Calle X', kmlId: 'k1' }),
+      ),
+    ).toBe('BOA_00012');
+    expect(
+      getSegmentDisplayId(mkSegment({ id: 'jsn339su', name: 'Calle X', kmlId: 'k1' })),
+    ).toBe('Calle X');
+    expect(getSegmentDisplayId(mkSegment({ id: 'jsn339su', kmlId: 'k1' }))).toBe('k1');
+    expect(getSegmentDisplayId(mkSegment({ id: 'jsn339su' }))).toBe('jsn339su');
+  });
+
+  it('displayName prioriza name pero nunca devuelve id si hay otra alternativa', () => {
+    expect(
+      getSegmentDisplayName(
+        mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012', name: 'Calle X' }),
+      ),
+    ).toBe('Calle X');
+    expect(
+      getSegmentDisplayName(mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012' })),
+    ).toBe('BOA_00012');
+    expect(getSegmentDisplayName(mkSegment({ id: 'jsn339su', kmlId: 'k1' }))).toBe('k1');
+    expect(getSegmentDisplayName(mkSegment({ id: 'jsn339su' }))).toBe('jsn339su');
+  });
+});
+
+describe('computeTrackGpsSegmentRows', () => {
+  const points: TrackGpsPoint[] = [
+    makePoint({ lat: 40, lng: -3, timestamp: '2025-01-01T00:00:00Z', phase: 'transport' }),
+    makePoint({
+      lat: 40.001,
+      lng: -3,
+      timestamp: '2025-01-01T00:00:30Z',
+      phase: 'recording',
+      segmentId: 'A',
+    }),
+    makePoint({
+      lat: 40.002,
+      lng: -3,
+      timestamp: '2025-01-01T00:01:00Z',
+      phase: 'recording',
+      segmentId: 'A',
+    }),
+    makePoint({
+      lat: 40.003,
+      lng: -3,
+      timestamp: '2025-01-01T00:01:30Z',
+      phase: 'recording',
+      segmentId: 'B',
+    }),
+    makePoint({
+      lat: 40.004,
+      lng: -3,
+      timestamp: '2025-01-01T00:02:00Z',
+      phase: 'recording',
+      segmentId: 'B',
+    }),
+  ];
+
+  const segs: Segment[] = [
+    mkSegment({ id: 'A', companySegmentId: 'BOA_00001', name: 'Tramo A' }),
+    mkSegment({
+      id: 'B',
+      name: 'Tramo B',
+      segmentStartSeconds: 30,
+      segmentEndSeconds: 90,
+    }),
+  ];
+
+  it('genera una fila por cada segmento grabado, en orden de aparición', () => {
+    const rows = computeTrackGpsSegmentRows(points, segs);
+    expect(rows.map((r) => r.segmentId)).toEqual(['A', 'B']);
+    expect(rows[0].displayId).toBe('BOA_00001');
+    expect(rows[1].displayId).toBe('Tramo B');
+  });
+
+  it('calcula segundos desde inicio del track y distancia acumulada', () => {
+    const rows = computeTrackGpsSegmentRows(points, segs);
+    expect(rows[0].secondsFromTrackStartToSegmentStart).toBe(30);
+    expect(rows[0].secondsFromTrackStartToSegmentEnd).toBe(60);
+    expect(rows[1].secondsFromTrackStartToSegmentStart).toBe(90);
+    expect(rows[1].secondsFromTrackStartToSegmentEnd).toBe(120);
+    expect(rows[0].trackDistanceAtStartMeters).toBeGreaterThan(0);
+    expect(rows[0].trackDistanceAtEndMeters).toBeGreaterThan(
+      rows[0].trackDistanceAtStartMeters!,
+    );
+  });
+
+  it('expone segmentStart/EndSeconds (modo Garmin) cuando existen', () => {
+    const rows = computeTrackGpsSegmentRows(points, segs);
+    expect(rows[0].segmentStartSeconds).toBeNull();
+    expect(rows[1].segmentStartSeconds).toBe(30);
+    expect(rows[1].segmentEndSeconds).toBe(90);
+  });
+
+  it('marca segmentExists=false si el segmento del GPS ya no está en la campaña', () => {
+    const rows = computeTrackGpsSegmentRows(points, [
+      mkSegment({ id: 'A', companySegmentId: 'BOA_00001' }),
+    ]);
+    const a = rows.find((r) => r.segmentId === 'A')!;
+    const b = rows.find((r) => r.segmentId === 'B')!;
+    expect(a.segmentExists).toBe(true);
+    expect(b.segmentExists).toBe(false);
+    expect(b.displayId).toBe('B'); // fallback al id, no rompe
+  });
+
+  it('devuelve [] si no hay puntos', () => {
+    expect(computeTrackGpsSegmentRows([], segs)).toEqual([]);
+    expect(computeTrackGpsSegmentRows(undefined, segs)).toEqual([]);
+  });
+});
+
+describe('filterIncidentsForTrack', () => {
+  const base = {
+    id: 'i1',
+    segmentId: 'A',
+    category: 'bache' as const,
+    impact: 'informativa' as const,
+    timestamp: '2025-01-01T00:00:00Z',
+    location: { lat: 40, lng: -3 },
+  };
+
+  it('filtra por workDayAtIncident y trackAtIncident', () => {
+    const incidents: Incident[] = [
+      { ...base, id: 'i1', workDayAtIncident: 1, trackAtIncident: 1 },
+      { ...base, id: 'i2', workDayAtIncident: 2, trackAtIncident: 1 },
+      { ...base, id: 'i3', workDayAtIncident: 1, trackAtIncident: 2 },
+    ];
+    const out = filterIncidentsForTrack(incidents, 1, 1);
+    expect(out.map((i) => i.id)).toEqual(['i1']);
+  });
+
+  it('descarta incidencias sin location (no pintables en el mapa)', () => {
+    const incidents: Incident[] = [
+      { ...base, id: 'no-loc', location: undefined, workDayAtIncident: 1, trackAtIncident: 1 },
+    ];
+    expect(filterIncidentsForTrack(incidents, 1, 1)).toEqual([]);
+  });
+
+  it('descarta incidencias sin workDayAtIncident ni trackAtIncident (no se puede confirmar pertenencia)', () => {
+    const incidents: Incident[] = [{ ...base, id: 'orphan' }];
+    expect(filterIncidentsForTrack(incidents, 1, 1)).toEqual([]);
+  });
+
+  it('acepta incidencias con solo trackAtIncident si coincide', () => {
+    const incidents: Incident[] = [{ ...base, id: 'old', trackAtIncident: 1 }];
+    expect(filterIncidentsForTrack(incidents, 1, 1).map((i) => i.id)).toEqual(['old']);
+    expect(filterIncidentsForTrack(incidents, 1, 2)).toEqual([]);
+  });
+
+  it('devuelve [] con array vacío o nulo', () => {
+    expect(filterIncidentsForTrack([], 1, 1)).toEqual([]);
+    expect(filterIncidentsForTrack(undefined, 1, 1)).toEqual([]);
+  });
+});

@@ -119,6 +119,7 @@ const incidentSchema = z.object({
   timestamp: isoDateString,
   location: latLngSchema.optional(),
   trackAtIncident: z.number().nullable().optional(),
+  workDayAtIncident: z.number().nullable().optional(),
   invalidatedBlock: z.boolean().optional(),
 }).strict();
 
