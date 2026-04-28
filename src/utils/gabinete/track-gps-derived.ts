@@ -9,8 +9,37 @@
  * - Distancias en metros, tiempos en milisegundos.
  */
 
-import type { TrackGpsPoint } from '@/types/route';
+import type { Incident, Segment, TrackGpsPoint } from '@/types/route';
 import { haversineMeters } from '@/utils/geo-distance';
+
+/**
+ * Devuelve el identificador "humano" preferido de un tramo para presentación.
+ * Prioridad: companySegmentId → name → kmlId → id (fallback técnico).
+ */
+export function getSegmentDisplayId(segment: Segment | undefined | null): string {
+  if (!segment) return '—';
+  return (
+    (segment.companySegmentId && segment.companySegmentId.trim()) ||
+    (segment.name && segment.name.trim()) ||
+    (segment.kmlId && segment.kmlId.trim()) ||
+    segment.id
+  );
+}
+
+/**
+ * Devuelve nombre legible del tramo para tooltip/popup. Prioriza name,
+ * pero garantiza que NUNCA devuelve el id interno como etiqueta principal
+ * salvo último fallback.
+ */
+export function getSegmentDisplayName(segment: Segment | undefined | null): string {
+  if (!segment) return '—';
+  return (
+    (segment.name && segment.name.trim()) ||
+    (segment.companySegmentId && segment.companySegmentId.trim()) ||
+    (segment.kmlId && segment.kmlId.trim()) ||
+    segment.id
+  );
+}
 
 /** Resumen métrico de un track GPS. */
 export interface TrackGpsMetrics {
