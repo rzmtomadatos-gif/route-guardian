@@ -917,6 +917,7 @@ export function useRouteState() {
         timestamp: now,
         location,
         trackAtIncident: seg?.trackNumber ?? null,
+        workDayAtIncident: s.workDay ?? null,
         invalidatedBlock: impact === 'critica_invalida_bloque',
       };
 
