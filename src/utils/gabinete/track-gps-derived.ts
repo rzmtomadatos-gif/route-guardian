@@ -257,3 +257,168 @@ export function getTrackPoints(
   const pts = tracks[track];
   return Array.isArray(pts) ? pts : [];
 }
+
+// ───────────────────────── Métricas por tramo dentro del track ─────────────────────────
+
+/** Fila enriquecida por tramo grabado dentro de un track GPS. */
+export interface TrackGpsSegmentRow {
+  segmentId: string;
+  /** Identificador "humano" preferido (companySegmentId | name | kmlId | id). */
+  displayId: string;
+  /** Nombre legible (name | companySegmentId | kmlId | id). */
+  displayName: string;
+  companySegmentId: string | null;
+  name: string | null;
+  kmlId: string | null;
+  /** True si el segmento referenciado por GPS no existe en la campaña actual. */
+  segmentExists: boolean;
+  pointCount: number;
+  /** Distancia total en metros recorrida en fase recording dentro de este segmento. */
+  recordingDistanceMeters: number;
+  /** Distancia acumulada desde el primer punto del track al primer punto recording de este segmento. */
+  trackDistanceAtStartMeters: number | null;
+  /** Distancia acumulada desde el primer punto del track al último punto recording de este segmento. */
+  trackDistanceAtEndMeters: number | null;
+  gpsStartTimestamp: string | null;
+  gpsEndTimestamp: string | null;
+  /** Segundos desde el primer punto del track hasta el primer punto recording de este segmento. */
+  secondsFromTrackStartToSegmentStart: number | null;
+  /** Segundos desde el primer punto del track hasta el último punto recording de este segmento. */
+  secondsFromTrackStartToSegmentEnd: number | null;
+  /** Garmin: segundos desde inicio del track hasta inicio del tramo (declarados). */
+  segmentStartSeconds: number | null;
+  /** Garmin: segundos desde inicio del track hasta final del tramo (declarados). */
+  segmentEndSeconds: number | null;
+}
+
+/**
+ * Calcula filas detalladas por tramo grabado en un track GPS.
+ * - Distancia acumulada desde el primer punto del track.
+ * - Para inicio de tramo, primer punto `recording` con ese segmentId.
+ * - Para final de tramo, último punto `recording` con ese segmentId.
+ * - Si faltan datos, los campos numéricos quedan en `null`.
+ * - No muta el estado.
+ */
+export function computeTrackGpsSegmentRows(
+  points: TrackGpsPoint[] | undefined | null,
+  allSegments: Segment[] | undefined | null,
+): TrackGpsSegmentRow[] {
+  const arr = safePoints(points);
+  if (arr.length === 0) return [];
+
+  const segmentsById = new Map<string, Segment>();
+  (allSegments ?? []).forEach((s) => segmentsById.set(s.id, s));
+
+  // Distancias acumuladas desde el primer punto del track.
+  const cumDistance = new Array<number>(arr.length).fill(0);
+  for (let i = 1; i < arr.length; i++) {
+    cumDistance[i] = cumDistance[i - 1] + haversineMeters(arr[i - 1], arr[i]);
+  }
+
+  const t0 = new Date(arr[0].timestamp).getTime();
+
+  type Bucket = {
+    segmentId: string;
+    pointCount: number;
+    recordingDistanceMeters: number;
+    firstIdx: number;
+    lastIdx: number;
+    order: number;
+  };
+  const buckets = new Map<string, Bucket>();
+  let nextOrder = 0;
+
+  for (let i = 0; i < arr.length; i++) {
+    const p = arr[i];
+    if (p.phase !== 'recording' || !p.segmentId) continue;
+    const segId = p.segmentId;
+    let b = buckets.get(segId);
+    if (!b) {
+      b = {
+        segmentId: segId,
+        pointCount: 0,
+        recordingDistanceMeters: 0,
+        firstIdx: i,
+        lastIdx: i,
+        order: nextOrder++,
+      };
+      buckets.set(segId, b);
+    }
+    b.pointCount += 1;
+    b.lastIdx = i;
+    if (i > 0 && arr[i - 1].phase === 'recording' && arr[i - 1].segmentId === segId) {
+      b.recordingDistanceMeters += haversineMeters(arr[i - 1], p);
+    }
+  }
+
+  const rows: TrackGpsSegmentRow[] = [];
+  for (const b of buckets.values()) {
+    const seg = segmentsById.get(b.segmentId);
+    const startMs = new Date(arr[b.firstIdx].timestamp).getTime();
+    const endMs = new Date(arr[b.lastIdx].timestamp).getTime();
+
+    rows.push({
+      segmentId: b.segmentId,
+      displayId: seg ? getSegmentDisplayId(seg) : b.segmentId,
+      displayName: seg ? getSegmentDisplayName(seg) : b.segmentId,
+      companySegmentId: seg?.companySegmentId?.trim() || null,
+      name: seg?.name?.trim() || null,
+      kmlId: seg?.kmlId?.trim() || null,
+      segmentExists: !!seg,
+      pointCount: b.pointCount,
+      recordingDistanceMeters: b.recordingDistanceMeters,
+      trackDistanceAtStartMeters: cumDistance[b.firstIdx],
+      trackDistanceAtEndMeters: cumDistance[b.lastIdx],
+      gpsStartTimestamp: arr[b.firstIdx].timestamp,
+      gpsEndTimestamp: arr[b.lastIdx].timestamp,
+      secondsFromTrackStartToSegmentStart: Number.isFinite(startMs - t0)
+        ? Math.max(0, Math.round((startMs - t0) / 1000))
+        : null,
+      secondsFromTrackStartToSegmentEnd: Number.isFinite(endMs - t0)
+        ? Math.max(0, Math.round((endMs - t0) / 1000))
+        : null,
+      segmentStartSeconds:
+        typeof seg?.segmentStartSeconds === 'number' ? seg.segmentStartSeconds : null,
+      segmentEndSeconds:
+        typeof seg?.segmentEndSeconds === 'number' ? seg.segmentEndSeconds : null,
+    });
+  }
+
+  return rows.sort((a, b) => {
+    const oa = buckets.get(a.segmentId)?.order ?? 0;
+    const ob = buckets.get(b.segmentId)?.order ?? 0;
+    return oa - ob;
+  });
+}
+
+/**
+ * Filtra incidencias asociadas a un día/track concreto.
+ *
+ * Reglas:
+ * - Si la incidencia tiene `workDayAtIncident`, debe coincidir con `day`.
+ *   Si no lo tiene (datos antiguos), se acepta y se confía solo en trackAtIncident
+ *   y en la pertenencia del segmento al track.
+ * - `trackAtIncident` debe coincidir con `track` cuando existe.
+ * - Si la incidencia no tiene `location`, se descarta para el mapa.
+ */
+export function filterIncidentsForTrack(
+  incidents: Incident[] | undefined | null,
+  day: number,
+  track: number,
+): Incident[] {
+  if (!Array.isArray(incidents) || incidents.length === 0) return [];
+  return incidents.filter((inc) => {
+    if (!inc.location) return false;
+    if (typeof inc.workDayAtIncident === 'number' && inc.workDayAtIncident !== day) return false;
+    if (typeof inc.trackAtIncident === 'number' && inc.trackAtIncident !== track) return false;
+    // Si no hay ningún campo de día/track, no podemos confirmar pertenencia: mejor descartar
+    // para evitar mostrar incidencias en tracks que no son los suyos.
+    if (
+      typeof inc.workDayAtIncident !== 'number' &&
+      typeof inc.trackAtIncident !== 'number'
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
