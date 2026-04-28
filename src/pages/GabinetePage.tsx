@@ -294,6 +294,11 @@ export default function GabinetePage({ state }: Props) {
         track={openGpsTrack?.track ?? null}
         points={openGpsPoints}
         allSegments={allSegments}
+        incidents={state.incidents}
+        onOpenSegment={(segmentId) => {
+          const seg = allSegments.find((s) => s.id === segmentId);
+          if (seg) setOpenSegment(seg);
+        }}
         onClose={() => setOpenGpsTrack(null)}
       />
     </div>
