@@ -1876,6 +1876,7 @@ export function useRouteState() {
     restoreState,
     cancelStartSegment,
     cancelAllInProgress,
+    reactivateSegmentForField,
     setSegmentCorrections,
     readCommittedState,
     appendTrackGpsPoint,
