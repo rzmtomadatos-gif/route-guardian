@@ -16,6 +16,8 @@ import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 import { logEvent } from '@/utils/persistence';
+import { applyReactivation, type ReactivateOptions } from '@/utils/segment-reactivation';
+import { applyDuplicate } from '@/utils/segment-duplicate';
 import { toast } from 'sonner';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
