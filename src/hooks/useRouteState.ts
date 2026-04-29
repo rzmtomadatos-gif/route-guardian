@@ -693,6 +693,7 @@ export function useRouteState() {
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
+    let completedPayload: Record<string, unknown> | null = null;
     setState((s) => {
       if (!s.route) return s;
       // Guard: block if end-of-video prompt is open
@@ -770,6 +771,21 @@ export function useRouteState() {
         return true;
       });
 
+      // Snapshot enriquecido para HISTORIAL_INTENTOS (solo si efectivamente completado).
+      const completed = segments.find((sg) => sg.id === segmentId);
+      if (completed && completed.status === 'completado') {
+        completedPayload = {
+          workDay: completed.workDay,
+          trackNumber: completed.trackNumber,
+          segmentOrder: completed.segmentOrder,
+          startedAt: completed.startedAt,
+          endedAt: completed.endedAt,
+          acquisitionMode: s.acquisitionMode,
+          segmentStartSeconds: completed.segmentStartSeconds,
+          segmentEndSeconds: completed.segmentEndSeconds,
+        };
+      }
+
       return {
         ...s,
         route: { ...s.route, segments },
@@ -779,7 +795,16 @@ export function useRouteState() {
         blockEndPrompt,
       };
     }, true);
-    logEvent('SEGMENT_COMPLETED', { segmentId });
+    if (completedPayload) {
+      logEvent('SEGMENT_COMPLETED', {
+        segmentId,
+        workDay: completedPayload.workDay as number | undefined,
+        trackNumber: completedPayload.trackNumber as number | undefined,
+        payload: completedPayload,
+      });
+    } else {
+      logEvent('SEGMENT_COMPLETED', { segmentId });
+    }
     // Emit TRACK_CLOSED if auto-close happened (capacity reached)
     setStateRaw((current) => {
       if (current.trackSession && !current.trackSession.active && current.trackSession.endedAt) {
