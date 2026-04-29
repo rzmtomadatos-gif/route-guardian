@@ -1451,32 +1451,66 @@ export function useRouteState() {
   }, [setState]);
 
   const duplicateSegments = useCallback((segmentIds: string[]) => {
+    let records: ReturnType<typeof applyDuplicate>['records'] = [];
     setState((s) => {
-      if (!s.route) return s;
-      const newSegments: Segment[] = [];
-      segmentIds.forEach((id) => {
-        const orig = s.route!.segments.find((seg) => seg.id === id);
-        if (orig) {
-          newSegments.push({
-            ...orig,
-            id: Math.random().toString(36).substring(2, 10),
-            name: orig.name + ' (copia)',
-            trackNumber: null,
-            trackHistory: [],
-            status: 'pendiente',
-          });
-        }
-      });
-      return {
-        ...s,
-        route: {
-          ...s.route,
-          segments: [...s.route.segments, ...newSegments],
-          optimizedOrder: [...s.route.optimizedOrder, ...newSegments.map((seg) => seg.id)],
-        },
-      };
+      const result = applyDuplicate(s, segmentIds);
+      records = result.records;
+      return result.state;
     });
+    // Emit one event per duplicate (after commit).
+    setTimeout(() => {
+      for (const rec of records) {
+        logEvent('SEGMENT_DUPLICATED', {
+          segmentId: rec.newSegmentId,
+          payload: {
+            sourceSegmentId: rec.sourceSegmentId,
+            sourceCompanySegmentId: rec.sourceCompanySegmentId,
+          },
+        });
+      }
+    }, 0);
   }, [setState]);
+
+  /**
+   * Reactiva un tramo para campo (operación operativa, NO corrección reversible).
+   *
+   * Uso: gabinete decide que un tramo `nonRecordable` o `completado` debe
+   * volver a navegarse en otro día. La función deja el tramo como pendiente
+   * en `targetWorkDay`, conservando trackHistory, companySegmentId, eventos
+   * e incidencias previas. Emite `SEGMENT_REACTIVATED_FOR_FIELD` con snapshot
+   * anterior para que `HISTORIAL_INTENTOS` pueda fusionarlo con el siguiente
+   * SEGMENT_STARTED real.
+   */
+  const reactivateSegmentForField = useCallback(
+    (segmentId: string, opts: ReactivateOptions) => {
+      let snapshot: ReturnType<typeof applyReactivation>['previousSnapshot'] = null;
+      let changed = false;
+      setState((s) => {
+        const result = applyReactivation(s, segmentId, opts);
+        snapshot = result.previousSnapshot;
+        changed = result.changed;
+        return result.state;
+      }, true);
+      if (changed && snapshot) {
+        logEvent('SEGMENT_REACTIVATED_FOR_FIELD', {
+          segmentId,
+          workDay: opts.targetWorkDay,
+          payload: {
+            targetWorkDay: opts.targetWorkDay,
+            reason: opts.reason,
+            mode: opts.mode ?? 'repeat_existing_segment',
+            previousStatus: snapshot.previousStatus,
+            previousWorkDay: snapshot.previousWorkDay,
+            previousTrackNumber: snapshot.previousTrackNumber,
+            previousSegmentOrder: snapshot.previousSegmentOrder,
+            previousNonRecordable: snapshot.previousNonRecordable,
+            previousNeedsRepeat: snapshot.previousNeedsRepeat,
+          },
+        });
+      }
+    },
+    [setState],
+  );
 
   const reorderSegment = useCallback((segmentId: string, direction: 'up' | 'down') => {
     setState((s) => {
