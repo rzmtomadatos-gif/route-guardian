@@ -76,6 +76,7 @@ export function GpsTrackDetailDialog({
   allSegments,
   incidents,
   onOpenSegment,
+  resolveConsolidatedSegment,
 }: Props) {
   const metrics = useMemo(() => computeTrackGpsMetrics(points), [points]);
 
@@ -92,8 +93,11 @@ export function GpsTrackDetailDialog({
 
   const trackIncidents = useMemo(() => {
     if (day === null || track === null) return [];
-    return filterIncidentsForTrack(incidents, day, track);
-  }, [incidents, day, track]);
+    // Preferimos el resolver consolidado (modo gabinete). Si no se pasa,
+    // caemos al map por id de los segmentos crudos.
+    const resolver = resolveConsolidatedSegment ?? ((id: string) => segmentsById.get(id));
+    return filterIncidentsForTrack(incidents, day, track, resolver);
+  }, [incidents, day, track, segmentsById, resolveConsolidatedSegment]);
 
   if (day === null || track === null) return null;
 
