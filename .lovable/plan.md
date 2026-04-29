@@ -1,153 +1,110 @@
-## Objetivo
+## Problema
 
-Conectar las correcciones de gabinete con la Hoja de Ruta 2.0: la exportación muestra como dato principal el **valor consolidado**, conserva trazabilidad completa del cambio, no permite que el autofix pise correcciones humanas y filtra correcciones cuando el export es de selección parcial. El dato original de campo nunca se muta. `segmentCorrections` sigue siendo append-only. La lógica de gabinete y el export clásico no se tocan.
+`filterIncidentsForTrack` (en `src/utils/gabinete/track-gps-derived.ts`) acepta una incidencia con solo `trackAtIncident` aunque no haya `workDayAtIncident`. Si en otro día se repite el mismo número de track, esa incidencia "huérfana" aparecerá en el track equivocado.
 
----
+Además, falta resolver, para incidencias antiguas sin `workDayAtIncident`, el día/track real a través del segmento asociado.
 
-## Ajustes obligatorios incorporados
+## Solución
 
-1. **Autofix aplicado vs omitido** — dos contadores y dos categorías de findings separados. Los omitidos no inflan "Autofixes aplicados (revisar)".
-2. **`startedAt`/`endedAt` no se protegen** porque no están en `CorrectableField`. Si faltan se sigue infiriendo como autofix `REVISAR` (comportamiento actual).
-3. **`VALORES_ORIGINALES` viene del raw de campo** (`rawSegmentsById.get(seg.id)[field]`), no de `previousValue`. `VALORES_CONSOLIDADOS` viene del consolidado vigente (`consolidatedSegmentsById.get(seg.id)[field]`).
-4. **Conflicto `completado + nonRecordable` con corrección de gabinete activa** sobre `status` o `nonRecordable` → no se autofixa; se emite finding `ERROR` ("CRÍTICO" en hoja 09) describiendo la inconsistencia residual.
-5. **Filtrado por `selectedIds`** — si hay selección, `segmentCorrections` también se filtra a `c.segmentId ∈ selectedIds`.
+### 1. `src/utils/gabinete/track-gps-derived.ts` — refactor `filterIncidentsForTrack`
 
----
-
-## Cambios por archivo
-
-### 1. `src/utils/excel-export-v2.ts`
-
-**Imports nuevos** desde `@/utils/gabinete/consolidate` (`getConsolidatedSegments`, `getActiveCorrections`) y `@/utils/gabinete/field-labels` (`getFieldLabel`, `formatCorrectionValue`).
-
-**Firma pública**:
+Nueva firma:
 
 ```ts
-exportRouteToExcelV2(route, incidents, rstMode, {
-  selectedIds?, f5Events?, persistentEvents?,
-  segmentCorrections?: SegmentCorrection[],   // NUEVO
-})
+export function filterIncidentsForTrack(
+  incidents: Incident[] | undefined | null,
+  day: number,
+  track: number,
+  segmentsById?: Map<string, Segment> | Segment[],
+): Incident[]
 ```
 
-**Pipeline dentro de `buildWorkbook`** (orden estricto):
+Reglas en orden:
 
-```text
-1. rawSegments              ← route.segments filtrados por selectedIds
-2. scopedCorrections        ← corrections.filter(c => active && rawIds.has(c.segmentId))
-3. consolidatedSegments     ← getConsolidatedSegments(rawSegments, scopedCorrections)
-4. activeByField            ← Map<segId, Map<CorrectableField, SegmentCorrection>>
-5. { fixed, applied, skipped } ← autoFixCopy(consolidatedSegments, activeByField)
-6. findings                 ← buildQualityFindings(fixed, incs, f5, applied, skipped, scopedCorrections, rawById, fixedById, rstMode)
-```
+1. Sin `location` → descartar (igual que ahora; sigue siendo requisito de pintado en mapa).
+2. Si `workDayAtIncident` es número → debe ser igual a `day`. Si no, descartar.
+3. Si `trackAtIncident` es número → debe ser igual a `track`. Si no, descartar.
+4. Si **falta** `workDayAtIncident`:
+  - Resolver `seg = segmentsById.get(inc.segmentId)`.
+  - Aceptar solo si `seg && seg.workDay === day && seg.trackNumber === track`.
+  - Si no hay segmento o no coincide → descartar.
+5. Si pasa los filtros previos (tiene `workDayAtIncident` y, opcionalmente, `trackAtIncident` coincidente), aceptar.
 
-Todas las hojas visibles consumen `fixed`. Hoja 05 además recibe `rawById`, `consolidatedById` y `activeByField` para columnas de trazabilidad.
+Esto elimina el caso actual de "solo `trackAtIncident` coincide → aceptar" sin verificación de día.
 
-**`autoFixCopy(segments, protectedByField?)` — nueva firma**:
+Internamente, normalizar `segmentsById` a `Map<string, Segment>` aceptando array o map para comodidad de los call-sites.
 
-- Devuelve `{ fixed, applied: AutoFixRecord[], skipped: AutoFixSkipped[] }`.
-- `AutoFixSkipped { segmentId, segmentName, field, reason, severity: 'REVISAR' | 'ERROR' }`.
-- Antes de aplicar cualquier autofix sobre un campo X, comprueba `protectedByField.get(segId)?.has(X)`. Si protegido → emite `skipped` y NO aplica.
-- Reglas:
-  - Caso `completado + nonRecordable`: si `status` o `nonRecordable` están protegidos → `skipped` con `severity: 'ERROR'` y motivo "Inconsistencia crítica: tramo completado y no grabable simultáneamente con corrección de gabinete activa. Resolver manualmente."
-  - Caso `trackNumber=null` en completado: si `trackNumber` protegido → no infiere; emite `skipped` `REVISAR` "Track null tras corrección de gabinete; verificar consolidado."
-  - Casos `startedAt`/`endedAt`: **siempre se infieren si faltan** (no están en `CorrectableField`); siguen siendo `applied` `REVISAR`.
+### 2. `src/components/gabinete/GpsTrackDetailDialog.tsx`
 
-**`buildQualityFindings(fixed, incs, f5, applied, skipped, corrections, rawById, fixedById, rstMode)`** — añadidos:
+- En el `useMemo` `trackIncidents`, pasar `segmentsById` (ya construido en el componente) como cuarto argumento de `filterIncidentsForTrack`.
+- Añadir `segmentsById` a las dependencias del `useMemo`.
 
-- 1 finding `REVISAR` por cada `applied` (igual que hoy).
-- 1 finding por cada `skipped`, con su `severity`.
-- 1 finding `REVISAR` por cada corrección activa de gabinete:
-  ```
-  Estado: REVISAR
-  Hoja: 05_DETALLE_TECNICO_TRAMOS
-  Campo: getFieldLabel(c.field)
-  Motivo: "Corrección de gabinete · original=<rawValue> → consolidado=<newValue> · «<reason>» · por <correctedBy> el <correctedAt>"
-  Acción: "Validar el consolidado antes de cerrar la campaña."
-  ```
-  El `<rawValue>` se lee del raw, no del `previousValue` (que puede haber sido a su vez el resultado de una corrección anterior superseded).
+### 3. Tests — `src/test/gabinete-gps-derived.test.ts`
 
-**Hoja 02_RESUMEN_EJECUTIVO** — nuevos KPIs:
+Actualizar/añadir casos en el bloque de `filterIncidentsForTrack`:
 
-- `Autofixes aplicados (revisar)` ← `applied.length` (ya existe pero con definición correcta).
-- `Autofixes omitidos por corrección de gabinete` ← `skipped.length`.
-- `Correcciones de gabinete activas` ← `scopedCorrections.length`.
+- Incidencia con `workDayAtIncident=1, trackAtIncident=1` y `day=1, track=1` → aparece.
+- Incidencia con `workDayAtIncident=2, trackAtIncident=1` y `day=1, track=1` → NO aparece (mismo track, distinto día).
+- Incidencia antigua sin `workDayAtIncident`, con `segmentId` cuyo segmento tiene `workDay=1, trackNumber=1` → aparece cuando `day=1, track=1`.
+- Misma incidencia antigua pero el segmento tiene `workDay=2` → NO aparece.
+- Incidencia antigua sin `workDayAtIncident` y `segmentId` no presente en `segmentsById` → NO aparece.
+- Incidencia sin `location` → NO aparece (regresión).
 
-**Hoja 05_DETALLE_TECNICO_TRAMOS** — 7 columnas nuevas al final:
+Ajustar el test existente `'acepta incidencias con solo trackAtIncident si coincide'` que ahora debe invertirse: sin `workDayAtIncident` y sin segmento resoluble → NO aparece (refleja la nueva regla más estricta).
 
-| Columna | Origen |
-|---|---|
-| `CORREGIDO_GABINETE` | `Sí` si `activeByField.get(segId)?.size > 0`, sino `No` |
-| `CAMPOS_CORREGIDOS` | `getFieldLabel(c.field)` separados por `; ` |
-| `VALORES_ORIGINALES` | por cada corrección: `<label>=<formatCorrectionValue(rawById.get(segId)[field])>` separados por `\n` |
-| `VALORES_CONSOLIDADOS` | por cada corrección: `<label>=<formatCorrectionValue(consolidatedById.get(segId)[field])>` separados por `\n` |
-| `MOTIVO_CORRECCION` | concatenación `<label>: <reason>` por línea |
-| `CORREGIDO_POR` | autores únicos separados por `, ` |
-| `FECHA_CORRECCION` | última `correctedAt` formateada con `fmtDate` |
+### 4. Verificación de `addIncident`
 
-Helper interno `readRawField(seg, field)` que entiende paths `kmlMeta.*` (mismo patrón que `readFieldFromSegment` de consolidate.ts pero local para evitar dependencia adicional… o reutilizando el existente; se reutilizará).
+Ya verificado en `src/hooks/useRouteState.ts` (líneas 904-922): persiste `location`, `trackAtIncident: seg?.trackNumber ?? null` y `workDayAtIncident: s.workDay ?? null`. No requiere cambios. Se documentará en el commit.
 
-Fila pintada con `COLORS.review` si tiene corrección activa (precedencia: corrección humana > autofix > zebra).
+## Lo que NO cambia
 
-**Hoja 09_VALIDACION_CALIDAD** — sin cambios estructurales: ya consume `findings`. La lista incluye los 3 nuevos tipos (applied/skipped/correction). Los `ERROR` salen en rojo (ya existe esa rama).
+- Esquema de `Incident` y persistencia (`campaign-schema.ts`).
+- Lógica de `addIncident`.
+- Exportación Excel (sigue usando `inc.trackAtIncident` directamente).
+- Otras funciones de `track-gps-derived.ts`.
+- UI del diálogo más allá de pasar el nuevo argumento.
 
-**Hoja 10_DICCIONARIO** — añadir entradas:
+## Criterios de aceptación
 
-- `CORREGIDO_GABINETE` / `Corrección de gabinete` / `Autofix omitido`.
+- Una incidencia del Día 2 / Track 1 nunca aparece en el mapa del Día 1 / Track 1.
+- Incidencias históricas sin `workDayAtIncident` se ubican correctamente vía su segmento asociado, o se descartan si no se puede confirmar.
 
-**`__testing`** — exponer adicionalmente `buildWorkbook` para tests que inspeccionen celdas sin tocar el DOM.
+`tsc --noEmit` y `vitest run` pasan en verde.
 
----
+&nbsp;
 
-### 2. `src/pages/SegmentsPage.tsx`
+## Añade un ajuste importante: cuando `filterIncidentsForTrack` resuelva incidencias antiguas sin `workDayAtIncident` usando el segmento asociado, debe hacerlo con el dato consolidado si estamos en modo gabinete.
 
-En `handleExportV2`:
+Opciones válidas:
 
-```ts
-await exportRouteToExcelV2(route, incidents, state.rstMode, {
-  selectedIds: selectedIds && selectedIds.size > 0 ? selectedIds : undefined,
-  persistentEvents: events,
-  segmentCorrections: state.segmentCorrections ?? [],   // NUEVO
-});
-```
+1. Pasar a `filterIncidentsForTrack` un `segmentsById` ya consolidado desde `GabinetePage` / `GpsTrackDetailDialog`.
 
-Sin más cambios.
+2. O pasar un resolver `getSegmentForIncident(segmentId)` que devuelva el segmento consolidado.
 
----
+Regla:
 
-### 3. `src/test/excel-export-v2.test.ts`
+- Si `workDayAtIncident` existe, manda ese valor.
 
-Añadir `describe('integración con segmentCorrections')`:
+- Si falta `workDayAtIncident`, usar el segmento asociado consolidado:
 
-1. **`workDay` corregido** — corrección activa `workDay: undefined → 1`. El consolidado expone `workDay=1`. Hoja 09 emite finding REVISAR de gabinete.
-2. **`trackNumber` corregido** — corrección a `5` sobre tramo `completado`. `autoFixCopy` registra `skipped` (no `applied`) para `trackNumber`. Consolidado mantiene `5`.
-3. **`status` corregido a `completado` con `nonRecordable=true`** — `autoFixCopy` emite `skipped` con `severity: 'ERROR'`. Hoja 09 contiene un finding `ERROR`. La regla `completado + nonRecordable → posible_repetir` NO se aplica.
-4. **Trazabilidad hoja 05** — vía `buildWorkbook` se inspecciona la fila del tramo y se verifica `CORREGIDO_GABINETE=Sí`, `CAMPOS_CORREGIDOS` con etiqueta humana, `VALORES_ORIGINALES` que sale del raw (no del previousValue: se hace una corrección que supersedea otra anterior y se comprueba que el valor mostrado es el del campo original, no el de la previousValue intermedia).
-5. **Filtrado por `selectedIds`** — corrección sobre tramo NO seleccionado no debe aparecer en hoja 09 ni en columnas de hoja 05.
-6. **Sin correcciones (regresión)** — con `corrections=[]` hoja 05 muestra `CORREGIDO_GABINETE=No` y columnas de trazabilidad vacías. Comportamiento idéntico al actual para todo lo demás.
-7. **Conteos diferenciados** — `applied` y `skipped` se reportan por separado; `applied` no incluye los `skipped`.
+  - aceptar solo si `segment.workDay === day` y `segment.trackNumber === track`
 
-Tests usan `__testing.buildWorkbook` (síncrono respecto al DOM) para leer celdas de las hojas resultantes.
+  - si no hay segmento resoluble, descartar
 
----
+- Mantener el requisito de `location`.
 
-## Reglas de oro respetadas
+- Añadir test adicional:
 
-- `route.segments` (campo) **no se muta** en ningún punto.
-- `segmentCorrections` permanece append-only (este cambio es solo lector).
-- Consolidado calculado en lectura vía `getConsolidatedSegments()`.
-- Trazabilidad completa en hoja 05 + hoja 09.
-- Autofix nunca pisa una corrección humana; los conflictos se reportan diferenciados (REVISAR o ERROR).
-- `startedAt`/`endedAt` no se protegen (no son `CorrectableField`).
-- Selección parcial filtra correcciones al mismo subconjunto.
-- Datos faltantes → `NO REGISTRADO`. Cero invención.
-- Export clásico (`excel-export.ts`) **intacto**.
-- Lógica de gabinete (`consolidate.ts`, `useSegmentCorrections`, schema) **intacta**.
+  - incidencia antigua sin `workDayAtIncident`, segmento base con Día 2 / Track 1, pero corrección activa de gabinete a Día 1 / Track 1 → debe aparecer en Día 1 / Track 1 si se pasa el segmento consolidado.
 
-## Criterio de aceptación
+El resto del plan queda aprobado:
 
-- Lo que gabinete ve en "Consolidado actual" coincide con lo exportado en hojas 04 y 05.
-- El dato original sigue trazable vía `VALORES_ORIGINALES` (leído del raw) y findings de hoja 09.
-- Cada corrección activa aparece como hallazgo REVISAR en hoja 09 con autor, fecha, motivo y valores raw/consolidado.
-- Caso Boadilla `workDay=1` sobre tramos huérfanos del inicio se refleja correctamente sin tocar el dato de campo.
-- Conflictos críticos (`completado + nonRecordable` protegido) salen como `ERROR` en hoja 09, no se autocorrigen.
-- `tsc --noEmit` y `vitest run` en verde.
+- nueva firma de `filterIncidentsForTrack`
+
+- pasar `segmentsById` desde `GpsTrackDetailDialog`
+
+- tests de mismo track distinto día
+
+- descartar incidencias antiguas sin segmento resoluble
+
+- mantener `addIncident` sin cambios si ya guarda `location`, `trackAtIncident` y `workDayAtIncident`.
