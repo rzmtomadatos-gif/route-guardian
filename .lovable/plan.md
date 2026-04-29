@@ -1,110 +1,336 @@
-## Problema
+## Objetivo
 
-`filterIncidentsForTrack` (en `src/utils/gabinete/track-gps-derived.ts`) acepta una incidencia con solo `trackAtIncident` aunque no haya `workDayAtIncident`. Si en otro día se repite el mismo número de track, esa incidencia "huérfana" aparecerá en el track equivocado.
+Conectar Gabinete ↔ Tramos ↔ Mapa ↔ Excel para que un tramo pueda repetirse o reactivarse manteniendo su histórico, sin ampliar `SegmentStatus`. Añadir hoja `HISTORIAL_INTENTOS` derivada del event-log, sanear `duplicateSegments` y enriquecer la cabecera del MapControlPanel.
 
-Además, falta resolver, para incidencias antiguas sin `workDayAtIncident`, el día/track real a través del segmento asociado.
+## Cambios
 
-## Solución
+### 1. `src/utils/persistence/types.ts`
 
-### 1. `src/utils/gabinete/track-gps-derived.ts` — refactor `filterIncidentsForTrack`
+Añadir a `EventType`:
 
-Nueva firma:
+- `SEGMENT_REACTIVATED_FOR_FIELD`
+- `SEGMENT_DUPLICATED`
+
+### 2. `src/hooks/useRouteState.ts`
+
+**Enriquecer `logEvent('SEGMENT_STARTED')**` (línea 671) con `workDay`, `trackNumber`, `segmentOrder`, `startedAt`, `acquisitionMode`, `segmentStartSeconds`. Capturar los valores dentro del setState (en una variable local fuera) y emitir tras el commit.
+
+**Enriquecer `logEvent('SEGMENT_COMPLETED')**` (línea 761) con los mismos + `endedAt`, `segmentEndSeconds`.
+
+**Sanear `duplicateSegments**` (línea 1407): el duplicado sale como tramo nuevo limpio:
 
 ```ts
-export function filterIncidentsForTrack(
-  incidents: Incident[] | undefined | null,
-  day: number,
-  track: number,
-  segmentsById?: Map<string, Segment> | Segment[],
-): Incident[]
+{
+  ...orig,
+  id: nuevoId,
+  name: orig.name + ' (copia)',
+  companySegmentId: undefined,        // NUNCA heredar
+  status: 'pendiente',
+  nonRecordable: false,
+  needsRepeat: false,
+  repeatRequested: false,
+  trackNumber: null,
+  plannedTrackNumber: null,
+  plannedBy: undefined,
+  segmentOrder: undefined,
+  trackHistory: [],
+  workDay: s.workDay,
+  timestampInicio: undefined,
+  timestampFin: undefined,
+  startedAt: null,
+  endedAt: null,
+  failedAt: null,
+  segmentStartSeconds: null,
+  segmentEndSeconds: null,
+  invalidatedByTrack: null,
+  repeatNumber: 0,
+}
 ```
 
-Reglas en orden:
+Y emitir `SEGMENT_DUPLICATED` con `{ sourceSegmentId, newSegmentId, sourceCompanySegmentId }`.
 
-1. Sin `location` → descartar (igual que ahora; sigue siendo requisito de pintado en mapa).
-2. Si `workDayAtIncident` es número → debe ser igual a `day`. Si no, descartar.
-3. Si `trackAtIncident` es número → debe ser igual a `track`. Si no, descartar.
-4. Si **falta** `workDayAtIncident`:
-  - Resolver `seg = segmentsById.get(inc.segmentId)`.
-  - Aceptar solo si `seg && seg.workDay === day && seg.trackNumber === track`.
-  - Si no hay segmento o no coincide → descartar.
-5. Si pasa los filtros previos (tiene `workDayAtIncident` y, opcionalmente, `trackAtIncident` coincidente), aceptar.
+**Nueva función `reactivateSegmentForField**` (export del hook):
 
-Esto elimina el caso actual de "solo `trackAtIncident` coincide → aceptar" sin verificación de día.
+```ts
+reactivateSegmentForField(segmentId: string, opts: {
+  targetWorkDay: number;
+  reason: string;
+  mode?: 'repeat_existing_segment';
+})
+```
 
-Internamente, normalizar `segmentsById` a `Map<string, Segment>` aceptando array o map para comodidad de los call-sites.
+Comportamiento dentro del setState:
 
-### 2. `src/components/gabinete/GpsTrackDetailDialog.tsx`
+- Buscar segmento en `s.route.segments`. Si no existe → no-op.
+- Capturar snapshot previo: `previousStatus`, `previousWorkDay`, `previousTrackNumber`, `previousSegmentOrder`, `previousNonRecordable`.
+- Mapear el segmento a:
+  ```ts
+  {
+    ...seg,
+    status: 'pendiente',
+    nonRecordable: false,
+    needsRepeat: true,
+    repeatRequested: true,    // deprecated, compatibilidad
+    workDay: opts.targetWorkDay,
+    trackNumber: null,
+    plannedTrackNumber: null,
+    plannedBy: undefined,
+    segmentOrder: undefined,
+    timestampInicio: undefined,
+    timestampFin: undefined,
+    startedAt: null,
+    endedAt: null,
+    failedAt: null,
+    segmentStartSeconds: null,
+    segmentEndSeconds: null,
+    invalidatedByTrack: null,
+    // trackHistory NO se toca → conserva histórico
+    // companySegmentId NO se toca
+  }
+  ```
+- Si `s.route.optimizedOrder` no contiene `segmentId`, añadir al final.
+- Persistir con `setState(updater, true)` (immediate).
 
-- En el `useMemo` `trackIncidents`, pasar `segmentsById` (ya construido en el componente) como cuarto argumento de `filterIncidentsForTrack`.
-- Añadir `segmentsById` a las dependencias del `useMemo`.
+Tras commit, `logEvent('SEGMENT_REACTIVATED_FOR_FIELD', { workDay, segmentId, payload: { previousStatus, previousWorkDay, previousTrackNumber, previousSegmentOrder, previousNonRecordable, targetWorkDay, reason, mode } })`.
 
-### 3. Tests — `src/test/gabinete-gps-derived.test.ts`
+Exportar `reactivateSegmentForField` en el `return {...}` final del hook.
 
-Actualizar/añadir casos en el bloque de `filterIncidentsForTrack`:
+### 3. `src/App.tsx`
 
-- Incidencia con `workDayAtIncident=1, trackAtIncident=1` y `day=1, track=1` → aparece.
-- Incidencia con `workDayAtIncident=2, trackAtIncident=1` y `day=1, track=1` → NO aparece (mismo track, distinto día).
-- Incidencia antigua sin `workDayAtIncident`, con `segmentId` cuyo segmento tiene `workDay=1, trackNumber=1` → aparece cuando `day=1, track=1`.
-- Misma incidencia antigua pero el segmento tiene `workDay=2` → NO aparece.
-- Incidencia antigua sin `workDayAtIncident` y `segmentId` no presente en `segmentsById` → NO aparece.
-- Incidencia sin `location` → NO aparece (regresión).
+Desestructurar `reactivateSegmentForField` del hook y pasarlo como prop a `MapPage`, `SegmentsPage` y `GabinetePage`. (También `state.workDay` ya disponible.)
 
-Ajustar el test existente `'acepta incidencias con solo trackAtIncident si coincide'` que ahora debe invertirse: sin `workDayAtIncident` y sin segmento resoluble → NO aparece (refleja la nueva regla más estricta).
+### 4. `src/components/ReactivateSegmentDialog.tsx` (NUEVO)
 
-### 4. Verificación de `addIncident`
+Diálogo reutilizable shadcn:
 
-Ya verificado en `src/hooks/useRouteState.ts` (líneas 904-922): persiste `location`, `trackAtIncident: seg?.trackNumber ?? null` y `workDayAtIncident: s.workDay ?? null`. No requiere cambios. Se documentará en el commit.
+- Título: "Reactivar tramo para campo".
+- Muestra: nombre + companySegmentId del segmento, estado actual, día actual.
+- Campo `targetWorkDay` (Input numérico, default = `state.workDay`, min=1).
+- Campo `reason` (Textarea, obligatorio, ≥3 chars).
+- Botón "Reactivar" (deshabilitado si `reason.trim().length < 3`).
+- Aviso visible: "Esta acción cambia el estado operativo base. El histórico previo (eventos, incidencias, trackHistory) se conserva."
+- Al confirmar: llamar `onConfirm({ targetWorkDay, reason })` y cerrar.
+
+Props:
+
+```ts
+{ open, segment, defaultWorkDay, onConfirm({targetWorkDay, reason}), onClose }
+```
+
+### 5. `src/components/LayerPanel.tsx`
+
+**Props nuevas** (opcionales):
+
+- `onReactivateSegment?: (segmentId: string) => void` — abre el diálogo en el padre.
+
+**Sustituir** la línea 527-531 por:
+
+```tsx
+{(seg.status === 'completado' ||
+  seg.status === 'posible_repetir' ||
+  seg.nonRecordable ||
+  seg.needsRepeat) && onReactivateSegment && (
+  <DropdownMenuItem onClick={() => onReactivateSegment(seg.id)}>
+    <RefreshCw className="w-3 h-3 mr-2" />
+    {seg.nonRecordable ? 'Reactivar para campo' : 'Repetir tramo'}
+  </DropdownMenuItem>
+)}
+```
+
+Importar `RefreshCw` de lucide-react.
+
+### 6. `src/pages/SegmentsPage.tsx`
+
+- Añadir prop `onReactivateSegment: (segmentId, opts) => void` y `currentWorkDay: number`.
+- Estado local `reactivateTarget: Segment | null`.
+- Pasar `onReactivateSegment={(id) => setReactivateTarget(seg)}` al LayerPanel (resolviendo segmento por id).
+- Renderizar `<ReactivateSegmentDialog>` y al confirmar → `onReactivateSegment(id, opts)` + toast.
+
+### 7. `src/components/gabinete/GabineteSegmentDetailDialog.tsx`
+
+Añadir bloque visible (sección D, fuera de las correcciones reversibles), separado claramente:
+
+- Título "D · Reactivar para campo (acción operativa)".
+- Texto explicativo: "Esta acción NO es una corrección reversible. Modifica el estado operativo base para que el operador pueda navegar el tramo. El histórico se conserva."
+- Botón "Reactivar para campo" → abre `ReactivateSegmentDialog`.
+
+Nuevas props: `onReactivate?: (segmentId, opts) => void`, `currentWorkDay?: number`.
+
+### 8. `src/pages/GabinetePage.tsx`
+
+- Aceptar prop `onReactivateSegment` y `currentWorkDay` (= `state.workDay`).
+- Pasar a `GabineteSegmentDetailDialog`.
+- Toast tras reactivar: "Tramo reactivado para Día X. Disponible en Tramos y Mapa."
+
+### 9. `src/components/MapControlPanel.tsx`
+
+**Importar** `RefreshCw`, `ArrowUp`, `ArrowDown`.
+
+Nuevas props opcionales: `onReactivateSegment?: (segmentId: string) => void`.
+
+**Cabecera del bloque pendiente expandido** (línea 392-414): reescribir como dos filas:
+
+```
+[ChipTrack]  Siguiente tramo · #N / TOTAL          [▲][▼][↻]
+             {nombre}                              [Ir/Iniciar]
+```
+
+Donde:
+
+- `#N / TOTAL` se calcula con `displayOrderMap.get(pinnedSegment.id)` y `optimizedOrder.length`.
+- `▲` → `onReorder(pinnedSegment.id, 'up')`, deshabilitado si `pos<=1`.
+- `▼` → `onReorder(pinnedSegment.id, 'down')`, deshabilitado si `pos>=total`.
+- `↻` → visible si `pinnedSegment.status==='completado' || 'posible_repetir' || pinnedSegment.nonRecordable || pinnedSegment.needsRepeat`. Llama `onReactivateSegment(pinnedSegment.id)`.
+
+**Bloque "en_progreso"** (línea 361-389): añadir el mismo `#N / TOTAL` discreto en la cabecera.
+
+### 10. `src/pages/MapPage.tsx`
+
+- Aceptar prop `onReactivateSegment`.
+- Mantener estado `reactivateTarget` y renderizar `<ReactivateSegmentDialog>`.
+- Pasar `onReactivateSegment={(id) => setReactivateTarget(...)}` a `MapControlPanel`.
+- Al confirmar: invocar prop del padre + toast.
+
+### 11. `src/utils/gabinete/segment-attempts.ts` (NUEVO)
+
+Utilidad pura derivada del event-log + incidents + segments:
+
+```ts
+export interface SegmentAttempt {
+  id: string;                    // synth: `${segmentId}#${attemptIndex}`
+  segmentId: string;
+  companySegmentId?: string;
+  workDay: number;
+  trackNumber: number | null;
+  segmentOrder?: number | null;
+  status: 'pendiente'|'en_progreso'|'completado'|'no_grabable'|'cancelado'|'invalidado'|'posible_repetir';
+  startedAt?: string | null;
+  endedAt?: string | null;
+  incidentIds: string[];
+  source: 'field' | 'gabinete' | 'system';
+  reason?: string;
+}
+
+export function deriveSegmentAttempts(
+  eventLog: PersistentEvent[],
+  incidents: Incident[],
+  segments: Segment[],
+): SegmentAttempt[]
+```
+
+Reglas de derivación:
+
+- Iterar eventLog ordenado por timestamp.
+- `SEGMENT_STARTED` → abre nuevo intento usando `payload.workDay`, `payload.trackNumber`, `payload.segmentOrder`, `payload.startedAt`. Estado inicial `en_progreso`.
+- `SEGMENT_COMPLETED` → cierra intento abierto del mismo segmento con status `completado`, rellena `endedAt`.
+- `SEGMENT_CANCELLED` → cierra con `cancelado`, `reason = payload.reason`.
+- `SEGMENT_SKIPPED` → cierra con `cancelado`, reason "skipped".
+- `INCIDENT_RECORDED` con `payload.impact='critica_no_grabable'` → cierra con `no_grabable`. Con `critica_invalida_bloque` → `invalidado`.
+- `SEGMENT_REACTIVATED_FOR_FIELD` → cierra cualquier intento abierto sin afectar; emite intento NUEVO sintético "pendiente" para el `targetWorkDay` con `source='gabinete'` y `reason`.
+- Asociar incidencias por `(segmentId, workDay, trackNumber)` matching.
+- Para tramos completados sin event-log (datos antiguos), generar intento "fallback" desde el segmento actual.
+
+### 12. `src/utils/excel-export-v2.ts`
+
+Añadir:
+
+- Import `deriveSegmentAttempts` y tipo `SegmentAttempt`.
+- Etiqueta en `EVENT_TYPE_LABELS`: `SEGMENT_REACTIVATED_FOR_FIELD: 'Tramo reactivado'`, `SEGMENT_DUPLICATED: 'Tramo duplicado'`.
+- Etiqueta en índice (sh3): `'11_HISTORIAL_INTENTOS'`.
+- **Nueva hoja `11_HISTORIAL_INTENTOS**` después de `10_DICCIONARIO`:
+  - Headers: `ID_EMPRESA, NOMBRE, DIA, TRACK, POSICION, ESTADO_INTENTO, INICIO, FIN, DURACION, INCIDENCIAS, FUENTE, MOTIVO`.
+  - Filas: una por cada `SegmentAttempt` ordenadas por `workDay, trackNumber, startedAt`.
+  - Estilo zebra y coloreado por status.
+- Llamar `const attempts = deriveSegmentAttempts(ctx.persistentEvents, allIncidents, segments)` en `buildWorkbook`.
+
+Exportar `deriveSegmentAttempts` en `__testing` para los tests (vía re-export).
+
+### 13. Tests
+
+`**src/test/segment-reactivation.test.ts` (NUEVO)** — pruebas puras sin React:
+
+1. **Reactivar nonRecordable**: aplicar `reactivateSegmentForField` (vía función pura extraída — ver siguiente punto) sobre estado mock con segmento `nonRecordable=true, status='posible_repetir'` → resultado: `status='pendiente'`, `nonRecordable=false`, `needsRepeat=true`, `workDay=18`, `trackNumber=null`, `optimizedOrder.includes(id)`.
+2. **Reactivar completado de Día 1 a Día 18**: snapshot previo conservado en payload; `trackHistory` intacto.
+3. **Tramo reactivado entra en filtro Pendientes**: simular el filtro de SegmentsPage.
+4. **Tramo reactivado entra en `nextPending**`: simular `orderedSegments.find(s => s.status==='pendiente')`.
+
+Para esto: extraer la lógica pura del reactivate a `src/utils/segment-reactivation.ts`:
+
+```ts
+export function applyReactivation(state: AppState, segmentId: string, opts: {targetWorkDay,reason}): { state: AppState; previousSnapshot: {...} | null }
+```
+
+y `reactivateSegmentForField` del hook simplemente la envuelve + emite evento.
+
+`**src/test/segment-duplicate.test.ts` (NUEVO)**: similar, extraer `applyDuplicate(state, ids)` puro y verificar que ningún duplicado hereda `companySegmentId`.
+
+`**src/test/segment-attempts.test.ts` (NUEVO)**: tests de `deriveSegmentAttempts` con event-log mock que incluye reactivación → 2 intentos del mismo segmentId en días distintos.
+
+`**src/test/excel-export-v2.test.ts**`: añadir caso `it('exporta dos intentos del mismo ID empresa en días distintos')` que invoca `buildWorkbook` con event-log que contiene `SEGMENT_STARTED` Día 1, `SEGMENT_COMPLETED` Día 1, `SEGMENT_REACTIVATED_FOR_FIELD` Día 18, `SEGMENT_STARTED` Día 18, `SEGMENT_COMPLETED` Día 18, y verifica que la hoja 11 tiene 2 filas con el mismo `companySegmentId`.
+
+**Tests de UI MapControlPanel**: omitidos (alta superficie y poco valor frente al coste). Verificación manual + el test puro de `buildDisplayOrderMap` ya existente cubre `#N/TOTAL`.
 
 ## Lo que NO cambia
 
-- Esquema de `Incident` y persistencia (`campaign-schema.ts`).
-- Lógica de `addIncident`.
-- Exportación Excel (sigue usando `inc.trackAtIncident` directamente).
-- Otras funciones de `track-gps-derived.ts`.
-- UI del diálogo más allá de pasar el nuevo argumento.
+- `SegmentStatus` no se amplía. "No grabable" sigue siendo `nonRecordable=true` + `status='posible_repetir'`.
+- `Segment` schema, `Incident`, `campaign-schema.ts`, persistence schema.
+- `segmentCorrections` (correcciones reversibles): siguen siendo el canal de gabinete para edición auditada. La reactivación es una operación operativa distinta.
+- Lógica RST (F5/F7/F9), punto estratégico, navegación.
+- Hojas 01-10 del Excel.
+- Export clásico (`excel-export.ts`).
 
 ## Criterios de aceptación
 
-- Una incidencia del Día 2 / Track 1 nunca aparece en el mapa del Día 1 / Track 1.
-- Incidencias históricas sin `workDayAtIncident` se ubican correctamente vía su segmento asociado, o se descartan si no se puede confirmar.
+- Reactivar un tramo `nonRecordable` desde Gabinete o LayerPanel lo deja como pendiente y aparece inmediatamente en SegmentsPage filtro Pendientes y en `nextPending` de MapControlPanel.
+- `trackHistory`, eventos previos, incidencias previas y `companySegmentId` se conservan tras reactivación.
+- Duplicar nunca produce dos tramos con el mismo `companySegmentId`.
+- Cabecera de "Siguiente tramo" muestra `#N / TOTAL` con botones `▲ ▼ ↻` operativos.
+- Hoja `11_HISTORIAL_INTENTOS` muestra filas separadas para cada intento; un mismo ID empresa puede aparecer en Día 1 y Día 18.
+- `tsc --noEmit` y `vitest run` en verde.  
 
-`tsc --noEmit` y `vitest run` pasan en verde.
 
-&nbsp;
+AJUSTE OBLIGATORIO — HISTORIAL_INTENTOS
 
-## Añade un ajuste importante: cuando `filterIncidentsForTrack` resuelva incidencias antiguas sin `workDayAtIncident` usando el segmento asociado, debe hacerlo con el dato consolidado si estamos en modo gabinete.
+En `deriveSegmentAttempts`, `SEGMENT_REACTIVATED_FOR_FIELD` no debe generar siempre una fila independiente.
 
-Opciones válidas:
+Debe tratarse como un marcador de reactivación:
 
-1. Pasar a `filterIncidentsForTrack` un `segmentsById` ya consolidado desde `GabinetePage` / `GpsTrackDetailDialog`.
+1. Al leer `SEGMENT_REACTIVATED_FOR_FIELD`, guardar un marcador por:
 
-2. O pasar un resolver `getSegmentForIncident(segmentId)` que devuelva el segmento consolidado.
+   - segmentId
 
-Regla:
+   - targetWorkDay
 
-- Si `workDayAtIncident` existe, manda ese valor.
+   - reason
 
-- Si falta `workDayAtIncident`, usar el segmento asociado consolidado:
+   - timestamp
 
-  - aceptar solo si `segment.workDay === day` y `segment.trackNumber === track`
+   - source='gabinete'
 
-  - si no hay segmento resoluble, descartar
+2. Si posteriormente aparece `SEGMENT_STARTED` o `SEGMENT_COMPLETED` para el mismo segmentId y workDay:
 
-- Mantener el requisito de `location`.
+   - fusionar ese marcador con el intento real
 
-- Añadir test adicional:
+   - NO crear una fila pendiente adicional
 
-  - incidencia antigua sin `workDayAtIncident`, segmento base con Día 2 / Track 1, pero corrección activa de gabinete a Día 1 / Track 1 → debe aparecer en Día 1 / Track 1 si se pasa el segmento consolidado.
+   - conservar `source='gabinete'` o `reason` en el intento resultante
 
-El resto del plan queda aprobado:
+3. Si al terminar de procesar el event-log queda un marcador de reactivación sin intento real posterior:
 
-- nueva firma de `filterIncidentsForTrack`
+   - entonces sí crear un intento sintético:
 
-- pasar `segmentsById` desde `GpsTrackDetailDialog`
+     - status='pendiente'
 
-- tests de mismo track distinto día
+     - source='gabinete'
 
-- descartar incidencias antiguas sin segmento resoluble
+     - reason=motivo de reactivación
 
-- mantener `addIncident` sin cambios si ya guarda `location`, `trackAtIncident` y `workDayAtIncident`.
+     - workDay=targetWorkDay
+
+     - trackNumber=null
+
+Criterio:
+
+- Tramo grabado en Día 1, reactivado en Día 18 y grabado en Día 18 → 2 filas.
+
+- Tramo grabado en Día 1, reactivado en Día 18 pero aún no grabado → 2 filas: Día 1 completado + Día 18 pendiente/reactivado.
