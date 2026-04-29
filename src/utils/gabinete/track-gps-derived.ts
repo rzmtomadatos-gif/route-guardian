@@ -394,31 +394,67 @@ export function computeTrackGpsSegmentRows(
 /**
  * Filtra incidencias asociadas a un día/track concreto.
  *
- * Reglas:
- * - Si la incidencia tiene `workDayAtIncident`, debe coincidir con `day`.
- *   Si no lo tiene (datos antiguos), se acepta y se confía solo en trackAtIncident
- *   y en la pertenencia del segmento al track.
- * - `trackAtIncident` debe coincidir con `track` cuando existe.
- * - Si la incidencia no tiene `location`, se descarta para el mapa.
+ * Reglas (en orden):
+ * 1. Si no hay `location`, se descarta (no se puede pintar en mapa).
+ * 2. Si `workDayAtIncident` es número, debe coincidir con `day`.
+ * 3. Si `trackAtIncident` es número, debe coincidir con `track`.
+ * 4. Si falta `workDayAtIncident` (datos antiguos), se intenta resolver
+ *    el segmento asociado a través de `segmentsResolver`. Solo se acepta
+ *    si el segmento existe y `segment.workDay === day && segment.trackNumber === track`.
+ *    Si no se puede resolver con fiabilidad, se descarta.
+ *
+ * El cuarto parámetro acepta:
+ *   - un `Map<string, Segment>` (preferido en hot paths),
+ *   - un array de segmentos,
+ *   - o una función resolver `(segmentId) => Segment | undefined`.
+ *
+ * En modo gabinete, el caller debe pasar segmentos *consolidados* para que
+ * la resolución respete las correcciones de gabinete.
  */
 export function filterIncidentsForTrack(
   incidents: Incident[] | undefined | null,
   day: number,
   track: number,
+  segmentsResolver?:
+    | Map<string, Segment>
+    | Segment[]
+    | ((segmentId: string) => Segment | undefined),
 ): Incident[] {
   if (!Array.isArray(incidents) || incidents.length === 0) return [];
+
+  // Normalizar resolver a una función única.
+  let resolve: (segmentId: string) => Segment | undefined;
+  if (typeof segmentsResolver === 'function') {
+    resolve = segmentsResolver;
+  } else if (segmentsResolver instanceof Map) {
+    resolve = (id) => segmentsResolver.get(id);
+  } else if (Array.isArray(segmentsResolver)) {
+    const m = new Map<string, Segment>();
+    segmentsResolver.forEach((s) => m.set(s.id, s));
+    resolve = (id) => m.get(id);
+  } else {
+    resolve = () => undefined;
+  }
+
   return incidents.filter((inc) => {
     if (!inc.location) return false;
-    if (typeof inc.workDayAtIncident === 'number' && inc.workDayAtIncident !== day) return false;
-    if (typeof inc.trackAtIncident === 'number' && inc.trackAtIncident !== track) return false;
-    // Si no hay ningún campo de día/track, no podemos confirmar pertenencia: mejor descartar
-    // para evitar mostrar incidencias en tracks que no son los suyos.
-    if (
-      typeof inc.workDayAtIncident !== 'number' &&
-      typeof inc.trackAtIncident !== 'number'
-    ) {
+
+    if (typeof inc.workDayAtIncident === 'number') {
+      if (inc.workDayAtIncident !== day) return false;
+      if (typeof inc.trackAtIncident === 'number' && inc.trackAtIncident !== track) {
+        return false;
+      }
+      return true;
+    }
+
+    // Sin workDayAtIncident: resolver por segmento asociado.
+    if (typeof inc.trackAtIncident === 'number' && inc.trackAtIncident !== track) {
       return false;
     }
+    const seg = inc.segmentId ? resolve(inc.segmentId) : undefined;
+    if (!seg) return false;
+    if (seg.workDay !== day) return false;
+    if (typeof seg.trackNumber === 'number' && seg.trackNumber !== track) return false;
     return true;
   });
 }
