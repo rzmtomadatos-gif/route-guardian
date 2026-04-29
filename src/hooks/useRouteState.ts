@@ -580,6 +580,7 @@ export function useRouteState() {
    * Si el estado es anómalo (sin track activo), aborta con warning defensivo.
    */
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
+    let startedPayload: Record<string, unknown> | null = null;
     setState((s) => {
       if (!s.route) return s;
       if (s.blockEndPrompt.isOpen) return s;
@@ -663,6 +664,17 @@ export function useRouteState() {
         ? s.trackSession.segmentIds
         : [...s.trackSession.segmentIds, segmentId];
 
+      // Capturar datos para event-log enriquecido (HISTORIAL_INTENTOS).
+      startedPayload = {
+        segmentName: seg.name,
+        workDay: s.workDay,
+        trackNumber: trackNum,
+        segmentOrder,
+        startedAt: now,
+        acquisitionMode: s.acquisitionMode,
+        segmentStartSeconds: garminStart,
+      };
+
       return {
         ...s,
         route: { ...s.route, segments },
@@ -670,7 +682,14 @@ export function useRouteState() {
         trackSession: { ...s.trackSession, segmentIds: newSegmentIds },
       };
     }, true);
-    logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
+    if (startedPayload) {
+      logEvent('SEGMENT_STARTED', {
+        segmentId,
+        workDay: startedPayload.workDay as number,
+        trackNumber: startedPayload.trackNumber as number,
+        payload: startedPayload,
+      });
+    }
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
