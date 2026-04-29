@@ -45,6 +45,12 @@ interface Props {
   incidents?: Incident[];
   /** Abrir ficha de gabinete del tramo dado (si existe). */
   onOpenSegment?: (segmentId: string) => void;
+  /**
+   * Resolver opcional para obtener el segmento *consolidado* asociado a una
+   * incidencia antigua sin `workDayAtIncident`. Si se omite, el filtro caerá
+   * al lookup por `id` dentro de `allSegments` (datos crudos).
+   */
+  resolveConsolidatedSegment?: (segmentId: string) => Segment | undefined;
 }
 
 function formatMeters(m: number | null | undefined): string {
@@ -70,6 +76,7 @@ export function GpsTrackDetailDialog({
   allSegments,
   incidents,
   onOpenSegment,
+  resolveConsolidatedSegment,
 }: Props) {
   const metrics = useMemo(() => computeTrackGpsMetrics(points), [points]);
 
@@ -86,8 +93,11 @@ export function GpsTrackDetailDialog({
 
   const trackIncidents = useMemo(() => {
     if (day === null || track === null) return [];
-    return filterIncidentsForTrack(incidents, day, track);
-  }, [incidents, day, track]);
+    // Preferimos el resolver consolidado (modo gabinete). Si no se pasa,
+    // caemos al map por id de los segmentos crudos.
+    const resolver = resolveConsolidatedSegment ?? ((id: string) => segmentsById.get(id));
+    return filterIncidentsForTrack(incidents, day, track, resolver);
+  }, [incidents, day, track, segmentsById, resolveConsolidatedSegment]);
 
   if (day === null || track === null) return null;
 

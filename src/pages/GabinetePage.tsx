@@ -295,6 +295,10 @@ export default function GabinetePage({ state }: Props) {
         points={openGpsPoints}
         allSegments={allSegments}
         incidents={state.incidents}
+        resolveConsolidatedSegment={(segmentId) => {
+          const raw = allSegments.find((s) => s.id === segmentId);
+          return raw ? getConsolidatedSegment(raw) : undefined;
+        }}
         onOpenSegment={(segmentId) => {
           const seg = allSegments.find((s) => s.id === segmentId);
           if (seg) setOpenSegment(seg);
