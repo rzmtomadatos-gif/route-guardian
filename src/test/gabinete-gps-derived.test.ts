@@ -432,10 +432,58 @@ describe('filterIncidentsForTrack', () => {
     expect(filterIncidentsForTrack(incidents, 1, 1)).toEqual([]);
   });
 
-  it('acepta incidencias con solo trackAtIncident si coincide', () => {
+  it('descarta incidencias sin workDayAtIncident si no hay segmento resoluble', () => {
     const incidents: Incident[] = [{ ...base, id: 'old', trackAtIncident: 1 }];
-    expect(filterIncidentsForTrack(incidents, 1, 1).map((i) => i.id)).toEqual(['old']);
-    expect(filterIncidentsForTrack(incidents, 1, 2)).toEqual([]);
+    expect(filterIncidentsForTrack(incidents, 1, 1)).toEqual([]);
+  });
+
+  it('NO mezcla incidencias entre días con el mismo número de track', () => {
+    const incidents: Incident[] = [
+      { ...base, id: 'd1', workDayAtIncident: 1, trackAtIncident: 1 },
+      { ...base, id: 'd2', workDayAtIncident: 2, trackAtIncident: 1 },
+    ];
+    expect(filterIncidentsForTrack(incidents, 1, 1).map((i) => i.id)).toEqual(['d1']);
+    expect(filterIncidentsForTrack(incidents, 2, 1).map((i) => i.id)).toEqual(['d2']);
+  });
+
+  it('resuelve incidencias antiguas sin workDayAtIncident vía segmento asociado', () => {
+    const segA = { id: 'A', workDay: 1, trackNumber: 1 } as Segment;
+    const segB = { id: 'B', workDay: 2, trackNumber: 1 } as Segment;
+
+    const incA: Incident = { ...base, id: 'oldA', segmentId: 'A' };
+    const incB: Incident = { ...base, id: 'oldB', segmentId: 'B' };
+
+    expect(
+      filterIncidentsForTrack([incA, incB], 1, 1, [segA, segB]).map((i) => i.id),
+    ).toEqual(['oldA']);
+    expect(
+      filterIncidentsForTrack([incA, incB], 2, 1, [segA, segB]).map((i) => i.id),
+    ).toEqual(['oldB']);
+  });
+
+  it('descarta incidencia antigua sin segmento resoluble en la campaña', () => {
+    const incidents: Incident[] = [
+      { ...base, id: 'ghost', segmentId: 'NON_EXISTENT' },
+    ];
+    expect(filterIncidentsForTrack(incidents, 1, 1, [])).toEqual([]);
+  });
+
+  it('usa el segmento consolidado cuando se pasa un resolver (modo gabinete)', () => {
+    // Dato crudo dice workDay=1, pero gabinete corrigió a workDay=2.
+    const consolidated = { id: 'A', workDay: 2, trackNumber: 1 } as Segment;
+    const resolver = (id: string) => (id === 'A' ? consolidated : undefined);
+
+    const inc: Incident = { ...base, id: 'old', segmentId: 'A' };
+    expect(filterIncidentsForTrack([inc], 1, 1, resolver)).toEqual([]);
+    expect(filterIncidentsForTrack([inc], 2, 1, resolver).map((i) => i.id)).toEqual(['old']);
+  });
+
+  it('acepta Map<string, Segment> como resolver', () => {
+    const map = new Map<string, Segment>();
+    map.set('A', { id: 'A', workDay: 3, trackNumber: 2 } as Segment);
+    const inc: Incident = { ...base, id: 'old', segmentId: 'A' };
+    expect(filterIncidentsForTrack([inc], 3, 2, map).map((i) => i.id)).toEqual(['old']);
+    expect(filterIncidentsForTrack([inc], 3, 1, map)).toEqual([]);
   });
 
   it('devuelve [] con array vacío o nulo', () => {
