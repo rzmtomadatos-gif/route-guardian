@@ -16,6 +16,8 @@ import { getDefaultState, saveState } from '@/utils/storage';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 import { logEvent } from '@/utils/persistence';
+import { applyReactivation, type ReactivateOptions } from '@/utils/segment-reactivation';
+import { applyDuplicate } from '@/utils/segment-duplicate';
 import { toast } from 'sonner';
 
 const MAX_SEGMENTS_PER_TRACK = 9;
@@ -578,6 +580,7 @@ export function useRouteState() {
    * Si el estado es anómalo (sin track activo), aborta con warning defensivo.
    */
   const confirmStartSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
+    let startedPayload: Record<string, unknown> | null = null;
     setState((s) => {
       if (!s.route) return s;
       if (s.blockEndPrompt.isOpen) return s;
@@ -661,6 +664,17 @@ export function useRouteState() {
         ? s.trackSession.segmentIds
         : [...s.trackSession.segmentIds, segmentId];
 
+      // Capturar datos para event-log enriquecido (HISTORIAL_INTENTOS).
+      startedPayload = {
+        segmentName: seg.name,
+        workDay: s.workDay,
+        trackNumber: trackNum,
+        segmentOrder,
+        startedAt: now,
+        acquisitionMode: s.acquisitionMode,
+        segmentStartSeconds: garminStart,
+      };
+
       return {
         ...s,
         route: { ...s.route, segments },
@@ -668,10 +682,18 @@ export function useRouteState() {
         trackSession: { ...s.trackSession, segmentIds: newSegmentIds },
       };
     }, true);
-    logEvent('SEGMENT_STARTED', { segmentId, payload: { segmentName: '' } });
+    if (startedPayload) {
+      logEvent('SEGMENT_STARTED', {
+        segmentId,
+        workDay: startedPayload.workDay as number,
+        trackNumber: startedPayload.trackNumber as number,
+        payload: startedPayload,
+      });
+    }
   }, [setState]);
 
   const completeSegment = useCallback((segmentId: string, hiddenLayers?: Set<string>) => {
+    let completedPayload: Record<string, unknown> | null = null;
     setState((s) => {
       if (!s.route) return s;
       // Guard: block if end-of-video prompt is open
@@ -749,6 +771,21 @@ export function useRouteState() {
         return true;
       });
 
+      // Snapshot enriquecido para HISTORIAL_INTENTOS (solo si efectivamente completado).
+      const completed = segments.find((sg) => sg.id === segmentId);
+      if (completed && completed.status === 'completado') {
+        completedPayload = {
+          workDay: completed.workDay,
+          trackNumber: completed.trackNumber,
+          segmentOrder: completed.segmentOrder,
+          startedAt: completed.startedAt,
+          endedAt: completed.endedAt,
+          acquisitionMode: s.acquisitionMode,
+          segmentStartSeconds: completed.segmentStartSeconds,
+          segmentEndSeconds: completed.segmentEndSeconds,
+        };
+      }
+
       return {
         ...s,
         route: { ...s.route, segments },
@@ -758,7 +795,16 @@ export function useRouteState() {
         blockEndPrompt,
       };
     }, true);
-    logEvent('SEGMENT_COMPLETED', { segmentId });
+    if (completedPayload) {
+      logEvent('SEGMENT_COMPLETED', {
+        segmentId,
+        workDay: completedPayload.workDay as number | undefined,
+        trackNumber: completedPayload.trackNumber as number | undefined,
+        payload: completedPayload,
+      });
+    } else {
+      logEvent('SEGMENT_COMPLETED', { segmentId });
+    }
     // Emit TRACK_CLOSED if auto-close happened (capacity reached)
     setStateRaw((current) => {
       if (current.trackSession && !current.trackSession.active && current.trackSession.endedAt) {
@@ -1405,32 +1451,66 @@ export function useRouteState() {
   }, [setState]);
 
   const duplicateSegments = useCallback((segmentIds: string[]) => {
+    let records: ReturnType<typeof applyDuplicate>['records'] = [];
     setState((s) => {
-      if (!s.route) return s;
-      const newSegments: Segment[] = [];
-      segmentIds.forEach((id) => {
-        const orig = s.route!.segments.find((seg) => seg.id === id);
-        if (orig) {
-          newSegments.push({
-            ...orig,
-            id: Math.random().toString(36).substring(2, 10),
-            name: orig.name + ' (copia)',
-            trackNumber: null,
-            trackHistory: [],
-            status: 'pendiente',
-          });
-        }
-      });
-      return {
-        ...s,
-        route: {
-          ...s.route,
-          segments: [...s.route.segments, ...newSegments],
-          optimizedOrder: [...s.route.optimizedOrder, ...newSegments.map((seg) => seg.id)],
-        },
-      };
+      const result = applyDuplicate(s, segmentIds);
+      records = result.records;
+      return result.state;
     });
+    // Emit one event per duplicate (after commit).
+    setTimeout(() => {
+      for (const rec of records) {
+        logEvent('SEGMENT_DUPLICATED', {
+          segmentId: rec.newSegmentId,
+          payload: {
+            sourceSegmentId: rec.sourceSegmentId,
+            sourceCompanySegmentId: rec.sourceCompanySegmentId,
+          },
+        });
+      }
+    }, 0);
   }, [setState]);
+
+  /**
+   * Reactiva un tramo para campo (operación operativa, NO corrección reversible).
+   *
+   * Uso: gabinete decide que un tramo `nonRecordable` o `completado` debe
+   * volver a navegarse en otro día. La función deja el tramo como pendiente
+   * en `targetWorkDay`, conservando trackHistory, companySegmentId, eventos
+   * e incidencias previas. Emite `SEGMENT_REACTIVATED_FOR_FIELD` con snapshot
+   * anterior para que `HISTORIAL_INTENTOS` pueda fusionarlo con el siguiente
+   * SEGMENT_STARTED real.
+   */
+  const reactivateSegmentForField = useCallback(
+    (segmentId: string, opts: ReactivateOptions) => {
+      let snapshot: ReturnType<typeof applyReactivation>['previousSnapshot'] = null;
+      let changed = false;
+      setState((s) => {
+        const result = applyReactivation(s, segmentId, opts);
+        snapshot = result.previousSnapshot;
+        changed = result.changed;
+        return result.state;
+      }, true);
+      if (changed && snapshot) {
+        logEvent('SEGMENT_REACTIVATED_FOR_FIELD', {
+          segmentId,
+          workDay: opts.targetWorkDay,
+          payload: {
+            targetWorkDay: opts.targetWorkDay,
+            reason: opts.reason,
+            mode: opts.mode ?? 'repeat_existing_segment',
+            previousStatus: snapshot.previousStatus,
+            previousWorkDay: snapshot.previousWorkDay,
+            previousTrackNumber: snapshot.previousTrackNumber,
+            previousSegmentOrder: snapshot.previousSegmentOrder,
+            previousNonRecordable: snapshot.previousNonRecordable,
+            previousNeedsRepeat: snapshot.previousNeedsRepeat,
+          },
+        });
+      }
+    },
+    [setState],
+  );
 
   const reorderSegment = useCallback((segmentId: string, direction: 'up' | 'down') => {
     setState((s) => {
@@ -1796,6 +1876,7 @@ export function useRouteState() {
     restoreState,
     cancelStartSegment,
     cancelAllInProgress,
+    reactivateSegmentForField,
     setSegmentCorrections,
     readCommittedState,
     appendTrackGpsPoint,
