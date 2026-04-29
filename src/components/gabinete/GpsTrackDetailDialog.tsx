@@ -45,6 +45,12 @@ interface Props {
   incidents?: Incident[];
   /** Abrir ficha de gabinete del tramo dado (si existe). */
   onOpenSegment?: (segmentId: string) => void;
+  /**
+   * Resolver opcional para obtener el segmento *consolidado* asociado a una
+   * incidencia antigua sin `workDayAtIncident`. Si se omite, el filtro caerá
+   * al lookup por `id` dentro de `allSegments` (datos crudos).
+   */
+  resolveConsolidatedSegment?: (segmentId: string) => Segment | undefined;
 }
 
 function formatMeters(m: number | null | undefined): string {
