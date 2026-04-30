@@ -98,6 +98,7 @@ export function LayerPanel({
   onReorderInRoute,
   optimizedOrderLength,
   onReverseSegment,
+  onRequestReactivate,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
