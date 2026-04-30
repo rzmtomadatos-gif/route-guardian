@@ -116,6 +116,7 @@ export default function SegmentsPage({
     return 'pendiente';
   });
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<Segment | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
   const [sortByProximity, setSortByProximity] = useState(false);
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
