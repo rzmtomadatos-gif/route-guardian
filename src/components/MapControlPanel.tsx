@@ -411,15 +411,41 @@ export function MapControlPanel({
               );
             })()}
 
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
+            {pinnedSegment && pinnedSegment.status === 'pendiente' && (() => {
+              const pinnedPos = displayOrderMap.get(pinnedSegment.id);
+              const total = optimizedOrder.length;
+              const canRepeatPinned =
+                pinnedSegment.nonRecordable === true ||
+                pinnedSegment.needsRepeat === true;
+              return (
               <div className="bg-secondary/50 border border-border rounded-lg p-2 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
                   {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
-                  <p className="text-[10px] text-muted-foreground">Siguiente tramo</p>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                    Siguiente tramo
+                    {pinnedPos !== undefined && (
+                      <span className="font-mono">#{pinnedPos} / {total}</span>
+                    )}
+                  </p>
                   <p className="text-xs font-medium text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
+                {onReorder && pinnedPos !== undefined && (
+                  <div className="flex flex-col">
+                    <Button size="sm" variant="ghost" className="h-5 w-6 p-0" onClick={() => onReorder(pinnedSegment.id, 'up')} disabled={pinnedPos <= 1} title="Subir">
+                      <ChevronUp className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-5 w-6 p-0" onClick={() => onReorder(pinnedSegment.id, 'down')} disabled={pinnedPos >= total} title="Bajar">
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+                {onReactivateSegment && canRepeatPinned && (
+                  <Button size="sm" variant="ghost" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 w-9 p-0" title="Reactivar / Repetir">
+                    <Repeat className="w-4 h-4" />
+                  </Button>
+                )}
                 {canNavigateProp && pinnedSegment.id === activeSegmentId && (
                   <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
@@ -433,7 +459,8 @@ export function MapControlPanel({
                   </Button>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* === NAV CONTROLS: Prev / Navigate / Next === */}
             <div className="flex gap-1.5">
