@@ -625,3 +625,79 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     expect(allValues).not.toContain('BOA_EXCLUIDO');
   });
 });
+
+describe('buildWorkbook() — hoja 11_HISTORIAL_INTENTOS', () => {
+  function mkRoute(segs: Segment[]) {
+    return {
+      id: 'r1', name: 'Test Route', loadedAt: '2026-01-01T00:00:00Z',
+      fileName: 'test.kml', segments: segs, optimizedOrder: segs.map((s) => s.id),
+      projectName: 'Test', projectCode: 'T',
+    } as any;
+  }
+
+  it('crea la hoja con cabeceras obligatorias y dos filas para el mismo ID_EMPRESA en días distintos', async () => {
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA_001', status: 'completado', workDay: 18 })];
+    const events = [
+      { eventId: 'e1', timestamp: '2026-01-01T10:00:00Z', eventType: 'SEGMENT_STARTED', segmentId: 's1', payload: { workDay: 1, trackNumber: 1 } },
+      { eventId: 'e2', timestamp: '2026-01-01T10:05:00Z', eventType: 'SEGMENT_COMPLETED', segmentId: 's1', payload: { workDay: 1, trackNumber: 1 } },
+      { eventId: 'e3', timestamp: '2026-01-18T08:00:00Z', eventType: 'SEGMENT_REACTIVATED_FOR_FIELD', segmentId: 's1', payload: { targetWorkDay: 18, reason: 'corte despejado' } },
+      { eventId: 'e4', timestamp: '2026-01-18T09:00:00Z', eventType: 'SEGMENT_STARTED', segmentId: 's1', payload: { workDay: 18, trackNumber: 4 } },
+      { eventId: 'e5', timestamp: '2026-01-18T09:06:00Z', eventType: 'SEGMENT_COMPLETED', segmentId: 's1', payload: { workDay: 18, trackNumber: 4 } },
+    ];
+    const { wb } = await buildWorkbook({
+      route: mkRoute(segs), incidents: [], f5Events: [], persistentEvents: events as any,
+      segmentCorrections: [],
+    } as any, true);
+    const sh = wb.getWorksheet('11_HISTORIAL_INTENTOS');
+    expect(sh).toBeTruthy();
+    const headerRow = sh.getRow(2);
+    const headers: string[] = [];
+    headerRow.eachCell((c: any, col: number) => { headers[col - 1] = String(c.value ?? ''); });
+    for (const required of ['ID_EMPRESA','NOMBRE','DIA','TRACK','POSICION','ESTADO_INTENTO','INICIO','FIN','DURACION','SEG_INICIO_TRACK','SEG_FIN_TRACK','INCIDENCIAS','FUENTE','MOTIVO']) {
+      expect(headers).toContain(required);
+    }
+    const idCol = headers.indexOf('ID_EMPRESA') + 1;
+    const diaCol = headers.indexOf('DIA') + 1;
+    const fuenteCol = headers.indexOf('FUENTE') + 1;
+    const rows: Array<{ id: string; dia: any; fuente: string }> = [];
+    for (let r = 3; r <= sh.rowCount; r++) {
+      rows.push({
+        id: String(sh.getRow(r).getCell(idCol).value ?? ''),
+        dia: sh.getRow(r).getCell(diaCol).value,
+        fuente: String(sh.getRow(r).getCell(fuenteCol).value ?? ''),
+      });
+    }
+    const sameId = rows.filter((r) => r.id === 'BOA_001');
+    expect(sameId).toHaveLength(2);
+    const days = sameId.map((r) => r.dia).sort();
+    expect(days).toEqual([1, 18]);
+    expect(sameId.find((r) => r.dia === 1)?.fuente).toBe('field');
+    expect(sameId.find((r) => r.dia === 18)?.fuente).toBe('gabinete');
+  });
+
+  it('aparece en el índice (03_INDICE) y en el diccionario (10_DICCIONARIO)', async () => {
+    const segs = [mkSeg({ id: 's1' })];
+    const { wb } = await buildWorkbook({
+      route: mkRoute(segs), incidents: [], f5Events: [], persistentEvents: [],
+      segmentCorrections: [],
+    } as any, true);
+    const idx = wb.getWorksheet('03_INDICE');
+    let foundIdx = false;
+    for (let r = 1; r <= idx.rowCount; r++) {
+      idx.getRow(r).eachCell((c: any) => {
+        const v = c.value && typeof c.value === 'object' && 'text' in c.value ? (c.value as any).text : c.value;
+        if (String(v ?? '').includes('11_HISTORIAL_INTENTOS')) foundIdx = true;
+      });
+    }
+    expect(foundIdx).toBe(true);
+    const dic = wb.getWorksheet('10_DICCIONARIO');
+    let foundDic = false;
+    for (let r = 1; r <= dic.rowCount; r++) {
+      dic.getRow(r).eachCell((c: any) => {
+        if (String(c.value ?? '').includes('11_HISTORIAL_INTENTOS')) foundDic = true;
+      });
+    }
+    expect(foundDic).toBe(true);
+  });
+});
+
