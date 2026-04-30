@@ -101,6 +101,8 @@ export default function SegmentsPage({
   onReorder,
   onReverseSegment,
   onSimplify,
+  onReactivateSegment,
+  currentWorkDay,
   hiddenLayers,
   onHiddenLayersChange,
 }: Props) {
