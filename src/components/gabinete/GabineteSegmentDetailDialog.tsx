@@ -15,18 +15,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Pencil, Undo2 } from 'lucide-react';
+import { Pencil, Undo2, RefreshCw } from 'lucide-react';
 import type { Segment, SegmentCorrection, CorrectableField } from '@/types/route';
 import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 import { readFieldFromSegment } from '@/utils/gabinete/consolidate';
 import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
 import { CorrectionApplyDialog } from './CorrectionApplyDialog';
 import { CorrectionRevertDialog } from './CorrectionRevertDialog';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
 
 interface Props {
   open: boolean;
   segment: Segment | null;
   onClose: () => void;
+  /** Día operativo actual; default para el diálogo de reactivación. */
+  currentWorkDay?: number;
+  /** Callback opcional: si se proporciona, muestra la sección D · Reactivar. */
+  onReactivate?: (segmentId: string, opts: ReactivateOptions) => void;
 }
 
 /** Orden de campos a mostrar en las tablas A y B. */
