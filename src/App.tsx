@@ -277,6 +277,7 @@ function AppRoutes() {
           onChangeWorkDay={changeWorkDay}
           onReverseSegment={reverseSegment}
           onReorderSegment={reorderSegment}
+          onReactivateSegment={reactivateSegmentForField}
           onSetAcquisitionMode={setAcquisitionMode}
           onApplyRouteOrder={applyRouteOrder}
           geo={geo}
