@@ -33,6 +33,8 @@ import { getVisibleMapSegments } from '@/utils/map-visible-segments';
 import { MapSearchBox, type MapSearchPick, type MapSearchBoxHandle } from '@/components/MapSearchBox';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 
 const DEVIATION_THRESHOLD = 100;
 
