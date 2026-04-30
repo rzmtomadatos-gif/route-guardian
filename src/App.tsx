@@ -76,6 +76,7 @@ function AppRoutes() {
     skipSegment, closeBlockEndPrompt, changeWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
     cancelStartSegment, cancelAllInProgress,
+    reactivateSegmentForField,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
