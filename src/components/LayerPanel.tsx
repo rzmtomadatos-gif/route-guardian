@@ -60,6 +60,8 @@ interface LayerPanelProps {
   optimizedOrderLength?: number;
   /** Callback to reverse a segment's coordinates */
   onReverseSegment?: (segmentId: string) => void;
+  /** Callback to request reactivation of a segment for field work (open dialog). */
+  onRequestReactivate?: (segment: Segment) => void;
 }
 
 function formatDistanceLabel(meters: number): string {
