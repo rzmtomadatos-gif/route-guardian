@@ -219,6 +219,8 @@ function AppRoutes() {
               onReorder={reorderSegment}
               onReverseSegment={reverseSegment}
               onSimplify={simplifySegments}
+              onReactivateSegment={reactivateSegmentForField}
+              currentWorkDay={state.workDay}
               hiddenLayers={hiddenLayers}
               onHiddenLayersChange={setHiddenLayers}
             />
