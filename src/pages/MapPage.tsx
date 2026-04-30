@@ -108,6 +108,7 @@ export default function MapPage({
   onChangeWorkDay,
   onReverseSegment,
   onReorderSegment,
+  onReactivateSegment,
   onSetAcquisitionMode,
   onApplyRouteOrder,
   geo,
