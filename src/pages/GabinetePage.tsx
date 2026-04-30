@@ -290,6 +290,11 @@ export default function GabinetePage({ state, onReactivateSegment, currentWorkDa
         open={openSegment !== null}
         segment={openSegment}
         onClose={() => setOpenSegment(null)}
+        currentWorkDay={currentWorkDay}
+        onReactivate={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
       />
 
       <GpsTrackDetailDialog
