@@ -1456,9 +1456,10 @@ export function useRouteState() {
       const result = applyDuplicate(s, segmentIds);
       records = result.records;
       return result.state;
-    });
-    // Emit one event per duplicate (after commit).
-    setTimeout(() => {
+    }, true);
+    // Patrón post-commit: usar readCommittedState para garantizar que el
+    // estado con los duplicados ya está comprometido antes de auditar.
+    readCommittedState(() => {
       for (const rec of records) {
         logEvent('SEGMENT_DUPLICATED', {
           segmentId: rec.newSegmentId,
@@ -1468,8 +1469,8 @@ export function useRouteState() {
           },
         });
       }
-    }, 0);
-  }, [setState]);
+    });
+  }, [setState, readCommittedState]);
 
   /**
    * Reactiva un tramo para campo (operación operativa, NO corrección reversible).
