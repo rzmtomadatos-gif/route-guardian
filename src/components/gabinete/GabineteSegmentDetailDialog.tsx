@@ -15,18 +15,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Pencil, Undo2 } from 'lucide-react';
+import { Pencil, Undo2, RefreshCw } from 'lucide-react';
 import type { Segment, SegmentCorrection, CorrectableField } from '@/types/route';
 import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
 import { readFieldFromSegment } from '@/utils/gabinete/consolidate';
 import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
 import { CorrectionApplyDialog } from './CorrectionApplyDialog';
 import { CorrectionRevertDialog } from './CorrectionRevertDialog';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
 
 interface Props {
   open: boolean;
   segment: Segment | null;
   onClose: () => void;
+  /** Día operativo actual; default para el diálogo de reactivación. */
+  currentWorkDay?: number;
+  /** Callback opcional: si se proporciona, muestra la sección D · Reactivar. */
+  onReactivate?: (segmentId: string, opts: ReactivateOptions) => void;
 }
 
 /** Orden de campos a mostrar en las tablas A y B. */
@@ -96,7 +102,13 @@ function getCorrectionStatus(c: SegmentCorrection): {
   };
 }
 
-export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
+export function GabineteSegmentDetailDialog({
+  open,
+  segment,
+  onClose,
+  currentWorkDay,
+  onReactivate,
+}: Props) {
   const {
     getSegmentCorrections,
     getActiveCorrections,
@@ -106,6 +118,7 @@ export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
 
   const [editField, setEditField] = useState<CorrectableField | null>(null);
   const [revertTarget, setRevertTarget] = useState<SegmentCorrection | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
 
   const consolidated = useMemo(
     () => (segment ? getConsolidatedSegment(segment) : null),
@@ -310,6 +323,31 @@ export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
                 </ul>
               )}
             </section>
+
+            {/* Bloque D — Reactivar para campo (acción operativa) */}
+            {onReactivate && (
+              <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                <header className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                    D · Reactivar para campo (acción operativa)
+                  </h3>
+                </header>
+                <p className="text-[11px] text-muted-foreground">
+                  Esta acción NO es una corrección reversible. Modifica el estado
+                  operativo base para que el operador pueda navegar el tramo. El
+                  histórico se conserva.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  onClick={() => setReactivateOpen(true)}
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  Reactivar para campo
+                </Button>
+              </section>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -327,6 +365,19 @@ export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
         correction={revertTarget}
         onClose={() => setRevertTarget(null)}
       />
+
+      {onReactivate && (
+        <ReactivateSegmentDialog
+          open={reactivateOpen}
+          segment={segment}
+          defaultWorkDay={currentWorkDay ?? segment.workDay ?? 1}
+          onClose={() => setReactivateOpen(false)}
+          onConfirm={(segmentId, opts) => {
+            onReactivate(segmentId, opts);
+            setReactivateOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

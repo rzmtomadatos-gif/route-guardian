@@ -31,9 +31,13 @@ import {
   getTrackPoints,
   listAvailableDays,
 } from '@/utils/gabinete/track-gps-derived';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { toast } from 'sonner';
 
 interface Props {
   state: AppState;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
+  currentWorkDay: number;
 }
 
 const STATUS_FILTERS: { value: 'all' | SegmentStatus; label: string }[] = [
@@ -44,7 +48,7 @@ const STATUS_FILTERS: { value: 'all' | SegmentStatus; label: string }[] = [
   { value: 'posible_repetir', label: 'Posible repetir' },
 ];
 
-export default function GabinetePage({ state }: Props) {
+export default function GabinetePage({ state, onReactivateSegment, currentWorkDay }: Props) {
   const { role, loading: roleLoading, canViewGabinete } = useUserRole();
   const { getConsolidatedSegment } = useSegmentCorrections();
 
@@ -286,6 +290,11 @@ export default function GabinetePage({ state }: Props) {
         open={openSegment !== null}
         segment={openSegment}
         onClose={() => setOpenSegment(null)}
+        currentWorkDay={currentWorkDay}
+        onReactivate={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
       />
 
       <GpsTrackDetailDialog

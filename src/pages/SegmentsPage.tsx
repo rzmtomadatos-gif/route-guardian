@@ -15,6 +15,8 @@ import { getAllEvents } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { AppState, Incident, LatLng, Segment, SegmentStatus } from '@/types/route';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +72,8 @@ interface Props {
   onReorder: (id: string, dir: 'up' | 'down') => void;
   onReverseSegment: (segmentId: string) => void;
   onSimplify: () => void;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
+  currentWorkDay: number;
   hiddenLayers: Set<string>;
   onHiddenLayersChange: (layers: Set<string>) => void;
 }
@@ -97,6 +101,8 @@ export default function SegmentsPage({
   onReorder,
   onReverseSegment,
   onSimplify,
+  onReactivateSegment,
+  currentWorkDay,
   hiddenLayers,
   onHiddenLayersChange,
 }: Props) {
@@ -110,6 +116,7 @@ export default function SegmentsPage({
     return 'pendiente';
   });
   const [editingSeg, setEditingSeg] = useState<Segment | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<Segment | null>(null);
   const [sortByDistance, setSortByDistance] = useState(false);
   const [sortByProximity, setSortByProximity] = useState(false);
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
@@ -524,8 +531,21 @@ export default function SegmentsPage({
            onReorderInRoute={(id, dir) => onReorder(id, dir)}
            onReverseSegment={onReverseSegment}
            optimizedOrderLength={route.optimizedOrder.length}
+           onRequestReactivate={(seg) => setReactivateTarget(seg)}
          />
       </div>
+
+      <ReactivateSegmentDialog
+        open={reactivateTarget !== null}
+        segment={reactivateTarget}
+        defaultWorkDay={currentWorkDay}
+        onClose={() => setReactivateTarget(null)}
+        onConfirm={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          setReactivateTarget(null);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
+      />
 
       {/* Edit dialog */}
       {editingSeg && (

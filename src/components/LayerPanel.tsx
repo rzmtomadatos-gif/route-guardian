@@ -60,6 +60,8 @@ interface LayerPanelProps {
   optimizedOrderLength?: number;
   /** Callback to reverse a segment's coordinates */
   onReverseSegment?: (segmentId: string) => void;
+  /** Callback to request reactivation of a segment for field work (open dialog). */
+  onRequestReactivate?: (segment: Segment) => void;
 }
 
 function formatDistanceLabel(meters: number): string {
@@ -96,6 +98,7 @@ export function LayerPanel({
   onReorderInRoute,
   optimizedOrderLength,
   onReverseSegment,
+  onRequestReactivate,
 }: LayerPanelProps) {
   // Start with all layers collapsed; initialize lazily from group names
   const [collapsedInit, setCollapsedInit] = useState(false);
@@ -524,9 +527,14 @@ export function LayerPanel({
                                   <ArrowLeftRight className="w-3 h-3 mr-2" /> Invertir sentido
                                 </DropdownMenuItem>
                               )}
-                              {seg.status === 'completado' && (
-                                <DropdownMenuItem onClick={() => onResetSegment(seg.id)}>
-                                  Repetir tramo
+                              {onRequestReactivate && (
+                                seg.status === 'completado' ||
+                                seg.status === 'posible_repetir' ||
+                                seg.nonRecordable === true ||
+                                seg.needsRepeat === true
+                              ) && (
+                                <DropdownMenuItem onClick={() => onRequestReactivate(seg)}>
+                                  {seg.nonRecordable ? 'Reactivar para campo' : 'Repetir tramo'}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />

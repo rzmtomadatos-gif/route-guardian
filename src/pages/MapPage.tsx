@@ -33,6 +33,8 @@ import { getVisibleMapSegments } from '@/utils/map-visible-segments';
 import { MapSearchBox, type MapSearchPick, type MapSearchBoxHandle } from '@/components/MapSearchBox';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -66,6 +68,7 @@ interface Props {
   onChangeWorkDay: (targetDay: number, options?: { force?: boolean }) => import('@/hooks/useRouteState').WorkDayChangeResult;
   onReverseSegment: (segmentId: string) => void;
   onReorderSegment: (segmentId: string, direction: 'up' | 'down') => void;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
   onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
   geo: ReturnType<typeof useGeolocation>;
@@ -105,6 +108,7 @@ export default function MapPage({
   onChangeWorkDay,
   onReverseSegment,
   onReorderSegment,
+  onReactivateSegment,
   onSetAcquisitionMode,
   onApplyRouteOrder,
   geo,
@@ -118,6 +122,7 @@ export default function MapPage({
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<Segment | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [googleFailed, setGoogleFailed] = useState(false);
   const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
@@ -1697,6 +1702,10 @@ export default function MapPage({
         onCopilotEnd={copilot.endSession}
         onForceSendBatch={handleForceSendBatch}
         onReorder={onReorderSegment}
+        onReactivateSegment={(segId) => {
+          const seg = state.route?.segments.find((s) => s.id === segId);
+          if (seg) setReactivateTarget(seg);
+        }}
         canNavigate={canNavigate}
         canCancelStart={
           !!(activeSegment && activeSegment.status === 'en_progreso' &&
@@ -1705,6 +1714,18 @@ export default function MapPage({
         onCancelStart={activeSegment ? () => onCancelStartSegment(activeSegment.id) : undefined} />
 
       }
+
+      <ReactivateSegmentDialog
+        open={reactivateTarget !== null}
+        segment={reactivateTarget}
+        defaultWorkDay={state.workDay}
+        onClose={() => setReactivateTarget(null)}
+        onConfirm={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          setReactivateTarget(null);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
+      />
 
       <StopNavigationDialog
         open={stopDialogState !== null}

@@ -90,6 +90,8 @@ interface Props {
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
+  /** Open reactivation dialog for the segment (operational repeat). */
+  onReactivateSegment?: (id: string) => void;
   /** Cancel start props */
   canCancelStart?: boolean;
   onCancelStart?: () => void;
@@ -144,6 +146,7 @@ export function MapControlPanel({
   acquisitionMode,
   onSetAcquisitionMode,
   onReorder,
+  onReactivateSegment,
   canCancelStart = false,
   onCancelStart,
 }: Props) {
@@ -358,11 +361,24 @@ export function MapControlPanel({
         {expanded && (
           <div className="px-3 pb-2 space-y-1.5 max-h-[30vh] overflow-y-auto">
             {/* === PINNED: Active/Next Segment === */}
-            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (() => {
+              const pinnedPos = displayOrderMap.get(pinnedSegment.id);
+              const total = optimizedOrder.length;
+              const canRepeatPinned =
+                pinnedSegment.nonRecordable === true ||
+                pinnedSegment.needsRepeat === true;
+              return (
               <div className="bg-primary/10 border border-primary/30 rounded-lg p-2 space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-primary font-medium">Grabando</p>
+                    <p className="text-[10px] text-primary font-medium flex items-center gap-1.5">
+                      Grabando
+                      {pinnedPos !== undefined && (
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          #{pinnedPos} / {total}
+                        </span>
+                      )}
+                    </p>
                     <h3 className="text-sm font-bold text-foreground truncate">{pinnedSegment.name}</h3>
                   </div>
                   <StatusBadge status={pinnedSegment.status} nonRecordable={pinnedSegment.nonRecordable} needsRepeat={pinnedSegment.needsRepeat} />
@@ -385,19 +401,51 @@ export function MapControlPanel({
                       <AlertTriangle className="w-5 h-5" />
                     </Button>
                   </IncidentDialog>
+                  {onReactivateSegment && canRepeatPinned && (
+                    <Button variant="outline" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-14 px-3" title="Reactivar / Repetir tramo">
+                      <Repeat className="w-5 h-5" />
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (
+            {pinnedSegment && pinnedSegment.status === 'pendiente' && (() => {
+              const pinnedPos = displayOrderMap.get(pinnedSegment.id);
+              const total = optimizedOrder.length;
+              const canRepeatPinned =
+                pinnedSegment.nonRecordable === true ||
+                pinnedSegment.needsRepeat === true;
+              return (
               <div className="bg-secondary/50 border border-border rounded-lg p-2 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
                   {pinnedSegment.trackNumber ?? (pinnedSegment.plannedTrackNumber ? `P${pinnedSegment.plannedTrackNumber}` : '—')}
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
-                  <p className="text-[10px] text-muted-foreground">Siguiente tramo</p>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                    Siguiente tramo
+                    {pinnedPos !== undefined && (
+                      <span className="font-mono">#{pinnedPos} / {total}</span>
+                    )}
+                  </p>
                   <p className="text-xs font-medium text-foreground truncate">{pinnedSegment.name}</p>
                 </button>
+                {onReorder && pinnedPos !== undefined && (
+                  <div className="flex flex-col">
+                    <Button size="sm" variant="ghost" className="h-5 w-6 p-0" onClick={() => onReorder(pinnedSegment.id, 'up')} disabled={pinnedPos <= 1} title="Subir">
+                      <ChevronUp className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-5 w-6 p-0" onClick={() => onReorder(pinnedSegment.id, 'down')} disabled={pinnedPos >= total} title="Bajar">
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+                {onReactivateSegment && canRepeatPinned && (
+                  <Button size="sm" variant="ghost" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 w-9 p-0" title="Reactivar / Repetir">
+                    <Repeat className="w-4 h-4" />
+                  </Button>
+                )}
                 {canNavigateProp && pinnedSegment.id === activeSegmentId && (
                   <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
@@ -411,7 +459,8 @@ export function MapControlPanel({
                   </Button>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* === NAV CONTROLS: Prev / Navigate / Next === */}
             <div className="flex gap-1.5">

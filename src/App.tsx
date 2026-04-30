@@ -76,6 +76,7 @@ function AppRoutes() {
     skipSegment, closeBlockEndPrompt, changeWorkDay, updateRouteContext,
     applyRetroactiveIds, setAcquisitionMode, applyRouteOrder, restoreState,
     cancelStartSegment, cancelAllInProgress,
+    reactivateSegmentForField,
   } = routeState;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -218,6 +219,8 @@ function AppRoutes() {
               onReorder={reorderSegment}
               onReverseSegment={reverseSegment}
               onSimplify={simplifySegments}
+              onReactivateSegment={reactivateSegmentForField}
+              currentWorkDay={state.workDay}
               hiddenLayers={hiddenLayers}
               onHiddenLayersChange={setHiddenLayers}
             />
@@ -239,7 +242,7 @@ function AppRoutes() {
             />
           }
         />
-        <Route path="/gabinete" element={<GabinetePage state={state} />} />
+        <Route path="/gabinete" element={<GabinetePage state={state} onReactivateSegment={reactivateSegmentForField} currentWorkDay={state.workDay} />} />
         <Route path="*" element={isMapRoute ? null : <NotFound />} />
       </Routes>
       {/* Persistent MapPage — never unmounted, hidden via CSS when not on /map */}
@@ -274,6 +277,7 @@ function AppRoutes() {
           onChangeWorkDay={changeWorkDay}
           onReverseSegment={reverseSegment}
           onReorderSegment={reorderSegment}
+          onReactivateSegment={reactivateSegmentForField}
           onSetAcquisitionMode={setAcquisitionMode}
           onApplyRouteOrder={applyRouteOrder}
           geo={geo}
