@@ -295,6 +295,18 @@ export function MapControlPanel({
                 </Button>
               </div>
             )}
+            {canNavigateProp && pinnedSegment && pinnedSegment.status !== 'en_progreso' && pinnedSegment.status !== 'pendiente' && (
+              <div className="flex items-center gap-1">
+                <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
+                  <p className="text-[10px] text-muted-foreground truncate">{pinnedSegment.name}</p>
+                </button>
+                {onReactivateSegment && (
+                  <Button size="sm" variant="outline" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 px-2 text-xs" title="Reactivar / Repetir">
+                    <Repeat className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
             {/* Nav controls row — evenly distributed */}
             <div className="flex gap-1 items-center">
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-9 flex-1 p-0" title="Anterior">
