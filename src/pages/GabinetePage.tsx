@@ -48,7 +48,7 @@ const STATUS_FILTERS: { value: 'all' | SegmentStatus; label: string }[] = [
   { value: 'posible_repetir', label: 'Posible repetir' },
 ];
 
-export default function GabinetePage({ state }: Props) {
+export default function GabinetePage({ state, onReactivateSegment, currentWorkDay }: Props) {
   const { role, loading: roleLoading, canViewGabinete } = useUserRole();
   const { getConsolidatedSegment } = useSegmentCorrections();
 
