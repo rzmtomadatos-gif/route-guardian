@@ -1190,7 +1190,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ? route.segments.filter((s) => ctx.selectedIds!.has(s.id))
     : route.segments;
   const allowedSegIds = new Set(segmentsForAttempts.map((s) => s.id));
-  const attempts = deriveSegmentAttempts(ctx.persistentEvents, incidents, route.segments)
+  const attempts = deriveSegmentAttempts(ctx.persistentEvents, allIncidents, route.segments)
     .filter((a) => allowedSegIds.has(a.segmentId));
   attempts.forEach((a, idx) => {
     const r = sh11.getRow(idx + 3);
