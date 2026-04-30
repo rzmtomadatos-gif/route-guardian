@@ -27,6 +27,7 @@ import {
   readFieldFromSegment,
 } from '@/utils/gabinete/consolidate';
 import { getFieldLabel, formatCorrectionValue } from '@/utils/gabinete/field-labels';
+import { deriveSegmentAttempts } from '@/utils/gabinete/segment-attempts';
 
 // ───────── Constantes ─────────
 const NA = 'NO REGISTRADO';
