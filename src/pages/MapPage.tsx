@@ -1702,6 +1702,10 @@ export default function MapPage({
         onCopilotEnd={copilot.endSession}
         onForceSendBatch={handleForceSendBatch}
         onReorder={onReorderSegment}
+        onReactivateSegment={(segId) => {
+          const seg = state.route?.segments.find((s) => s.id === segId);
+          if (seg) setReactivateTarget(seg);
+        }}
         canNavigate={canNavigate}
         canCancelStart={
           !!(activeSegment && activeSegment.status === 'en_progreso' &&
@@ -1710,6 +1714,18 @@ export default function MapPage({
         onCancelStart={activeSegment ? () => onCancelStartSegment(activeSegment.id) : undefined} />
 
       }
+
+      <ReactivateSegmentDialog
+        open={reactivateTarget !== null}
+        segment={reactivateTarget}
+        defaultWorkDay={state.workDay}
+        onClose={() => setReactivateTarget(null)}
+        onConfirm={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          setReactivateTarget(null);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
+      />
 
       <StopNavigationDialog
         open={stopDialogState !== null}
