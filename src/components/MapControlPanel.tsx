@@ -90,6 +90,8 @@ interface Props {
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
+  /** Open reactivation dialog for the segment (operational repeat). */
+  onReactivateSegment?: (id: string) => void;
   /** Cancel start props */
   canCancelStart?: boolean;
   onCancelStart?: () => void;
