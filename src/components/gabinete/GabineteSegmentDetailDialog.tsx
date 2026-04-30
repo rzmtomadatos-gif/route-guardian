@@ -323,6 +323,31 @@ export function GabineteSegmentDetailDialog({
                 </ul>
               )}
             </section>
+
+            {/* Bloque D — Reactivar para campo (acción operativa) */}
+            {onReactivate && (
+              <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                <header className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                    D · Reactivar para campo (acción operativa)
+                  </h3>
+                </header>
+                <p className="text-[11px] text-muted-foreground">
+                  Esta acción NO es una corrección reversible. Modifica el estado
+                  operativo base para que el operador pueda navegar el tramo. El
+                  histórico se conserva.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  onClick={() => setReactivateOpen(true)}
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  Reactivar para campo
+                </Button>
+              </section>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -340,6 +365,19 @@ export function GabineteSegmentDetailDialog({
         correction={revertTarget}
         onClose={() => setRevertTarget(null)}
       />
+
+      {onReactivate && (
+        <ReactivateSegmentDialog
+          open={reactivateOpen}
+          segment={segment}
+          defaultWorkDay={currentWorkDay ?? segment.workDay ?? 1}
+          onClose={() => setReactivateOpen(false)}
+          onConfirm={(segmentId, opts) => {
+            onReactivate(segmentId, opts);
+            setReactivateOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }
