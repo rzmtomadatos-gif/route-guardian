@@ -122,6 +122,7 @@ export default function MapPage({
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
   const [basePosition, setBasePosition] = useState<LatLng | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<Segment | null>(null);
   const [mapMode, setMapMode] = useState<'google' | 'leaflet'>('leaflet');
   const [googleFailed, setGoogleFailed] = useState(false);
   const [offlineSwitchActive, setOfflineSwitchActive] = useState(false);
