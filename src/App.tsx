@@ -242,7 +242,7 @@ function AppRoutes() {
             />
           }
         />
-        <Route path="/gabinete" element={<GabinetePage state={state} />} />
+        <Route path="/gabinete" element={<GabinetePage state={state} onReactivateSegment={reactivateSegmentForField} currentWorkDay={state.workDay} />} />
         <Route path="*" element={isMapRoute ? null : <NotFound />} />
       </Routes>
       {/* Persistent MapPage — never unmounted, hidden via CSS when not on /map */}
