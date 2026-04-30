@@ -527,9 +527,14 @@ export function LayerPanel({
                                   <ArrowLeftRight className="w-3 h-3 mr-2" /> Invertir sentido
                                 </DropdownMenuItem>
                               )}
-                              {seg.status === 'completado' && (
-                                <DropdownMenuItem onClick={() => onResetSegment(seg.id)}>
-                                  Repetir tramo
+                              {onRequestReactivate && (
+                                seg.status === 'completado' ||
+                                seg.status === 'posible_repetir' ||
+                                seg.nonRecordable === true ||
+                                seg.needsRepeat === true
+                              ) && (
+                                <DropdownMenuItem onClick={() => onRequestReactivate(seg)}>
+                                  {seg.nonRecordable ? 'Reactivar para campo' : 'Repetir tramo'}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
