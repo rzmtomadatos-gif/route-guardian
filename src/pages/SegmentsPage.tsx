@@ -15,6 +15,8 @@ import { getAllEvents } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
 import { buildDisplayOrderMap } from '@/utils/display-order';
 import type { AppState, Incident, LatLng, Segment, SegmentStatus } from '@/types/route';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 import {
   AlertDialog,
   AlertDialogAction,
