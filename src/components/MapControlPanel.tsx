@@ -361,11 +361,26 @@ export function MapControlPanel({
         {expanded && (
           <div className="px-3 pb-2 space-y-1.5 max-h-[30vh] overflow-y-auto">
             {/* === PINNED: Active/Next Segment === */}
-            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (
+            {canNavigateProp && pinnedSegment && pinnedSegment.status === 'en_progreso' && (() => {
+              const pinnedPos = displayOrderMap.get(pinnedSegment.id);
+              const total = optimizedOrder.length;
+              const canRepeatPinned =
+                pinnedSegment.status === 'completado' ||
+                pinnedSegment.status === 'posible_repetir' ||
+                pinnedSegment.nonRecordable === true ||
+                pinnedSegment.needsRepeat === true;
+              return (
               <div className="bg-primary/10 border border-primary/30 rounded-lg p-2 space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-primary font-medium">Grabando</p>
+                    <p className="text-[10px] text-primary font-medium flex items-center gap-1.5">
+                      Grabando
+                      {pinnedPos !== undefined && (
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          #{pinnedPos} / {total}
+                        </span>
+                      )}
+                    </p>
                     <h3 className="text-sm font-bold text-foreground truncate">{pinnedSegment.name}</h3>
                   </div>
                   <StatusBadge status={pinnedSegment.status} nonRecordable={pinnedSegment.nonRecordable} needsRepeat={pinnedSegment.needsRepeat} />
@@ -388,9 +403,15 @@ export function MapControlPanel({
                       <AlertTriangle className="w-5 h-5" />
                     </Button>
                   </IncidentDialog>
+                  {onReactivateSegment && canRepeatPinned && (
+                    <Button variant="outline" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-14 px-3" title="Reactivar / Repetir tramo">
+                      <Repeat className="w-5 h-5" />
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {pinnedSegment && pinnedSegment.status === 'pendiente' && (
               <div className="bg-secondary/50 border border-border rounded-lg p-2 flex items-center gap-2">
