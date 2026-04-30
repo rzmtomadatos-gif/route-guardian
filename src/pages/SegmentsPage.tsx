@@ -531,8 +531,21 @@ export default function SegmentsPage({
            onReorderInRoute={(id, dir) => onReorder(id, dir)}
            onReverseSegment={onReverseSegment}
            optimizedOrderLength={route.optimizedOrder.length}
+           onRequestReactivate={(seg) => setReactivateTarget(seg)}
          />
       </div>
+
+      <ReactivateSegmentDialog
+        open={reactivateTarget !== null}
+        segment={reactivateTarget}
+        defaultWorkDay={currentWorkDay}
+        onClose={() => setReactivateTarget(null)}
+        onConfirm={(segmentId, opts) => {
+          onReactivateSegment(segmentId, opts);
+          setReactivateTarget(null);
+          toast.success(`Tramo reactivado para Día ${opts.targetWorkDay}. Disponible en Tramos y Mapa.`);
+        }}
+      />
 
       {/* Edit dialog */}
       {editingSeg && (
