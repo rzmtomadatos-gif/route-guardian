@@ -757,6 +757,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['08_EVENT_LOG', 'Log persistente de eventos operativos.'],
     ['09_VALIDACION_CALIDAD', 'Checklist de auditoría: autofixes, errores, revisiones.'],
     ['10_DICCIONARIO', 'Definición de campos y abreviaturas.'],
+    ['11_HISTORIAL_INTENTOS', 'Historial completo de intentos por tramo (incluye reactivaciones desde Gabinete).'],
   ];
   sh3.getRow(2).getCell(1).value = 'Hoja';
   sh3.getRow(2).getCell(2).value = 'Contenido';
