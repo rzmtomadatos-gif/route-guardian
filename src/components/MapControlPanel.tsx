@@ -146,6 +146,7 @@ export function MapControlPanel({
   acquisitionMode,
   onSetAcquisitionMode,
   onReorder,
+  onReactivateSegment,
   canCancelStart = false,
   onCancelStart,
 }: Props) {
