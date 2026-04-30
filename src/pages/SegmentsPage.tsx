@@ -72,6 +72,8 @@ interface Props {
   onReorder: (id: string, dir: 'up' | 'down') => void;
   onReverseSegment: (segmentId: string) => void;
   onSimplify: () => void;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
+  currentWorkDay: number;
   hiddenLayers: Set<string>;
   onHiddenLayersChange: (layers: Set<string>) => void;
 }
