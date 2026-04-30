@@ -68,6 +68,7 @@ interface Props {
   onChangeWorkDay: (targetDay: number, options?: { force?: boolean }) => import('@/hooks/useRouteState').WorkDayChangeResult;
   onReverseSegment: (segmentId: string) => void;
   onReorderSegment: (segmentId: string, direction: 'up' | 'down') => void;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
   onSetAcquisitionMode: (mode: import('@/types/route').AcquisitionMode) => void;
   onApplyRouteOrder: (segmentIds: string[], hiddenLayers?: Set<string>) => void;
   geo: ReturnType<typeof useGeolocation>;
