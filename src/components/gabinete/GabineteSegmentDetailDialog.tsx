@@ -102,7 +102,13 @@ function getCorrectionStatus(c: SegmentCorrection): {
   };
 }
 
-export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
+export function GabineteSegmentDetailDialog({
+  open,
+  segment,
+  onClose,
+  currentWorkDay,
+  onReactivate,
+}: Props) {
   const {
     getSegmentCorrections,
     getActiveCorrections,
@@ -112,6 +118,7 @@ export function GabineteSegmentDetailDialog({ open, segment, onClose }: Props) {
 
   const [editField, setEditField] = useState<CorrectableField | null>(null);
   const [revertTarget, setRevertTarget] = useState<SegmentCorrection | null>(null);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
 
   const consolidated = useMemo(
     () => (segment ? getConsolidatedSegment(segment) : null),
