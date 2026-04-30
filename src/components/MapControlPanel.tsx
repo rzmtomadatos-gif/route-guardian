@@ -365,8 +365,6 @@ export function MapControlPanel({
               const pinnedPos = displayOrderMap.get(pinnedSegment.id);
               const total = optimizedOrder.length;
               const canRepeatPinned =
-                pinnedSegment.status === 'completado' ||
-                pinnedSegment.status === 'posible_repetir' ||
                 pinnedSegment.nonRecordable === true ||
                 pinnedSegment.needsRepeat === true;
               return (
