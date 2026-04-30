@@ -295,6 +295,18 @@ export function MapControlPanel({
                 </Button>
               </div>
             )}
+            {canNavigateProp && pinnedSegment && pinnedSegment.status !== 'en_progreso' && pinnedSegment.status !== 'pendiente' && (
+              <div className="flex items-center gap-1">
+                <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
+                  <p className="text-[10px] text-muted-foreground truncate">{pinnedSegment.name}</p>
+                </button>
+                {onReactivateSegment && (
+                  <Button size="sm" variant="outline" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 px-2 text-xs" title="Reactivar / Repetir">
+                    <Repeat className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
             {/* Nav controls row — evenly distributed */}
             <div className="flex gap-1 items-center">
               <Button variant="outline" disabled={!canGoPrev} onClick={handlePrev} size="sm" className="h-9 flex-1 p-0" title="Anterior">
@@ -411,12 +423,24 @@ export function MapControlPanel({
               );
             })()}
 
-            {pinnedSegment && pinnedSegment.status === 'pendiente' && (() => {
+            {pinnedSegment && pinnedSegment.status !== 'en_progreso' && (() => {
               const pinnedPos = displayOrderMap.get(pinnedSegment.id);
               const total = optimizedOrder.length;
+              const isPending = pinnedSegment.status === 'pendiente';
               const canRepeatPinned =
+                !isPending ||
                 pinnedSegment.nonRecordable === true ||
                 pinnedSegment.needsRepeat === true;
+              const reactivateLabel = pinnedSegment.nonRecordable
+                ? 'Reactivar'
+                : isPending ? 'Repetir' : 'Repetir';
+              const headerLabel = isPending
+                ? 'Siguiente tramo'
+                : pinnedSegment.status === 'completado'
+                  ? (pinnedSegment.nonRecordable ? 'No grabable' : 'Completado')
+                  : pinnedSegment.status === 'posible_repetir'
+                    ? 'Posible repetir'
+                    : pinnedSegment.nonRecordable ? 'No grabable' : 'Tramo seleccionado';
               return (
               <div className="bg-secondary/50 border border-border rounded-lg p-2 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 bg-muted text-muted-foreground">
@@ -424,7 +448,7 @@ export function MapControlPanel({
                 </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => onSegmentSelect(pinnedSegment.id)}>
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                    Siguiente tramo
+                    {headerLabel}
                     {pinnedPos !== undefined && (
                       <span className="font-mono">#{pinnedPos} / {total}</span>
                     )}
@@ -442,11 +466,11 @@ export function MapControlPanel({
                   </div>
                 )}
                 {onReactivateSegment && canRepeatPinned && (
-                  <Button size="sm" variant="ghost" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 w-9 p-0" title="Reactivar / Repetir">
+                  <Button size="sm" variant="ghost" onClick={() => onReactivateSegment(pinnedSegment.id)} className="h-9 w-9 p-0" title={`${reactivateLabel} tramo`}>
                     <Repeat className="w-4 h-4" />
                   </Button>
                 )}
-                {canNavigateProp && pinnedSegment.id === activeSegmentId && (
+                {canNavigateProp && isPending && pinnedSegment.id === activeSegmentId && (
                   <Button disabled={isBlocked} onClick={() => handleConfirmStart(pinnedSegment.id)} className="h-12 px-4 text-sm bg-primary text-primary-foreground font-bold">
                     <Play className="w-5 h-5 mr-1" />
                     Iniciar

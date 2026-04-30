@@ -95,6 +95,8 @@ const EVENT_TYPE_LABELS: Partial<Record<EventType, string>> = {
   NAV_STATE_CHANGED: 'Cambio estado nav.',
   SEGMENT_CORRECTION_APPLIED: 'Corrección aplicada',
   SEGMENT_CORRECTION_REVERTED: 'Corrección revertida',
+  SEGMENT_REACTIVATED_FOR_FIELD: 'Tramo reactivado para campo',
+  SEGMENT_DUPLICATED: 'Tramo duplicado',
   MIGRATION_FROM_LOCALSTORAGE: 'Migración almacenamiento',
 };
 
@@ -755,6 +757,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['08_EVENT_LOG', 'Log persistente de eventos operativos.'],
     ['09_VALIDACION_CALIDAD', 'Checklist de auditoría: autofixes, errores, revisiones.'],
     ['10_DICCIONARIO', 'Definición de campos y abreviaturas.'],
+    ['11_HISTORIAL_INTENTOS', 'Historial completo de intentos por tramo (incluye reactivaciones desde Gabinete).'],
   ];
   sh3.getRow(2).getCell(1).value = 'Hoja';
   sh3.getRow(2).getCell(2).value = 'Contenido';
@@ -1157,6 +1160,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     ['VALORES_ORIGINALES', 'Valores tal y como llegaron del campo (dato crudo). Trazabilidad inmutable: el dato original nunca se modifica.'],
     ['VALORES_CONSOLIDADOS', 'Resultado vigente tras aplicar las correcciones de gabinete. Coincide con la vista «Consolidado actual».'],
     ['Corrección de gabinete', 'Decisión humana auditada (autor, fecha, motivo) registrada de forma append-only. Reversible sin tocar el dato de campo.'],
+    ['11_HISTORIAL_INTENTOS', 'Una fila por cada intento de grabación de un tramo (Día/Track). Permite ver tramos repetidos en distintas jornadas, reactivaciones desde Gabinete (FUENTE=gabinete) y motivo de la reactivación.'],
     ['NO REGISTRADO', 'Dato no presente en la campaña. La aplicación nunca inventa valores.'],
     ['REVISAR', 'Hallazgo que requiere validación humana antes de cerrar la campaña.'],
     ['ERROR', 'Inconsistencia grave que impide auditar el dato.'],
