@@ -31,9 +31,13 @@ import {
   getTrackPoints,
   listAvailableDays,
 } from '@/utils/gabinete/track-gps-derived';
+import type { ReactivateOptions } from '@/utils/segment-reactivation';
+import { toast } from 'sonner';
 
 interface Props {
   state: AppState;
+  onReactivateSegment: (segmentId: string, opts: ReactivateOptions) => void;
+  currentWorkDay: number;
 }
 
 const STATUS_FILTERS: { value: 'all' | SegmentStatus; label: string }[] = [
