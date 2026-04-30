@@ -1175,6 +1175,51 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
     });
   });
 
+  // ───────── 11_HISTORIAL_INTENTOS ─────────
+  const sh11 = wb.addWorksheet('11_HISTORIAL_INTENTOS', { views: [{ state: 'frozen', ySplit: 2, showGridLines: false }] });
+  sh11.mergeCells('A1:N1');
+  const banner11 = sh11.getCell('A1');
+  banner11.value = 'HISTORIAL DE INTENTOS — Una fila por cada intento de grabación (Día/Track) del tramo';
+  banner11.font = { bold: true, color: { argb: COLORS.bannerFg } };
+  banner11.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.banner } };
+  banner11.alignment = { vertical: 'middle', horizontal: 'center' };
+  sh11.getRow(1).height = 22;
+  const headers11 = ['ID_EMPRESA', 'NOMBRE', 'DIA', 'TRACK', 'POSICION', 'ESTADO_INTENTO', 'INICIO', 'FIN', 'DURACION', 'SEG_INICIO_TRACK', 'SEG_FIN_TRACK', 'INCIDENCIAS', 'FUENTE', 'MOTIVO'];
+  setHeaders(sh11, headers11, [16, 28, 6, 6, 8, 16, 18, 18, 12, 16, 16, 12, 12, 40], 2);
+  const segmentsForAttempts = ctx.selectedIds && ctx.selectedIds.size > 0
+    ? route.segments.filter((s) => ctx.selectedIds!.has(s.id))
+    : route.segments;
+  const allowedSegIds = new Set(segmentsForAttempts.map((s) => s.id));
+  const attempts = deriveSegmentAttempts(ctx.persistentEvents, incidents, route.segments)
+    .filter((a) => allowedSegIds.has(a.segmentId));
+  attempts.forEach((a, idx) => {
+    const r = sh11.getRow(idx + 3);
+    const dur = a.startedAt && a.endedAt
+      ? Math.max(0, Math.floor((new Date(a.endedAt).getTime() - new Date(a.startedAt).getTime()) / 1000))
+      : null;
+    r.values = [
+      safe(a.companySegmentId),
+      safe(a.segmentName),
+      a.workDay ?? safe(null),
+      a.trackNumber ?? safe(null),
+      a.segmentOrder ?? safe(null),
+      a.status,
+      fmtDate(a.startedAt),
+      fmtDate(a.endedAt),
+      dur !== null ? formatDuration(dur) : safe(null),
+      a.segmentStartSeconds !== null && a.segmentStartSeconds !== undefined ? formatTrackSeconds(a.segmentStartSeconds) : safe(null),
+      a.segmentEndSeconds !== null && a.segmentEndSeconds !== undefined ? formatTrackSeconds(a.segmentEndSeconds) : safe(null),
+      a.incidentIds.length,
+      a.source,
+      safe(a.reason),
+    ];
+    r.eachCell((c) => {
+      c.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
+      c.alignment = { vertical: 'middle' };
+    });
+  });
+  sh11.autoFilter = { from: { row: 2, column: 1 }, to: { row: attempts.length + 2, column: headers11.length } };
+
   return { wb, applied, skipped, scopedCorrections, findings };
 }
 
