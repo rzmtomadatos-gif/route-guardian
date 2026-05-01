@@ -53,12 +53,14 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // We provide our own public/manifest.json
       workbox: {
         globPatterns: [
-          "**/*.{js,css,html,ico,png,svg,woff,woff2}",
+          "**/*.{js,css,html,ico,png,svg,woff,woff2,json}",
         ],
-        // Keep the WASM binary in precache exactly once.
-        // Public icons/favicon/placeholder are already covered by globPatterns.
+        // Keep the WASM binary and version.json in precache.
+        // version.json revision changes on every build (timestamp in JSON content),
+        // so workbox detects it as a precache change and triggers SW update.
         additionalManifestEntries: [
           { url: "sql-wasm.wasm", revision: "3" },
+          { url: "version.json", revision: versionInfo.version },
         ],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/~oauth/],

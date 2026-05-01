@@ -28,17 +28,22 @@ export const pwaUpdateBus = {
     // El hook gestiona el "silenciado" por sesión.
     emit();
   },
-  /** Llamado por el hook al confirmar */
-  async apply() {
+  /**
+   * Aplica la actualización si está disponible.
+   * Devuelve true si pudo invocar la función real de aplicación,
+   * false si no hay applyFn registrada (no hay SW waiting).
+   * NO hace fallback a window.location.reload(): eso debe decidirlo el caller
+   * para evitar recargas ciegas que sirvan la misma versión antigua.
+   */
+  async apply(): Promise<boolean> {
     if (applyFn) {
       await applyFn();
-    } else {
-      // Fallback: forzar recarga si por alguna razón no hay applyFn
-      window.location.reload();
+      return true;
     }
+    return false;
   },
   getState() {
-    return { needRefresh };
+    return { needRefresh, canApply: applyFn !== null };
   },
   subscribe(l: Listener) {
     listeners.add(l);

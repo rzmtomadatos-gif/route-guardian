@@ -446,7 +446,7 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
         <OfflineMapsManager segments={route?.segments} />
 
         {/* App info + actualizaciones PWA */}
-        <AboutSection />
+        <AboutSection navigationActive={state.navigationActive} />
 
         {/* Export KML */}
         {route && (
