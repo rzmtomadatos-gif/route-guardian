@@ -1,73 +1,76 @@
-# Welcome to your Lovable project
+# VialRoute Companion
 
-## Project info
+Aplicación de apoyo operativo para campañas de auscultación vial. Guía al
+vehículo entre tramos, asiste al operador durante la adquisición y mantiene
+la lógica real de trabajo en campo (RST y Garmin).
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- Vite 5 + React 18 + TypeScript 5
+- Tailwind + shadcn/ui
+- Lovable Cloud (Supabase) — auth, RLS, edge functions
+- Google Maps (provider primario) + Leaflet/PMTiles (fallback offline)
+- SQLite WASM (sql.js) en navegador para event log y persistencia local
+- exceljs para exportación de hojas de ruta
+- DOMPurify + Zod para sanitización y validación estricta
 
-There are several ways of editing your application.
+## Conceptos clave
 
-**Use Lovable**
+- **Tramo**: segmento de vía definido en KML que debe recorrerse y grabarse.
+- **Bloque de grabación**: hasta 9 tramos por vídeo.
+- **id_unico** (`companySegmentId`): identificador interno del tramo.
+- **Punto estratégico**: punto calculado al menos 50 m antes del inicio del
+  tramo, para salir de modo transporte.
+- **Estados**: `pendiente`, `en_progreso`, `completado`, `posible_repetir`,
+  con flags `nonRecordable`, `needsRepeat`, `repeatRequested`.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Modos de adquisición
 
-Changes made via Lovable will be committed automatically to this repo.
+- **RST**: lógica completa con referencias a 300/150/30 m antes del inicio y
+  +30/+150/+300 m tras el final. Confirmaciones por F5/F7/F9.
+- **No RST (Garmin)**: sin avisos RST; cronómetro sincronizado para vídeo.
 
-**Use your preferred IDE**
+## Scripts
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+bun install
+bun run dev        # entorno de desarrollo
+bun run build      # build de producción (genera version.json)
+bun run lint       # ESLint
+bun run test       # vitest run
+bun run preview    # preview local del build
 ```
 
-**Edit a file directly in GitHub**
+## Estructura
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `src/components/` — UI (mapa, paneles, diálogos)
+- `src/pages/` — rutas (`/map`, `/segments`, `/gabinete`, `/settings`, …)
+- `src/hooks/` — estado (`useRouteState`, `useGeolocation`, `usePwaUpdate`, …)
+- `src/utils/` — lógica de dominio
+  - `persistence/` — SQLite WASM, event log, schemas Zod
+  - `gabinete/` — consolidación de correcciones, derivación de intentos
+  - `excel-export.ts`, `excel-export-v2.ts` — exportadores
+- `src/integrations/supabase/` — cliente y tipos generados (no editar)
+- `supabase/` — config, migraciones y edge functions
 
-**Use GitHub Codespaces**
+## Seguridad
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Ver [SECURITY.md](./SECURITY.md). Resumen:
 
-## What technologies are used for this project?
+- Sanitización HTML/KML con DOMPurify.
+- Validación estricta de campañas con Zod (`.strict()`), límite 100 MB, 50k
+  segmentos.
+- RLS en todas las tablas, RBAC por `app_role` (admin/operator/gabinete).
+- `xlsx` retirado por vulnerabilidades sin parche; uso exclusivo de
+  `exceljs` con dynamic import.
 
-This project is built with:
+## Contribuir
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Ver [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## How can I deploy this project?
+## Despliegue
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+El proyecto se publica desde Lovable. PWA solo activa en build de
+producción. Las actualizaciones se aplican manualmente desde
+**Ajustes → Acerca de → Actualizar ahora** sin perder la campaña ni el
+event log local.

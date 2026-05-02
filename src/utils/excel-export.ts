@@ -1,4 +1,11 @@
-import * as XLSX from 'xlsx';
+/**
+ * Exportador clásico de hoja de ruta.
+ *
+ * Migrado de `xlsx` (vulnerable: Prototype Pollution + ReDoS sin parche en npm)
+ * a `exceljs` con dynamic import para no inflar el bundle inicial.
+ *
+ * Mantiene el mismo schema y comportamiento operativo que la versión previa.
+ */
 import type { Route, Segment, Incident, F5Event } from '@/types/route';
 import type { PersistentEvent } from '@/utils/persistence';
 import { segmentDistanceKm } from '@/utils/geo-distance';
@@ -36,9 +43,7 @@ export interface ExportValidationError {
 export function validateForExport(segments: Segment[], rstMode: boolean): ExportValidationError[] {
   const errors: ExportValidationError[] = [];
 
-  // Check completed segments missing track or timestamps
   segments.forEach((s) => {
-    // nonRecordable should never be Completado
     if (s.status === 'completado' && s.nonRecordable) {
       errors.push({ segmentId: s.id, segmentName: s.name, issue: 'Completado pero marcado no grabable (se revertirá)' });
     }
@@ -54,7 +59,6 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
     }
   });
 
-  // Check duplicate tracks in RST OFF (each completed segment should have unique track)
   let rstOffCorrected = 0;
   if (!rstMode) {
     const completedWithTrack = segments.filter((s) => s.status === 'completado' && s.trackNumber !== null);
@@ -80,7 +84,6 @@ export function validateForExport(segments: Segment[], rstMode: boolean): Export
   return errors;
 }
 
-/** Auto-fix completed segments missing track/timestamps. Returns fixed copies. */
 function autoFixSegments(exportSegments: Segment[]): Segment[] {
   let maxTrack = 0;
   exportSegments.forEach((s) => {
@@ -89,7 +92,6 @@ function autoFixSegments(exportSegments: Segment[]): Segment[] {
   });
 
   return exportSegments.map((s) => {
-    // nonRecordable cannot stay as Completado
     if (s.status === 'completado' && s.nonRecordable) {
       return { ...s, status: 'posible_repetir' as const, trackNumber: null, endedAt: null };
     }
@@ -105,7 +107,6 @@ function autoFixSegments(exportSegments: Segment[]): Segment[] {
   });
 }
 
-/** Compute duration in seconds between two ISO timestamps, or null */
 function durationSeconds(start?: string | null, end?: string | null): number | null {
   if (!start || !end) return null;
   const ms = new Date(end).getTime() - new Date(start).getTime();
@@ -126,8 +127,35 @@ function computeFinalStatus(seg: Segment): string {
   return 'Pendiente';
 }
 
-export function exportRouteToExcel(route: Route, incidents: Incident[], selectedIds?: Set<string>, f5Events?: F5Event[], persistentEvents?: PersistentEvent[]) {
-  const wb = XLSX.utils.book_new();
+/** Añade una hoja con cabecera + filas a partir de objetos planos. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function addSheetFromObjects(wb: any, sheetName: string, rows: Record<string, unknown>[]) {
+  if (rows.length === 0) {
+    const ws = wb.addWorksheet(sheetName);
+    return ws;
+  }
+  const headers = Object.keys(rows[0]);
+  const ws = wb.addWorksheet(sheetName);
+  ws.columns = headers.map((h) => ({
+    header: h,
+    key: h,
+    width: Math.min(60, Math.max(h.length, ...rows.map((r) => String(r[h] ?? '').length)) + 2),
+  }));
+  rows.forEach((r) => ws.addRow(r));
+  // Cabecera en negrita
+  ws.getRow(1).font = { bold: true };
+  return ws;
+}
+
+export async function exportRouteToExcel(
+  route: Route,
+  incidents: Incident[],
+  selectedIds?: Set<string>,
+  f5Events?: F5Event[],
+  persistentEvents?: PersistentEvent[],
+) {
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
 
   const exportSegments = selectedIds && selectedIds.size > 0
     ? route.segments.filter((s) => selectedIds.has(s.id))
@@ -137,10 +165,8 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     ? incidents.filter((i) => selectedIds.has(i.segmentId))
     : incidents;
 
-  // Auto-fix completed segments missing track/timestamps
   const validatedSegments = autoFixSegments(exportSegments);
 
-  // Build order-in-track map keyed by workDay + trackNumber
   const trackOrderMap = new Map<string, number>();
   const trackSegGroups = new Map<string, string[]>();
   validatedSegments.forEach((seg) => {
@@ -154,7 +180,7 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     ids.forEach((id, idx) => trackOrderMap.set(id, idx + 1));
   });
 
-  // Sheet 1: Segments — exact column order per spec
+  // Sheet 1: Tramos
   const segData = validatedSegments.map((seg) => {
     const segIncidents = exportIncidents.filter((i) => i.segmentId === seg.id);
     const distKm = segmentDistanceKm(seg.coordinates);
@@ -200,15 +226,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'SEG_FIN_TRACK': seg.segmentEndSeconds ?? '',
     };
   });
+  addSheetFromObjects(wb, 'Tramos', segData);
 
-  const ws1 = XLSX.utils.json_to_sheet(segData);
-  const colWidths = Object.keys(segData[0] || {}).map((key) => ({
-    wch: Math.max(key.length, ...segData.map((r) => String((r as any)[key]).length)) + 2,
-  }));
-  ws1['!cols'] = colWidths;
-  XLSX.utils.book_append_sheet(wb, ws1, 'Tramos');
-
-  // Sheet 2: Incidents
+  // Sheet 2: Incidencias
   if (exportIncidents.length > 0) {
     const incData = exportIncidents.map((inc) => {
       const seg = route.segments.find((s) => s.id === inc.segmentId);
@@ -226,15 +246,10 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
         'Lng': inc.location?.lng ?? '',
       };
     });
-    const ws2 = XLSX.utils.json_to_sheet(incData);
-    const colWidths2 = Object.keys(incData[0] || {}).map((key) => ({
-      wch: Math.max(key.length, ...incData.map((r) => String((r as any)[key]).length)) + 2,
-    }));
-    ws2['!cols'] = colWidths2;
-    XLSX.utils.book_append_sheet(wb, ws2, 'Incidencias');
+    addSheetFromObjects(wb, 'Incidencias', incData);
   }
 
-  // Sheet 3: Summary
+  // Sheet 3: Resumen
   const totalSegments = validatedSegments.length;
   const recorded = validatedSegments.filter((s) => s.status === 'completado').length;
   const repeated = validatedSegments.filter((s) => (s.repeatNumber || 0) > 1 && s.status === 'completado').length;
@@ -243,7 +258,6 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
   const uniqueTracks = new Set(validatedSegments.filter((s) => s.trackNumber !== null).map((s) => s.trackNumber)).size;
   const uniqueWorkDays = new Set(validatedSegments.filter((s) => s.workDay != null).map((s) => s.workDay)).size;
 
-  // Total recording time
   let totalRecordingMs = 0;
   validatedSegments.forEach((seg) => {
     const dur = durationSeconds(seg.startedAt || seg.timestampInicio, seg.endedAt || seg.timestampFin);
@@ -271,11 +285,9 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
     { 'Métrica': 'Tiempo total grabación', 'Valor': `${totalHours}h ${totalMins}m ${totalSecs}s` },
     { 'Métrica': 'Incidencias totales', 'Valor': exportIncidents.length },
   ];
-  const ws3 = XLSX.utils.json_to_sheet(summaryData);
-  ws3['!cols'] = [{ wch: 25 }, { wch: 30 }];
-  XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
+  addSheetFromObjects(wb, 'Resumen', summaryData);
 
-  // Sheet 4: F5 Events
+  // Sheet 4: Eventos F5
   const exportF5Events = f5Events || [];
   const relevantF5 = selectedIds && selectedIds.size > 0
     ? exportF5Events.filter((e) => selectedIds.has(e.segmentId))
@@ -296,15 +308,10 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
         'INTENTO': evt.attemptNumber ?? 0,
       };
     });
-    const ws4 = XLSX.utils.json_to_sheet(f5Data);
-    const colWidths4 = Object.keys(f5Data[0] || {}).map((key) => ({
-      wch: Math.max(key.length, ...f5Data.map((r) => String((r as any)[key]).length)) + 2,
-    }));
-    ws4['!cols'] = colWidths4;
-    XLSX.utils.book_append_sheet(wb, ws4, 'Eventos F5');
+    addSheetFromObjects(wb, 'Eventos F5', f5Data);
   }
 
-  // Sheet 5: Persistent Event Log
+  // Sheet 5: Event Log
   const allEvents = persistentEvents || [];
   if (allEvents.length > 0) {
     const evtData = allEvents.map((evt) => ({
@@ -315,14 +322,20 @@ export function exportRouteToExcel(route: Route, incidents: Incident[], selected
       'Tramo ID': evt.segmentId ?? '',
       'Payload': evt.payload ? JSON.stringify(evt.payload) : '',
     }));
-    const ws5 = XLSX.utils.json_to_sheet(evtData);
-    const colWidths5 = Object.keys(evtData[0] || {}).map((key) => ({
-      wch: Math.max(key.length, 20),
-    }));
-    ws5['!cols'] = colWidths5;
-    XLSX.utils.book_append_sheet(wb, ws5, 'Event Log');
+    addSheetFromObjects(wb, 'Event Log', evtData);
   }
 
   const fileName = `${route.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_hoja_de_ruta.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
