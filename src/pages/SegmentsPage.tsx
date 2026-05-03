@@ -584,26 +584,55 @@ export default function SegmentsPage({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-yellow-500" />
-              Errores de validación pre-export
+              Validación pre-export
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>Se detectaron {exportErrors.length} problema(s) en los tramos:</p>
-                <ul className="text-xs space-y-1 max-h-40 overflow-auto">
-                  {exportErrors.map((e, i) => (
-                    <li key={i} className="text-destructive">• {e.segmentName}: {e.issue}</li>
-                  ))}
-                </ul>
-                <p className="text-xs text-muted-foreground">
-                  Puedes exportar con corrección automática (se asignarán tracks y timestamps faltantes).
-                </p>
+                {(() => {
+                  const errs = exportErrors.filter((e) => (e.severity ?? 'error') === 'error');
+                  const warns = exportErrors.filter((e) => e.severity === 'warning');
+                  const fields = Array.from(new Set(exportErrors.map((e) => e.field).filter(Boolean))) as string[];
+                  return (
+                    <>
+                      <p className="text-xs">
+                        <span className="font-semibold text-destructive">{errs.length} error(es)</span>
+                        {' · '}
+                        <span className="font-semibold text-yellow-600">{warns.length} advertencia(s)</span>
+                        {fields.length > 0 && (
+                          <> · campos afectados: <span className="font-mono">{fields.join(', ')}</span></>
+                        )}
+                      </p>
+                      <ul className="text-xs space-y-1 max-h-40 overflow-auto">
+                        {exportErrors.slice(0, 30).map((e, i) => (
+                          <li key={i} className={e.severity === 'warning' ? 'text-yellow-600' : 'text-destructive'}>
+                            • {e.segmentName}: {e.issue}
+                          </li>
+                        ))}
+                        {exportErrors.length > 30 && (
+                          <li className="text-muted-foreground">… y {exportErrors.length - 30} más</li>
+                        )}
+                      </ul>
+                      <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
+                        <p>
+                          <span className="font-semibold">Exportar estricto:</span> los campos sin dato real quedan vacíos. Recomendado para trazabilidad.
+                        </p>
+                        <p>
+                          <span className="font-semibold">Exportar con correcciones auditadas:</span> reconstruye trackNumber con secuencia y rellena timestamps SOLO desde <code>timestampInicio</code>/<code>timestampFin</code> reales (nunca con la hora actual). Cada cambio se anota en columnas <code>AUTOFIX_*</code> y en la hoja "Validación Export". <strong>No modifica el estado de la campaña.</strong>
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="gap-2">
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExportForceAutofix}>
-              Corregir y exportar
+            <AlertDialogAction onClick={handleExportStrict} className="bg-secondary text-secondary-foreground hover:bg-secondary/80">
+              Exportar estricto
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleExportAudited}>
+              Exportar con correcciones auditadas
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
