@@ -242,6 +242,28 @@ export default function SegmentsPage({
     );
   }
 
+  const runExport = async (mode: 'strict' | 'audited') => {
+    try {
+      const events = await getAllEvents().catch(() => []);
+      const result = await exportRouteToExcel(route, incidents, {
+        selectedIds,
+        persistentEvents: events,
+        mode,
+      });
+      const auditCount = result.auditRows.length;
+      if (mode === 'audited' && auditCount > 0) {
+        toast.warning(`Exportado con correcciones auditadas · ${auditCount} hallazgos en hoja "Validación Export"`);
+      } else if (mode === 'strict' && auditCount > 0) {
+        toast.message(`Exportación estricta completada · ${auditCount} hallazgos registrados (campos vacíos sin reconstruir)`);
+      } else {
+        toast.success(`Exportación generada: ${result.fileName}`);
+      }
+    } catch (e: any) {
+      console.error('[Export clásico] Error:', e);
+      toast.error(`Error en exportación: ${e?.message || e}`);
+    }
+  };
+
   const handleExport = () => {
     const errors = validateForExport(
       selectedIds && selectedIds.size > 0
@@ -253,21 +275,18 @@ export default function SegmentsPage({
       setExportErrors(errors);
       setShowExportAlert(true);
     } else {
-      getAllEvents().then((events) => {
-        exportRouteToExcel(route, incidents, selectedIds, undefined, events);
-      }).catch(() => {
-        exportRouteToExcel(route, incidents, selectedIds);
-      });
+      runExport('strict');
     }
   };
 
-  const handleExportForceAutofix = () => {
+  const handleExportStrict = () => {
     setShowExportAlert(false);
-    getAllEvents().then((events) => {
-      exportRouteToExcel(route, incidents, selectedIds, undefined, events);
-    }).catch(() => {
-      exportRouteToExcel(route, incidents, selectedIds);
-    });
+    runExport('strict');
+  };
+
+  const handleExportAudited = () => {
+    setShowExportAlert(false);
+    runExport('audited');
   };
 
   const handleExportV2 = async () => {
