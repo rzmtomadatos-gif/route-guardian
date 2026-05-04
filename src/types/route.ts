@@ -56,7 +56,7 @@ export interface Segment {
   repeatRequested?: boolean;
   /** How many times this segment has been recorded (for analysis). Defaults to 0. */
   repeatNumber?: number;
-  /** Unique company segment identifier, e.g. BOA_00012 */
+  /** Unique company segment identifier, e.g. MAD_00012 */
   companySegmentId?: string;
   /** Work day number when this segment was recorded */
   workDay?: number;
@@ -100,9 +100,9 @@ export interface Route {
   segments: Segment[];
   optimizedOrder: string[];
   availableLayers?: string[];
-  /** Short project code used for segment IDs, e.g. "BOA" */
+  /** Short project code used for segment IDs, e.g. "MAD" */
   projectCode?: string;
-  /** Full project name for headers/export, e.g. "Boadilla del Monte 2026" */
+  /** Full project name for headers/export, e.g. "Madrid 2026" */
   projectName?: string;
   /** Operator name for traceability */
   operator?: string;

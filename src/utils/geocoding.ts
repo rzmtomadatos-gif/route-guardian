@@ -28,7 +28,7 @@ export interface GeocodeOptions {
     /** Radio aproximado en metros para construir un viewbox. */
     radiusMeters?: number;
   };
-  /** Texto extra para sesgar (ej. "Boadilla del Monte, Madrid"). */
+  /** Texto extra para sesgar (ej. "Madrid, España"). */
   contextSuffix?: string;
   /** AbortController para cancelar peticiones. */
   signal?: AbortSignal;

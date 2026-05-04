@@ -768,29 +768,18 @@ export default function MapPage({
     return () => window.removeEventListener('keydown', handler);
   }, [visible, creationMode, areaMode, zoneSelectMode, handleFocusSearch]);
 
-  // Sesgo de geocoding: priorizar Boadilla del Monte cuando el contexto
-  // de la campaña así lo indique (nombre de proyecto/ruta/capas que
-  // contengan "Boadilla"). Si no, usar la base GPS o el centro actual.
+  // Sesgo de geocoding: usar la base GPS o el centro actual de la campaña.
+  // El sufijo de contexto se mantiene genérico ("España") para no asumir
+  // una campaña concreta. Si en el futuro se quiere sesgar por zona, debe
+  // configurarse a partir de metadatos reales del proyecto cargado.
   const searchContext = useMemo(() => {
-    const r = state.route;
-    const haystack = [
-      r?.projectName,
-      r?.projectCode,
-      r?.name,
-      r?.fileName,
-      ...(r?.availableLayers ?? []),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    const isBoadilla = haystack.includes('boadilla') || haystack.includes('boa_');
     const center: LatLng | null =
       state.base?.position ?? geo.position ?? basePosition ?? null;
     return {
-      bias: { center, radiusMeters: isBoadilla ? 6000 : 8000 },
-      contextSuffix: isBoadilla ? 'Boadilla del Monte, Madrid, España' : 'España',
+      bias: { center, radiusMeters: 8000 },
+      contextSuffix: 'España',
     };
-  }, [state.route, state.base, geo.position, basePosition]);
+  }, [state.base, geo.position, basePosition]);
 
 
   const handleAreaClick = useCallback((latlng: LatLng) => {

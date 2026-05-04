@@ -179,7 +179,7 @@ function buildTimestampSuffix(date: Date = new Date()): string {
  * de la extensión `.kml`. Conserva mayúsculas, minúsculas y espacios del nombre
  * original. Si el nombre ya contiene un sufijo idéntico al actual, no lo duplica.
  *
- *   "Boadilla 2026.kml" → "Boadilla 2026 - 20260425-101530.kml"
+ *   "Madrid 2026.kml" → "Madrid 2026 - 20260425-101530.kml"
  *
  * Pensado para evitar sobreescrituras silenciosas al exportar varias veces la
  * misma campaña en una jornada.

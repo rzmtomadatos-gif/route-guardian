@@ -35,7 +35,7 @@ export function ProjectCodeDialog({ open, onConfirm }: Props) {
           <DialogTitle>Identificación del proyecto</DialogTitle>
           <DialogDescription>
             Introduce un código corto y un nombre para el proyecto. El código se usará para generar
-            los identificadores únicos de cada tramo (ej: BOA_00001).
+            los identificadores únicos de cada tramo (ej: MAD_00001).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -43,7 +43,7 @@ export function ProjectCodeDialog({ open, onConfirm }: Props) {
             <Label htmlFor="project-code">Código del proyecto *</Label>
             <Input
               id="project-code"
-              placeholder="BOA"
+              placeholder="MAD"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               maxLength={10}
@@ -57,7 +57,7 @@ export function ProjectCodeDialog({ open, onConfirm }: Props) {
             <Label htmlFor="project-name">Nombre del proyecto</Label>
             <Input
               id="project-name"
-              placeholder="Boadilla del Monte 2026"
+              placeholder="Madrid 2026"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
