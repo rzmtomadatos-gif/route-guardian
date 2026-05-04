@@ -27,7 +27,7 @@ describe('applyReactivation', () => {
     const seg = mkSeg({
       status: 'completado', nonRecordable: true, needsRepeat: false,
       trackNumber: 3, segmentOrder: 2, workDay: 1,
-      trackHistory: [3], companySegmentId: 'BOA_001',
+      trackHistory: [3], companySegmentId: 'MAD_001',
       startedAt: '2026-01-01T10:00:00Z', endedAt: '2026-01-01T10:05:00Z',
     });
     const state = mkState([seg]);
@@ -46,7 +46,7 @@ describe('applyReactivation', () => {
     expect(out.startedAt).toBeNull();
     expect(out.endedAt).toBeNull();
     expect(out.trackHistory).toEqual([3]);
-    expect(out.companySegmentId).toBe('BOA_001');
+    expect(out.companySegmentId).toBe('MAD_001');
   });
 
   it('preserves trackHistory and companySegmentId when reactivating completed', () => {
