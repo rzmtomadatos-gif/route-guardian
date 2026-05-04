@@ -9,7 +9,7 @@ function makeSegment(overrides: Partial<Segment> = {}): Segment {
     trackNumber: null,
     plannedTrackNumber: null,
     trackHistory: [],
-    kmlId: 'BOA_00001',
+    kmlId: 'MAD_00001',
     name: 'Tramo 1',
     notes: '',
     coordinates: [
@@ -24,12 +24,12 @@ function makeSegment(overrides: Partial<Segment> = {}): Segment {
   };
 }
 
-function makeRoute(segments: Segment[], name = 'Boadilla 2026'): Route {
+function makeRoute(segments: Segment[], name = 'Madrid 2026'): Route {
   return {
     id: 'route-1',
     name,
     loadedAt: new Date().toISOString(),
-    fileName: 'boadilla.kml',
+    fileName: 'madrid.kml',
     segments,
     optimizedOrder: segments.map((s) => s.id),
   };
@@ -134,13 +134,13 @@ describe('sanitizeKmlFileName', () => {
   });
 
   it('fuerza extensión .kml si no está presente', () => {
-    expect(sanitizeKmlFileName('boadilla')).toBe('boadilla.kml');
-    expect(sanitizeKmlFileName('boadilla.KML')).toBe('boadilla.KML');
+    expect(sanitizeKmlFileName('madrid')).toBe('madrid.kml');
+    expect(sanitizeKmlFileName('madrid.KML')).toBe('madrid.KML');
   });
 
   it('conserva mayúsculas/minúsculas del nombre original', () => {
-    expect(sanitizeKmlFileName('Boadilla Del Monte')).toBe('Boadilla Del Monte.kml');
-    expect(sanitizeKmlFileName('Campaña BOA 2026')).toBe('Campaña BOA 2026.kml');
+    expect(sanitizeKmlFileName('Madrid Centro')).toBe('Madrid Centro.kml');
+    expect(sanitizeKmlFileName('Campaña MAD 2026')).toBe('Campaña MAD 2026.kml');
   });
 
   it('devuelve "ruta.kml" si el nombre queda vacío tras limpiar', () => {
@@ -157,14 +157,14 @@ describe('uniqueKmlFileName', () => {
   const fixedDate = new Date(2026, 3, 25, 10, 15, 30); // 25 abr 2026 10:15:30 local
 
   it('añade sufijo de fecha/hora antes de la extensión', () => {
-    expect(uniqueKmlFileName('Boadilla 2026.kml', fixedDate)).toBe(
-      'Boadilla 2026 - 20260425-101530.kml',
+    expect(uniqueKmlFileName('Madrid 2026.kml', fixedDate)).toBe(
+      'Madrid 2026 - 20260425-101530.kml',
     );
   });
 
   it('conserva mayúsculas y espacios del nombre original', () => {
-    const out = uniqueKmlFileName('Campaña BOA Test', fixedDate);
-    expect(out).toBe('Campaña BOA Test - 20260425-101530.kml');
+    const out = uniqueKmlFileName('Campaña MAD Test', fixedDate);
+    expect(out).toBe('Campaña MAD Test - 20260425-101530.kml');
   });
 
   it('genera nombres distintos en momentos distintos', () => {
