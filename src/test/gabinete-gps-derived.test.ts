@@ -290,9 +290,9 @@ describe('getSegmentDisplayId / getSegmentDisplayName', () => {
   it('prioriza companySegmentId, luego name, luego kmlId, luego id', () => {
     expect(
       getSegmentDisplayId(
-        mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012', name: 'Calle X', kmlId: 'k1' }),
+        mkSegment({ id: 'jsn339su', companySegmentId: 'MAD_00012', name: 'Calle X', kmlId: 'k1' }),
       ),
-    ).toBe('BOA_00012');
+    ).toBe('MAD_00012');
     expect(
       getSegmentDisplayId(mkSegment({ id: 'jsn339su', name: 'Calle X', kmlId: 'k1' })),
     ).toBe('Calle X');
@@ -303,12 +303,12 @@ describe('getSegmentDisplayId / getSegmentDisplayName', () => {
   it('displayName prioriza name pero nunca devuelve id si hay otra alternativa', () => {
     expect(
       getSegmentDisplayName(
-        mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012', name: 'Calle X' }),
+        mkSegment({ id: 'jsn339su', companySegmentId: 'MAD_00012', name: 'Calle X' }),
       ),
     ).toBe('Calle X');
     expect(
-      getSegmentDisplayName(mkSegment({ id: 'jsn339su', companySegmentId: 'BOA_00012' })),
-    ).toBe('BOA_00012');
+      getSegmentDisplayName(mkSegment({ id: 'jsn339su', companySegmentId: 'MAD_00012' })),
+    ).toBe('MAD_00012');
     expect(getSegmentDisplayName(mkSegment({ id: 'jsn339su', kmlId: 'k1' }))).toBe('k1');
     expect(getSegmentDisplayName(mkSegment({ id: 'jsn339su' }))).toBe('jsn339su');
   });
@@ -348,7 +348,7 @@ describe('computeTrackGpsSegmentRows', () => {
   ];
 
   const segs: Segment[] = [
-    mkSegment({ id: 'A', companySegmentId: 'BOA_00001', name: 'Tramo A' }),
+    mkSegment({ id: 'A', companySegmentId: 'MAD_00001', name: 'Tramo A' }),
     mkSegment({
       id: 'B',
       name: 'Tramo B',
@@ -360,7 +360,7 @@ describe('computeTrackGpsSegmentRows', () => {
   it('genera una fila por cada segmento grabado, en orden de aparición', () => {
     const rows = computeTrackGpsSegmentRows(points, segs);
     expect(rows.map((r) => r.segmentId)).toEqual(['A', 'B']);
-    expect(rows[0].displayId).toBe('BOA_00001');
+    expect(rows[0].displayId).toBe('MAD_00001');
     expect(rows[1].displayId).toBe('Tramo B');
   });
 
@@ -385,7 +385,7 @@ describe('computeTrackGpsSegmentRows', () => {
 
   it('marca segmentExists=false si el segmento del GPS ya no está en la campaña', () => {
     const rows = computeTrackGpsSegmentRows(points, [
-      mkSegment({ id: 'A', companySegmentId: 'BOA_00001' }),
+      mkSegment({ id: 'A', companySegmentId: 'MAD_00001' }),
     ]);
     const a = rows.find((r) => r.segmentId === 'A')!;
     const b = rows.find((r) => r.segmentId === 'B')!;

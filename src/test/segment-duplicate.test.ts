@@ -8,7 +8,7 @@ function mkSeg(over: Partial<Segment> = {}): Segment {
     coordinates: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }],
     direction: 'creciente', type: 'tramo', status: 'completado',
     trackNumber: 2, plannedTrackNumber: null, trackHistory: [2],
-    kmlMeta: {}, companySegmentId: 'BOA_009',
+    kmlMeta: {}, companySegmentId: 'MAD_009',
     ...over,
   };
 }
@@ -30,7 +30,7 @@ describe('applyDuplicate', () => {
     const { state: next, records } = applyDuplicate(state, ['s1'], () => `dup${++i}`);
     expect(records).toHaveLength(1);
     expect(records[0].sourceSegmentId).toBe('s1');
-    expect(records[0].sourceCompanySegmentId).toBe('BOA_009');
+    expect(records[0].sourceCompanySegmentId).toBe('MAD_009');
     const dup = next.route!.segments.find((s) => s.id === 'dup1')!;
     expect(dup).toBeDefined();
     expect(dup.companySegmentId).toBeUndefined();

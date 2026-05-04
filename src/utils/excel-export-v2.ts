@@ -1142,7 +1142,7 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   sh10.columns = [{ width: 28 }, { width: 70 }];
   bannerRow(sh10, 'A1:B1', 'DICCIONARIO DE CAMPOS');
   const dict: Array<[string, string]> = [
-    ['ID_EMPRESA', 'Identificador oficial del tramo dentro de la campaña/proyecto. Fuente: companySegmentId. Ejemplo: BOA26_00470. Si falta, se muestra NO REGISTRADO.'],
+    ['ID_EMPRESA', 'Identificador oficial del tramo dentro de la campaña/proyecto. Fuente: companySegmentId. Ejemplo: MAD_00470. Si falta, se muestra NO REGISTRADO.'],
     ['Ident. KML', 'Identificador del tramo procedente del archivo KML original.'],
     ['Jornada', 'Día operativo (workDay). Avanza secuencialmente y nunca se reutiliza.'],
     ['Track', 'Número de bloque de grabación. En RST agrupa hasta 9 tramos.'],

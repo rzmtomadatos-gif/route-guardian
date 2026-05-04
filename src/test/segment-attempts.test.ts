@@ -9,7 +9,7 @@ function mkSeg(over: Partial<Segment> = {}): Segment {
     coordinates: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }],
     direction: 'creciente', type: 'tramo', status: 'completado',
     trackNumber: null, plannedTrackNumber: null, trackHistory: [],
-    kmlMeta: {}, companySegmentId: 'BOA_001',
+    kmlMeta: {}, companySegmentId: 'MAD_001',
     ...over,
   };
 }

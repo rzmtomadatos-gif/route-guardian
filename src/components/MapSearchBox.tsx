@@ -8,8 +8,8 @@
  *  - NO inicia navegación ni cambia estado del tramo.
  *
  * Modo "Mapa": geocoding (Google si está disponible, Nominatim como
- * fallback) sesgado por la zona de campaña / Boadilla del Monte cuando
- * proceda. Pulsar un resultado:
+ * fallback) sesgado por la zona de campaña activa cuando proceda.
+ * Pulsar un resultado:
  *  - centra el mapa en la coordenada
  *  - coloca un marcador temporal de búsqueda (gestionado por el padre)
  *  - NO crea tramo automáticamente.
@@ -47,7 +47,7 @@ interface Props {
   segments: Segment[] | null | undefined;
   /** Sesgo geográfico para geocoding (centro/radio aproximado). */
   bias?: { center?: LatLng | null; radiusMeters?: number };
-  /** Sufijo de contexto ("Boadilla del Monte, Madrid, España" si aplica). */
+  /** Sufijo de contexto geográfico (ej: "Madrid, España"). */
   contextSuffix?: string;
   /** El operador escogió un tramo: marcar activo + pedir centrar. */
   onPickSegment: (segment: Segment) => void;

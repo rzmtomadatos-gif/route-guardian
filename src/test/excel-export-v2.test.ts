@@ -216,7 +216,7 @@ describe('buildQualityFindings()', () => {
       trackNumber: 1,
       startedAt: '2026-01-01T10:00:00Z',
       endedAt: '2026-01-01T10:05:00Z',
-      companySegmentId: 'BOA_00001',
+      companySegmentId: 'MAD_00001',
     })];
     const f = findings(segs);
     expect(f).toHaveLength(1);
@@ -224,7 +224,7 @@ describe('buildQualityFindings()', () => {
   });
 
   it('flags autofix records as REVISAR', () => {
-    const segs = [mkSeg({ status: 'completado', companySegmentId: 'BOA_1' })];
+    const segs = [mkSeg({ status: 'completado', companySegmentId: 'MAD_1' })];
     const { fixed, applied, skipped } = autoFixCopy(segs);
     const f = findings(fixed, [], [], applied, skipped);
     expect(f.some((x) => x.status === 'REVISAR' && x.reason.includes('Autofix'))).toBe(true);
@@ -269,8 +269,8 @@ describe('buildQualityFindings()', () => {
 
 describe('buildQualityFindings() — correcciones de gabinete', () => {
   it('emite finding REVISAR por cada corrección activa, leyendo el original del RAW', () => {
-    const raw = mkSeg({ id: 's1', workDay: undefined, companySegmentId: 'BOA_1' });
-    const consolidated = mkSeg({ id: 's1', workDay: 1, companySegmentId: 'BOA_1' });
+    const raw = mkSeg({ id: 's1', workDay: undefined, companySegmentId: 'MAD_1' });
+    const consolidated = mkSeg({ id: 's1', workDay: 1, companySegmentId: 'MAD_1' });
     const corr = mkCorrection('s1', 'workDay', 1, {
       previousValue: undefined,
       reason: 'Tramos huérfanos del primer día',
@@ -431,7 +431,7 @@ describe('computeCumulativeDistanceFromGps()', () => {
 
 describe('getIdEmpresa()', () => {
   it('devuelve companySegmentId cuando existe', () => {
-    expect(getIdEmpresa(mkSeg({ companySegmentId: 'BOA26_00470' }))).toBe('BOA26_00470');
+    expect(getIdEmpresa(mkSeg({ companySegmentId: 'MAD26_00470' }))).toBe('MAD26_00470');
   });
   it('devuelve NO REGISTRADO cuando falta', () => {
     expect(getIdEmpresa(mkSeg({ companySegmentId: undefined }))).toBe('NO REGISTRADO');
@@ -445,22 +445,22 @@ describe('getIdEmpresa()', () => {
 
 describe('buildQualityFindings() — companySegmentId en findings', () => {
   it('rellena companySegmentId desde el tramo afectado', () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA26_00001', needsRepeat: true })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD26_00001', needsRepeat: true })];
     const f = findings(segs);
     const fin = f.find((x) => x.field === 'needsRepeat');
-    expect(fin?.companySegmentId).toBe('BOA26_00001');
+    expect(fin?.companySegmentId).toBe('MAD26_00001');
   });
 
   it('rellena companySegmentId desde un F5Event si el tramo no lo tiene', () => {
     const segs = [mkSeg({ id: 's1', companySegmentId: undefined })];
     const evt: F5Event = {
-      segmentId: 's1', companySegmentId: 'BOA26_FROM_F5',
+      segmentId: 's1', companySegmentId: 'MAD26_FROM_F5',
       eventType: 'inicio', distanceMarker: null,
       confirmedAt: '2026-01-01T10:00:00Z', confirmedByUser: false,
     };
     const f = findings(segs, [], [evt]);
     const fin = f.find((x) => x.sheet === '07_EVENTOS_F5');
-    expect(fin?.companySegmentId).toBe('BOA26_FROM_F5');
+    expect(fin?.companySegmentId).toBe('MAD26_FROM_F5');
   });
 
   it('deja companySegmentId undefined cuando no hay dato (la hoja 09 mostrará NO REGISTRADO)', () => {
@@ -476,7 +476,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     return {
       id: 'r1', name: 'Test Route', loadedAt: '2026-01-01T00:00:00Z',
       fileName: 'test.kml', segments: segs, optimizedOrder: segs.map((s) => s.id),
-      projectName: 'Boadilla 2026', projectCode: 'BOA',
+      projectName: 'Madrid 2026', projectCode: 'MAD',
     } as any;
   }
 
@@ -489,7 +489,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
   }
 
   it('hoja 06 contiene columna ID_EMPRESA y muestra el companySegmentId del tramo', async () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA26_00010' })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD26_00010' })];
     const inc: Incident = {
       id: 'i1', segmentId: 's1', category: 'obra', impact: 'informativa',
       timestamp: '2026-01-01T10:00:00Z',
@@ -501,7 +501,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     const { sh, headers } = await readSheet(wb, '06_INCIDENCIAS');
     expect(headers).toContain('ID_EMPRESA');
     const colIdx = headers.indexOf('ID_EMPRESA') + 1;
-    expect(sh.getRow(2).getCell(colIdx).value).toBe('BOA26_00010');
+    expect(sh.getRow(2).getCell(colIdx).value).toBe('MAD26_00010');
   });
 
   it('hoja 06 muestra NO REGISTRADO si el tramo no tiene companySegmentId', async () => {
@@ -521,13 +521,13 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
 
   it('hoja 07 contiene columna ID_EMPRESA con fallback evt.companySegmentId → segmento', async () => {
     const segs = [
-      mkSeg({ id: 's1', companySegmentId: 'BOA_FROM_SEG' }),
+      mkSeg({ id: 's1', companySegmentId: 'MAD_FROM_SEG' }),
       mkSeg({ id: 's2', companySegmentId: undefined }),
     ];
     const evts: F5Event[] = [
       { segmentId: 's1', eventType: 'inicio', distanceMarker: null,
         confirmedAt: '2026-01-01T10:00:00Z', confirmedByUser: true },
-      { segmentId: 's2', companySegmentId: 'BOA_FROM_EVT', eventType: 'inicio',
+      { segmentId: 's2', companySegmentId: 'MAD_FROM_EVT', eventType: 'inicio',
         distanceMarker: null, confirmedAt: '2026-01-01T10:01:00Z', confirmedByUser: true },
     ];
     const { wb } = await buildWorkbook({
@@ -537,12 +537,12 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     const { sh, headers } = await readSheet(wb, '07_EVENTOS_F5');
     expect(headers).toContain('ID_EMPRESA');
     const colIdx = headers.indexOf('ID_EMPRESA') + 1;
-    expect(sh.getRow(2).getCell(colIdx).value).toBe('BOA_FROM_SEG');
-    expect(sh.getRow(3).getCell(colIdx).value).toBe('BOA_FROM_EVT');
+    expect(sh.getRow(2).getCell(colIdx).value).toBe('MAD_FROM_SEG');
+    expect(sh.getRow(3).getCell(colIdx).value).toBe('MAD_FROM_EVT');
   });
 
   it('hoja 09 contiene columna ID_EMPRESA y muestra el ID del tramo del finding', async () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA26_00099', needsRepeat: true })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD26_00099', needsRepeat: true })];
     const { wb } = await buildWorkbook({
       route: mkRoute(segs), incidents: [], f5Events: [], persistentEvents: [],
       segmentCorrections: [],
@@ -553,7 +553,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     // Localiza la fila del finding needsRepeat
     let found = false;
     for (let r = 3; r <= sh.rowCount; r++) {
-      if (String(sh.getRow(r).getCell(colIdx).value) === 'BOA26_00099') { found = true; break; }
+      if (String(sh.getRow(r).getCell(colIdx).value) === 'MAD26_00099') { found = true; break; }
     }
     expect(found).toBe(true);
   });
@@ -574,7 +574,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
   });
 
   it('hojas 04 y 05 mantienen columna ID_EMPRESA', async () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA_X', status: 'completado', trackNumber: 1, workDay: 1 })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD_X', status: 'completado', trackNumber: 1, workDay: 1 })];
     const { wb } = await buildWorkbook({
       route: mkRoute(segs), incidents: [], f5Events: [], persistentEvents: [],
       segmentCorrections: [],
@@ -586,7 +586,7 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
   });
 
   it('portada, resumen, índice y event log NO añaden columna ID_EMPRESA', async () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA_X' })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD_X' })];
     const { wb } = await buildWorkbook({
       route: mkRoute(segs), incidents: [], f5Events: [], persistentEvents: [],
       segmentCorrections: [],
@@ -604,8 +604,8 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
 
   it('exportación filtrada por selectedIds: solo aparecen ID_EMPRESA de tramos incluidos', async () => {
     const segs = [
-      mkSeg({ id: 's1', companySegmentId: 'BOA_INCLUIDO' }),
-      mkSeg({ id: 's2', companySegmentId: 'BOA_EXCLUIDO' }),
+      mkSeg({ id: 's1', companySegmentId: 'MAD_INCLUIDO' }),
+      mkSeg({ id: 's2', companySegmentId: 'MAD_EXCLUIDO' }),
     ];
     const incs: Incident[] = [
       { id: 'i1', segmentId: 's1', category: 'obra', impact: 'informativa', timestamp: '2026-01-01T10:00:00Z' },
@@ -621,8 +621,8 @@ describe('buildWorkbook() — ID_EMPRESA visible en hojas operativas', () => {
     for (let r = 2; r <= sh.rowCount; r++) {
       allValues.push(String(sh.getRow(r).getCell(colIdx).value ?? ''));
     }
-    expect(allValues).toContain('BOA_INCLUIDO');
-    expect(allValues).not.toContain('BOA_EXCLUIDO');
+    expect(allValues).toContain('MAD_INCLUIDO');
+    expect(allValues).not.toContain('MAD_EXCLUIDO');
   });
 });
 
@@ -636,7 +636,7 @@ describe('buildWorkbook() — hoja 11_HISTORIAL_INTENTOS', () => {
   }
 
   it('crea la hoja con cabeceras obligatorias y dos filas para el mismo ID_EMPRESA en días distintos', async () => {
-    const segs = [mkSeg({ id: 's1', companySegmentId: 'BOA_001', status: 'completado', workDay: 18 })];
+    const segs = [mkSeg({ id: 's1', companySegmentId: 'MAD_001', status: 'completado', workDay: 18 })];
     const events = [
       { eventId: 'e1', timestamp: '2026-01-01T10:00:00Z', eventType: 'SEGMENT_STARTED', segmentId: 's1', payload: { workDay: 1, trackNumber: 1 } },
       { eventId: 'e2', timestamp: '2026-01-01T10:05:00Z', eventType: 'SEGMENT_COMPLETED', segmentId: 's1', payload: { workDay: 1, trackNumber: 1 } },
@@ -667,7 +667,7 @@ describe('buildWorkbook() — hoja 11_HISTORIAL_INTENTOS', () => {
         fuente: String(sh.getRow(r).getCell(fuenteCol).value ?? ''),
       });
     }
-    const sameId = rows.filter((r) => r.id === 'BOA_001');
+    const sameId = rows.filter((r) => r.id === 'MAD_001');
     expect(sameId).toHaveLength(2);
     const days = sameId.map((r) => r.dia).sort();
     expect(days).toEqual([1, 18]);
