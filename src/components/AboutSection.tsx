@@ -151,10 +151,15 @@ export function AboutSection({ navigationActive = false }: Props) {
             <RefreshCw className={`w-3.5 h-3.5 ${checking ? 'animate-spin' : ''}`} />
             {checking ? 'Comprobando…' : 'Buscar actualizaciones'}
           </Button>
-          {!hasNewer && !checking && lastChecked && (
+          {!hasNewer && !checking && lastChecked && !versionFileUnavailable && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <CheckCircle2 className="w-3.5 h-3.5 text-success" />
               Estás en la última versión
+            </span>
+          )}
+          {!hasNewer && !checking && versionFileUnavailable && (
+            <span className="text-xs text-warning">
+              No se pudo comprobar la versión publicada (archivo de versión no disponible).
             </span>
           )}
         </div>
