@@ -65,9 +65,9 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [
           /^\/~oauth/,
-          /^\/version\.json(?:\?.*)?$/,
-          /^\/app-version\.json(?:\?.*)?$/,
-          /^\/\.well-known\/vialroute-version\.json(?:\?.*)?$/,
+          /\/version\.json(?:\?.*)?$/,
+          /\/app-version\.json(?:\?.*)?$/,
+          /\/\.well-known\/vialroute-version\.json(?:\?.*)?$/,
         ],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB for WASM
         // Runtime caching: catch anything that slips through precache
