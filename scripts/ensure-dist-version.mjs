@@ -15,6 +15,18 @@ const distDir = resolve(root, 'dist');
 const distFile = resolve(distDir, 'version.json');
 const publicFile = resolve(root, 'public', 'version.json');
 
+function writeAllDistVersionFiles(payload) {
+  const content = JSON.stringify(payload, null, 2);
+  for (const file of [
+    distFile,
+    resolve(distDir, '.well-known', 'vialroute-version.json'),
+    resolve(distDir, 'app-version.json'),
+  ]) {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
+}
+
 if (!existsSync(distDir)) {
   mkdirSync(distDir, { recursive: true });
 }
@@ -24,6 +36,7 @@ if (existsSync(distFile)) {
   try {
     const parsed = JSON.parse(readFileSync(distFile, 'utf-8'));
     if (parsed && typeof parsed.version === 'string') {
+      writeAllDistVersionFiles(parsed);
       console.log('[ensure-dist-version] OK: dist/version.json ya existe →', parsed.version);
       process.exit(0);
     }
@@ -35,6 +48,7 @@ if (existsSync(distFile)) {
 // 2) Si public/version.json existe, copiarlo a dist/.
 if (existsSync(publicFile)) {
   copyFileSync(publicFile, distFile);
+  writeAllDistVersionFiles(JSON.parse(readFileSync(publicFile, 'utf-8')));
   console.log('[ensure-dist-version] copiado public/version.json → dist/version.json');
   process.exit(0);
 }
@@ -45,7 +59,7 @@ const buildTime = new Date().toISOString();
 const stamp = buildTime.replace(/[-:T]/g, '').slice(0, 12);
 const version = `${pkg.version || '0.0.0'}+${stamp}`;
 const payload = { version, buildTime };
-writeFileSync(distFile, JSON.stringify(payload, null, 2));
+writeAllDistVersionFiles(payload);
 // También actualizamos public/ por coherencia para futuros builds.
 try {
   writeFileSync(publicFile, JSON.stringify(payload, null, 2));
