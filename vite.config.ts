@@ -53,9 +53,8 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // We provide our own public/manifest.json
       workbox: {
         globPatterns: [
-          // Excluir json del precache automático: version.json se gestiona
-          // explícitamente abajo en additionalManifestEntries con revision
-          // ligada a la versión, evitando duplicidades y entradas obsoletas.
+          // Excluir JSON del precache automático: los endpoints de versión
+          // deben consultarse siempre a red y nunca caer al shell HTML.
           "**/*.{js,css,html,ico,png,svg,woff,woff2}",
         ],
         // Keep the WASM binary in precache. Version endpoints must stay network-only:
