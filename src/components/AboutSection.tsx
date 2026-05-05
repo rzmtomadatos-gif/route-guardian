@@ -44,6 +44,7 @@ export function AboutSection({ navigationActive = false }: Props) {
     checkForUpdate,
     prepareAndApplyUpdate,
     lastChecked,
+    versionFileUnavailable,
   } = usePwaUpdate();
 
   const [applying, setApplying] = useState(false);
