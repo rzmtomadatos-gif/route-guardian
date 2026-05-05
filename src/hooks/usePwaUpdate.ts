@@ -279,5 +279,6 @@ export function usePwaUpdate(): UsePwaUpdateResult {
     checkForUpdate,
     checking,
     lastChecked,
+    versionFileUnavailable,
   };
 }
