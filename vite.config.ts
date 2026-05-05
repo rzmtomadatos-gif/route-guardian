@@ -58,18 +58,26 @@ export default defineConfig(({ mode }) => ({
           // ligada a la versión, evitando duplicidades y entradas obsoletas.
           "**/*.{js,css,html,ico,png,svg,woff,woff2}",
         ],
-        // Keep the WASM binary and version.json in precache.
-        // version.json revision changes on every build (timestamp in JSON content),
-        // so workbox detects it as a precache change and triggers SW update.
+        // Keep the WASM binary in precache. Version endpoints must stay network-only:
+        // an installed PWA must never receive index.html/fallback for version JSON.
         additionalManifestEntries: [
           { url: "sql-wasm.wasm", revision: "3" },
-          { url: "version.json", revision: versionInfo.version },
         ],
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/~oauth/],
+        navigateFallbackDenylist: [
+          /^\/~oauth/,
+          /^\/version\.json(?:\?.*)?$/,
+          /^\/app-version\.json(?:\?.*)?$/,
+          /^\/\.well-known\/vialroute-version\.json(?:\?.*)?$/,
+        ],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB for WASM
         // Runtime caching: catch anything that slips through precache
         runtimeCaching: [
+          {
+            // Version checks must go to network, not the app shell cache.
+            urlPattern: /\/(version|app-version)\.json(?:\?.*)?$|\/\.well-known\/vialroute-version\.json(?:\?.*)?$/,
+            handler: "NetworkOnly",
+          },
           {
             // Cache the manifest.json at runtime too
             urlPattern: /\/manifest\.json$/,
