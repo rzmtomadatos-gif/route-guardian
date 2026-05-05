@@ -36,6 +36,8 @@ interface UsePwaUpdateResult {
   checkForUpdate: () => Promise<void>;
   /** En curso una comprobación manual */
   checking: boolean;
+  /** True si la última lectura de /version.json falló (404 / red / JSON inválido). */
+  versionFileUnavailable: boolean;
   /** Última comprobación realizada */
   lastChecked: Date | null;
 }
