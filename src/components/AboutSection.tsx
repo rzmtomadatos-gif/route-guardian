@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Info, RefreshCw, CheckCircle2, Download } from 'lucide-react';
+import { Info, RefreshCw, CheckCircle2, Download, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ interface Props {
  * y aplicar manualmente actualizaciones PWA sin perder datos locales.
  *
  * Diferencia clave entre estados:
- * - "Versión publicada detectada": /version.json devuelve una versión > instalada,
+ * - "Versión publicada detectada": los endpoints de versión devuelven una versión > instalada,
  *   pero el Service Worker puede no haber terminado de descargar aún.
  * - "Actualización lista para aplicar": el Service Worker tiene un worker en
  *   estado `waiting`, listo para activarse con skipWaiting + reload.
@@ -41,10 +41,13 @@ export function AboutSection({ navigationActive = false }: Props) {
     latestVersion,
     needRefresh,
     checking,
+    repairing,
     checkForUpdate,
     prepareAndApplyUpdate,
+    repairUpdate,
     lastChecked,
     versionFileUnavailable,
+    versionDiagnostics,
   } = usePwaUpdate();
 
   const [applying, setApplying] = useState(false);
@@ -57,10 +60,11 @@ export function AboutSection({ navigationActive = false }: Props) {
 
   // Hay versión nueva si:
   //  - el SW ya tiene un worker waiting (needRefresh=true), o
-  //  - /version.json reporta una versión distinta a la instalada
+  //  - un endpoint de versión reporta una versión distinta a la instalada
   const versionMismatch =
     latestVersion !== null && latestVersion !== currentVersion;
   const hasNewer = needRefresh || versionMismatch;
+  const showRepair = versionFileUnavailable || versionDiagnostics.serviceWorker.waiting;
 
   const doApply = async () => {
     setApplying(true);
@@ -72,10 +76,23 @@ export function AboutSection({ navigationActive = false }: Props) {
       } else {
         toast.warning(result.message, { duration: 8000 });
       }
-    } catch (e) {
+    } catch {
       toast.error('No se pudo aplicar la actualización. Inténtalo de nuevo.');
     } finally {
       setApplying(false);
+    }
+  };
+
+  const doRepair = async () => {
+    try {
+      const result = await repairUpdate();
+      if (result.status === 'applied' || result.status === 'cleaned') {
+        toast.success(result.message, { duration: 8000 });
+      } else {
+        toast.warning(result.message, { duration: 8000 });
+      }
+    } catch {
+      toast.error('No se pudo reparar la actualización. Inténtalo de nuevo.');
     }
   };
 
@@ -130,7 +147,7 @@ export function AboutSection({ navigationActive = false }: Props) {
             </p>
             <Button
               onClick={handleApplyClick}
-              disabled={applying}
+              disabled={applying || repairing}
               size="sm"
               className="w-full gap-2"
             >
@@ -140,10 +157,10 @@ export function AboutSection({ navigationActive = false }: Props) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button
             onClick={() => void checkForUpdate()}
-            disabled={checking || applying}
+            disabled={checking || applying || repairing}
             variant="outline"
             size="sm"
             className="gap-2"
@@ -151,6 +168,18 @@ export function AboutSection({ navigationActive = false }: Props) {
             <RefreshCw className={`w-3.5 h-3.5 ${checking ? 'animate-spin' : ''}`} />
             {checking ? 'Comprobando…' : 'Buscar actualizaciones'}
           </Button>
+          {showRepair && (
+            <Button
+              onClick={() => void doRepair()}
+              disabled={checking || applying || repairing}
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+            >
+              <Wrench className={`w-3.5 h-3.5 ${repairing ? 'animate-pulse' : ''}`} />
+              {repairing ? 'Reparando…' : 'Reparar actualización'}
+            </Button>
+          )}
           {!hasNewer && !checking && lastChecked && !versionFileUnavailable && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <CheckCircle2 className="w-3.5 h-3.5 text-success" />
@@ -159,9 +188,55 @@ export function AboutSection({ navigationActive = false }: Props) {
           )}
           {!hasNewer && !checking && versionFileUnavailable && (
             <span className="text-xs text-warning">
-              No se pudo comprobar la versión publicada (archivo de versión no disponible).
+              Actualización no verificable. Usa Reparar actualización.
             </span>
           )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground/80">Diagnóstico de actualización</p>
+          <p>
+            <span className="text-foreground/80">version.json:</span>{' '}
+            <span className="font-mono">{versionDiagnostics.status}</span>
+          </p>
+          <p>
+            <span className="text-foreground/80">status:</span>{' '}
+            <span className="font-mono">{versionDiagnostics.httpStatus ?? '—'}</span>
+          </p>
+          <p>
+            <span className="text-foreground/80">content-type:</span>{' '}
+            <span className="font-mono break-all">{versionDiagnostics.contentType ?? '—'}</span>
+          </p>
+          <p>
+            <span className="text-foreground/80">URL:</span>{' '}
+            <span className="font-mono break-all">{versionDiagnostics.url ?? '—'}</span>
+          </p>
+          {versionDiagnostics.error && (
+            <p>
+              <span className="text-foreground/80">error:</span>{' '}
+              <span className="font-mono break-all">{versionDiagnostics.error}</span>
+            </p>
+          )}
+          <p>
+            <span className="text-foreground/80">Service Worker:</span>{' '}
+            <span className="font-mono">
+              {versionDiagnostics.serviceWorker.registered ? 'registered' : 'not-registered'}
+            </span>
+          </p>
+          <p>
+            <span className="text-foreground/80">active scriptURL:</span>{' '}
+            <span className="font-mono break-all">
+              {versionDiagnostics.serviceWorker.activeScriptURL ?? '—'}
+            </span>
+          </p>
+          <p>
+            <span className="text-foreground/80">waiting:</span>{' '}
+            <span className="font-mono">{versionDiagnostics.serviceWorker.waiting ? 'yes' : 'no'}</span>
+          </p>
+          <p>
+            <span className="text-foreground/80">scope:</span>{' '}
+            <span className="font-mono break-all">{versionDiagnostics.serviceWorker.scope ?? '—'}</span>
+          </p>
         </div>
       </div>
 
