@@ -36,6 +36,8 @@ interface UsePwaUpdateResult {
   checkForUpdate: () => Promise<void>;
   /** En curso una comprobación manual */
   checking: boolean;
+  /** True si la última lectura de /version.json falló (404 / red / JSON inválido). */
+  versionFileUnavailable: boolean;
   /** Última comprobación realizada */
   lastChecked: Date | null;
 }
@@ -96,6 +98,7 @@ export function usePwaUpdate(): UsePwaUpdateResult {
   const currentBuildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '';
 
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [versionFileUnavailable, setVersionFileUnavailable] = useState(false);
   const [checking, setChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [dismissed, setDismissed] = useState(() => {
@@ -120,7 +123,12 @@ export function usePwaUpdate(): UsePwaUpdateResult {
       // 2) version.json: aporta visibilidad incluso si el SW aún no ha detectado el cambio.
       tasks.push(
         readVersionFile().then((info) => {
-          if (info?.version) setLatestVersion(info.version);
+          if (info?.version) {
+            setLatestVersion(info.version);
+            setVersionFileUnavailable(false);
+          } else {
+            setVersionFileUnavailable(true);
+          }
         }),
       );
       await Promise.all(tasks);
@@ -153,7 +161,12 @@ export function usePwaUpdate(): UsePwaUpdateResult {
   // Primera lectura de version.json al montar
   useEffect(() => {
     readVersionFile().then((info) => {
-      if (info?.version) setLatestVersion(info.version);
+      if (info?.version) {
+        setLatestVersion(info.version);
+        setVersionFileUnavailable(false);
+      } else {
+        setVersionFileUnavailable(true);
+      }
       setLastChecked(new Date());
     });
   }, []);
@@ -266,5 +279,6 @@ export function usePwaUpdate(): UsePwaUpdateResult {
     checkForUpdate,
     checking,
     lastChecked,
+    versionFileUnavailable,
   };
 }

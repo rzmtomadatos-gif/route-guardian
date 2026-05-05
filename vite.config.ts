@@ -53,7 +53,10 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // We provide our own public/manifest.json
       workbox: {
         globPatterns: [
-          "**/*.{js,css,html,ico,png,svg,woff,woff2,json}",
+          // Excluir json del precache automático: version.json se gestiona
+          // explícitamente abajo en additionalManifestEntries con revision
+          // ligada a la versión, evitando duplicidades y entradas obsoletas.
+          "**/*.{js,css,html,ico,png,svg,woff,woff2}",
         ],
         // Keep the WASM binary and version.json in precache.
         // version.json revision changes on every build (timestamp in JSON content),
