@@ -12,7 +12,8 @@
  */
 import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection, TrackGpsPoint } from '@/types/route';
-import { getDefaultState, saveState } from '@/utils/storage';
+import { getDefaultState, saveState, createEmptyCampaignState } from '@/utils/storage';
+import { clearEventsDB } from '@/utils/persistence';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 import { logEvent } from '@/utils/persistence';
