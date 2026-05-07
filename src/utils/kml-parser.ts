@@ -8,20 +8,39 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-function extractCoordinates(geometry: GeoJSON.Geometry): LatLng[] {
+/**
+ * Extrae todas las partes lineales de una geometría como arrays separados de
+ * coordenadas. NO concatena partes (jamás `.flat()` sobre MultiLineString)
+ * para evitar líneas ficticias entre tramos disjuntos.
+ *
+ * Soporta:
+ *  - LineString → 1 parte
+ *  - MultiLineString → 1 parte por línea
+ *  - GeometryCollection → recorre recursivamente y agrega todas las partes lineales
+ *  - Point → ignorado (no genera tramo)
+ *  - Polygon → ignorado en el flujo de tramos
+ *
+ * Las partes con menos de 2 coordenadas se descartan.
+ */
+export function extractLineParts(geometry: GeoJSON.Geometry | null | undefined): LatLng[][] {
+  if (!geometry) return [];
   if (geometry.type === 'LineString') {
-    return (geometry as GeoJSON.LineString).coordinates.map(([lng, lat]) => ({ lat, lng }));
+    const part = (geometry as GeoJSON.LineString).coordinates.map(([lng, lat]) => ({ lat, lng }));
+    return part.length >= 2 ? [part] : [];
   }
   if (geometry.type === 'MultiLineString') {
-    return (geometry as GeoJSON.MultiLineString).coordinates.flat().map(([lng, lat]) => ({ lat, lng }));
+    return (geometry as GeoJSON.MultiLineString).coordinates
+      .map((line) => line.map(([lng, lat]) => ({ lat, lng })))
+      .filter((part) => part.length >= 2);
   }
-  if (geometry.type === 'Point') {
-    const [lng, lat] = (geometry as GeoJSON.Point).coordinates;
-    return [{ lat, lng }];
+  if (geometry.type === 'GeometryCollection') {
+    const parts: LatLng[][] = [];
+    for (const g of (geometry as GeoJSON.GeometryCollection).geometries) {
+      parts.push(...extractLineParts(g));
+    }
+    return parts;
   }
-  if (geometry.type === 'Polygon') {
-    return (geometry as GeoJSON.Polygon).coordinates[0].map(([lng, lat]) => ({ lat, lng }));
-  }
+  // Point, Polygon, MultiPoint, MultiPolygon → no generan tramos operativos
   return [];
 }
 
@@ -120,37 +139,56 @@ function collectSegments(
       // It's a GeoJSON Feature
       const feature = child as GeoJSON.Feature;
       if (!feature.geometry) continue;
-      const coords = extractCoordinates(feature.geometry);
-      if (coords.length < 2) continue;
+
+      const parts = extractLineParts(feature.geometry);
+      if (parts.length === 0) continue;
 
       const props = (feature.properties || {}) as Record<string, unknown>;
-      const meta = extractKmlMeta(props);
+      const baseMeta = extractKmlMeta(props);
+      const geometryType = feature.geometry.type;
 
       const rawKmlId =
         (feature.properties?.name as string) ||
         (feature.properties?.Name as string) ||
         '';
       const kmlId = sanitizeTextField(stripHtml(rawKmlId), 500);
-      const name = sanitizeTextField(
-        meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`,
-        500
+      const baseName = sanitizeTextField(
+        baseMeta.identtramo || baseMeta.carretera || kmlId || `Tramo ${segments.length + 1}`,
+        500,
       );
 
-      segments.push({
-        id: generateId(),
-        routeId,
-        trackNumber: null,
-        plannedTrackNumber: null,
-        trackHistory: [],
-        kmlId,
-        name,
-        notes: '',
-        coordinates: coords,
-        direction: 'ambos',
-        type: 'tramo',
-        status: 'pendiente',
-        kmlMeta: meta,
-        layer: currentLayer,
+      const total = parts.length;
+      parts.forEach((coords, idx) => {
+        const isMulti = total > 1;
+        const partName = isMulti
+          ? sanitizeTextField(`${baseName} — parte ${idx + 1}/${total}`, 500)
+          : baseName;
+        const meta: SegmentKmlMeta = isMulti
+          ? {
+              ...baseMeta,
+              multiPartParentName: baseName,
+              multiPartIndex: idx + 1,
+              multiPartTotal: total,
+              multiPartGeometryType: geometryType,
+            }
+          : baseMeta;
+
+        segments.push({
+          id: generateId(),
+          routeId,
+          trackNumber: null,
+          plannedTrackNumber: null,
+          trackHistory: [],
+          kmlId,
+          name: partName,
+          notes: '',
+          coordinates: coords,
+          direction: 'ambos',
+          type: 'tramo',
+          status: 'pendiente',
+          kmlMeta: meta,
+          layer: currentLayer,
+        });
       });
     }
   }

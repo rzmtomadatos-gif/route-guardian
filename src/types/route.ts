@@ -22,6 +22,14 @@ export interface SegmentKmlMeta {
   ref?: string;
   /** Procedencia del tramo. */
   source?: 'osm' | 'manual' | 'kml';
+  /** Trazabilidad multiparte: nombre original del Placemark padre. */
+  multiPartParentName?: string;
+  /** Índice 1-based de la parte dentro del Placemark padre. */
+  multiPartIndex?: number;
+  /** Total de partes lineales generadas a partir del Placemark padre. */
+  multiPartTotal?: number;
+  /** Tipo de geometría original (p.ej. MultiLineString, GeometryCollection). */
+  multiPartGeometryType?: string;
 }
 
 export interface Segment {
