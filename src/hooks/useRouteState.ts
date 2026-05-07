@@ -12,7 +12,8 @@
  */
 import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection, TrackGpsPoint } from '@/types/route';
-import { getDefaultState, saveState } from '@/utils/storage';
+import { getDefaultState, saveState, createEmptyCampaignState } from '@/utils/storage';
+import { clearEventsDB } from '@/utils/persistence';
 import { optimizeRoute } from '@/utils/route-optimizer';
 import { optimizeWithDirections } from '@/utils/google-directions';
 import { logEvent } from '@/utils/persistence';
@@ -197,18 +198,57 @@ export function useRouteState() {
     return segments.filter((seg) => seg.trackNumber === trackNum && seg.status === 'completado').length;
   };
 
+  /**
+   * Carga una NUEVA campaña (desde KML/KMZ o "Crear proyecto nuevo").
+   *
+   * AISLAMIENTO ESTRICTO: parte de `createEmptyCampaignState()` con las
+   * preferencias del operador, descarta TODO lo operativo de la campaña
+   * anterior (días, tracks consumidos, correcciones de gabinete, GPS log,
+   * incidencias, segmentos previos, base, prompts) y borra el event_log
+   * SQLite. Después emite CAMPAIGN_CREATED y ROUTE_LOADED como primeros
+   * eventos de la nueva campaña.
+   *
+   * NO se llama desde "Importar campaña existente": ese flujo usa
+   * restoreState para conservar Día, eventos y trazabilidad propios del
+   * archivo importado.
+   */
   const setRoute = useCallback(async (route: Route) => {
     const fallbackOrder = optimizeRoute(route.segments);
-    setState((s) => ({
-      ...s,
-      route: { ...route, optimizedOrder: fallbackOrder },
-      incidents: [],
-      activeSegmentId: null,
-      navigationActive: false,
-      trackSession: null,
-    }));
 
+    // 1) Limpiar event_log SQLite ANTES de escribir el nuevo estado para que
+    //    gabinete/Excel no pueda mezclar eventos de la campaña anterior con
+    //    los de la nueva ni siquiera durante una ventana mínima.
+    try {
+      await clearEventsDB();
+    } catch (e) {
+      console.error('Failed to clear event log on new campaign:', e);
+    }
+
+    setState((s) => {
+      const fresh = createEmptyCampaignState({
+        rstMode: s.rstMode,
+        rstGroupSize: s.rstGroupSize,
+        acquisitionMode: s.acquisitionMode,
+        // base intencionalmente NO se preserva: cada campaña define su base
+        // operativa propia.
+      });
+      return {
+        ...fresh,
+        route: { ...route, optimizedOrder: fallbackOrder },
+      };
+    }, true);
+
+    logEvent('CAMPAIGN_CREATED', {
+      workDay: 1,
+      payload: {
+        routeId: route.id,
+        routeName: route.name,
+        projectCode: route.projectCode ?? null,
+        segmentCount: route.segments.length,
+      },
+    });
     logEvent('ROUTE_LOADED', {
+      workDay: 1,
       payload: {
         routeId: route.id,
         routeName: route.name,
@@ -1247,23 +1287,16 @@ export function useRouteState() {
   }, [setState]);
 
   const clearRoute = useCallback(() => {
-    setState((s) => ({
-      route: null,
-      incidents: [],
-      activeSegmentId: null,
-      navigationActive: false,
-      currentPosition: null,
-      base: s.base,
+    // Reset operativo total: equivalente a "no hay campaña". Preserva
+    // únicamente preferencias del operador. Limpia también el event_log
+    // SQLite para que gabinete y exportes no muestren datos huérfanos.
+    clearEventsDB().catch((e) => console.error('Failed to clear event log on clearRoute:', e));
+    setState((s) => createEmptyCampaignState({
       rstMode: s.rstMode,
       rstGroupSize: s.rstGroupSize,
-      trackSession: null,
-      blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
-      workDay: s.workDay,
       acquisitionMode: s.acquisitionMode,
-      lastConsumedTrackByDay: s.lastConsumedTrackByDay,
-      segmentCorrections: s.segmentCorrections,
-      trackGpsLogsByDay: s.trackGpsLogsByDay,
-    }));
+      base: s.base,
+    }), true);
   }, [setState]);
 
   const setActiveSegment = useCallback((segmentId: string) => {

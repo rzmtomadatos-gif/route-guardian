@@ -47,19 +47,51 @@ export function saveState(state: AppState, immediate = false): void {
  * in App.tsx before the app renders.
  */
 export function getDefaultState(): AppState {
+  return createEmptyCampaignState();
+}
+
+/**
+ * Operator/global preferences that survive a campaign reset.
+ * NOTE: el resto de ajustes globales (tema, mapa offline, API keys) viven
+ * fuera de AppState — en localStorage o en otros stores — y por tanto NO
+ * son afectados por crear nueva campaña.
+ */
+export interface CampaignResetPreferences {
+  rstMode?: boolean;
+  rstGroupSize?: number;
+  acquisitionMode?: AppState['acquisitionMode'];
+  base?: AppState['base'];
+}
+
+/**
+ * Factory canónico de estado limpio para una NUEVA campaña.
+ *
+ * Resetea TODO lo operativo:
+ *  - route, incidents, activeSegmentId, navigationActive
+ *  - currentPosition (se recalcula vía GPS)
+ *  - trackSession, blockEndPrompt
+ *  - workDay = 1, lastConsumedTrackByDay = {}
+ *  - segmentCorrections = []
+ *  - trackGpsLogsByDay = {}
+ *
+ * Preserva SOLO preferencias del operador (RST, modo de adquisición, base
+ * configurada). El borrado del event_log SQLite se hace en otra capa
+ * (`useRouteState.setRoute`) — este factory es puro.
+ */
+export function createEmptyCampaignState(prefs: CampaignResetPreferences = {}): AppState {
   return {
     route: null,
     incidents: [],
     activeSegmentId: null,
     navigationActive: false,
     currentPosition: null,
-    base: null,
-    rstMode: false,
-    rstGroupSize: 3,
+    base: prefs.base ?? null,
+    rstMode: prefs.rstMode ?? false,
+    rstGroupSize: prefs.rstGroupSize ?? 3,
     trackSession: null,
     blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' as const },
     workDay: 1,
-    acquisitionMode: 'RST' as const,
+    acquisitionMode: prefs.acquisitionMode ?? 'RST',
     lastConsumedTrackByDay: {},
     segmentCorrections: [],
     trackGpsLogsByDay: {},
