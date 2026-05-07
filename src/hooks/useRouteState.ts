@@ -1287,23 +1287,16 @@ export function useRouteState() {
   }, [setState]);
 
   const clearRoute = useCallback(() => {
-    setState((s) => ({
-      route: null,
-      incidents: [],
-      activeSegmentId: null,
-      navigationActive: false,
-      currentPosition: null,
-      base: s.base,
+    // Reset operativo total: equivalente a "no hay campaña". Preserva
+    // únicamente preferencias del operador. Limpia también el event_log
+    // SQLite para que gabinete y exportes no muestren datos huérfanos.
+    clearEventsDB().catch((e) => console.error('Failed to clear event log on clearRoute:', e));
+    setState((s) => createEmptyCampaignState({
       rstMode: s.rstMode,
       rstGroupSize: s.rstGroupSize,
-      trackSession: null,
-      blockEndPrompt: { isOpen: false, trackNumber: null, reason: 'capacity' },
-      workDay: s.workDay,
       acquisitionMode: s.acquisitionMode,
-      lastConsumedTrackByDay: s.lastConsumedTrackByDay,
-      segmentCorrections: s.segmentCorrections,
-      trackGpsLogsByDay: s.trackGpsLogsByDay,
-    }));
+      base: s.base,
+    }), true);
   }, [setState]);
 
   const setActiveSegment = useCallback((segmentId: string) => {
