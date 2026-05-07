@@ -9,7 +9,11 @@ import { describe, it, expect } from 'vitest';
 import { extractLineParts, parseKMLFile } from '@/utils/kml-parser';
 
 function kmlFile(content: string, name = 'test.kml'): File {
-  return new File([content], name, { type: 'application/vnd.google-earth.kml+xml' });
+  const f = new File([content], name, { type: 'application/vnd.google-earth.kml+xml' });
+  if (typeof (f as unknown as { text?: () => Promise<string> }).text !== 'function') {
+    Object.defineProperty(f, 'text', { value: async () => content });
+  }
+  return f;
 }
 
 describe('extractLineParts — función pura', () => {
