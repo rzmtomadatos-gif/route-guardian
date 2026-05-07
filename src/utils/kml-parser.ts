@@ -139,37 +139,56 @@ function collectSegments(
       // It's a GeoJSON Feature
       const feature = child as GeoJSON.Feature;
       if (!feature.geometry) continue;
-      const coords = extractCoordinates(feature.geometry);
-      if (coords.length < 2) continue;
+
+      const parts = extractLineParts(feature.geometry);
+      if (parts.length === 0) continue;
 
       const props = (feature.properties || {}) as Record<string, unknown>;
-      const meta = extractKmlMeta(props);
+      const baseMeta = extractKmlMeta(props);
+      const geometryType = feature.geometry.type;
 
       const rawKmlId =
         (feature.properties?.name as string) ||
         (feature.properties?.Name as string) ||
         '';
       const kmlId = sanitizeTextField(stripHtml(rawKmlId), 500);
-      const name = sanitizeTextField(
-        meta.identtramo || meta.carretera || kmlId || `Tramo ${segments.length + 1}`,
-        500
+      const baseName = sanitizeTextField(
+        baseMeta.identtramo || baseMeta.carretera || kmlId || `Tramo ${segments.length + 1}`,
+        500,
       );
 
-      segments.push({
-        id: generateId(),
-        routeId,
-        trackNumber: null,
-        plannedTrackNumber: null,
-        trackHistory: [],
-        kmlId,
-        name,
-        notes: '',
-        coordinates: coords,
-        direction: 'ambos',
-        type: 'tramo',
-        status: 'pendiente',
-        kmlMeta: meta,
-        layer: currentLayer,
+      const total = parts.length;
+      parts.forEach((coords, idx) => {
+        const isMulti = total > 1;
+        const partName = isMulti
+          ? sanitizeTextField(`${baseName} — parte ${idx + 1}/${total}`, 500)
+          : baseName;
+        const meta: SegmentKmlMeta = isMulti
+          ? {
+              ...baseMeta,
+              multiPartParentName: baseName,
+              multiPartIndex: idx + 1,
+              multiPartTotal: total,
+              multiPartGeometryType: geometryType,
+            }
+          : baseMeta;
+
+        segments.push({
+          id: generateId(),
+          routeId,
+          trackNumber: null,
+          plannedTrackNumber: null,
+          trackHistory: [],
+          kmlId,
+          name: partName,
+          notes: '',
+          coordinates: coords,
+          direction: 'ambos',
+          type: 'tramo',
+          status: 'pendiente',
+          kmlMeta: meta,
+          layer: currentLayer,
+        });
       });
     }
   }
