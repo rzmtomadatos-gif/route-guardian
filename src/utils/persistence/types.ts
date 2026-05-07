@@ -11,6 +11,7 @@ export const LEGACY_STORAGE_KEY = 'vialroute_state';
 export const LEGACY_MIGRATION_FLAG = 'vialroute_migration_sqlite_done';
 
 export type EventType =
+  | 'CAMPAIGN_CREATED'
   | 'CAMPAIGN_IMPORTED'
   | 'CAMPAIGN_EXPORTED'
   | 'ROUTE_LOADED'

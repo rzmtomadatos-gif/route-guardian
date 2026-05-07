@@ -212,6 +212,7 @@ const trackGpsPointSchema = z.object({
 
 // ── Event Log — real EventType enum ──
 const eventTypeEnum = z.enum([
+  'CAMPAIGN_CREATED',
   'CAMPAIGN_IMPORTED',
   'CAMPAIGN_EXPORTED',
   'ROUTE_LOADED',
