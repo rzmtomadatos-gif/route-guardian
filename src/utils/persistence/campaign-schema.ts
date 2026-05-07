@@ -42,6 +42,11 @@ const segmentKmlMetaSchema = z.object({
   osmId: z.number().optional(),
   ref: z.string().optional(),
   source: z.enum(['osm', 'manual', 'kml']).optional(),
+  // Trazabilidad multiparte (KML MultiGeometry / GeoJSON MultiLineString / GeometryCollection)
+  multiPartParentName: z.string().max(500).optional(),
+  multiPartIndex: z.number().int().min(1).optional(),
+  multiPartTotal: z.number().int().min(1).optional(),
+  multiPartGeometryType: z.string().max(100).optional(),
 }).passthrough();
 
 // ── Segment — strict core, optional future fields explicitly declared ──
