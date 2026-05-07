@@ -8,20 +8,39 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-function extractCoordinates(geometry: GeoJSON.Geometry): LatLng[] {
+/**
+ * Extrae todas las partes lineales de una geometría como arrays separados de
+ * coordenadas. NO concatena partes (jamás `.flat()` sobre MultiLineString)
+ * para evitar líneas ficticias entre tramos disjuntos.
+ *
+ * Soporta:
+ *  - LineString → 1 parte
+ *  - MultiLineString → 1 parte por línea
+ *  - GeometryCollection → recorre recursivamente y agrega todas las partes lineales
+ *  - Point → ignorado (no genera tramo)
+ *  - Polygon → ignorado en el flujo de tramos
+ *
+ * Las partes con menos de 2 coordenadas se descartan.
+ */
+export function extractLineParts(geometry: GeoJSON.Geometry | null | undefined): LatLng[][] {
+  if (!geometry) return [];
   if (geometry.type === 'LineString') {
-    return (geometry as GeoJSON.LineString).coordinates.map(([lng, lat]) => ({ lat, lng }));
+    const part = (geometry as GeoJSON.LineString).coordinates.map(([lng, lat]) => ({ lat, lng }));
+    return part.length >= 2 ? [part] : [];
   }
   if (geometry.type === 'MultiLineString') {
-    return (geometry as GeoJSON.MultiLineString).coordinates.flat().map(([lng, lat]) => ({ lat, lng }));
+    return (geometry as GeoJSON.MultiLineString).coordinates
+      .map((line) => line.map(([lng, lat]) => ({ lat, lng })))
+      .filter((part) => part.length >= 2);
   }
-  if (geometry.type === 'Point') {
-    const [lng, lat] = (geometry as GeoJSON.Point).coordinates;
-    return [{ lat, lng }];
+  if (geometry.type === 'GeometryCollection') {
+    const parts: LatLng[][] = [];
+    for (const g of (geometry as GeoJSON.GeometryCollection).geometries) {
+      parts.push(...extractLineParts(g));
+    }
+    return parts;
   }
-  if (geometry.type === 'Polygon') {
-    return (geometry as GeoJSON.Polygon).coordinates[0].map(([lng, lat]) => ({ lat, lng }));
-  }
+  // Point, Polygon, MultiPoint, MultiPolygon → no generan tramos operativos
   return [];
 }
 
