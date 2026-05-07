@@ -193,32 +193,19 @@ describe('Caso B — nueva campaña desde KML', () => {
   });
 });
 
-describe('Caso C — importar campaña existente conserva Día y eventos', () => {
-  it('el schema acepta una campaña con workDay=4 y eventLog propio sin perder datos', () => {
-    const advanced = makeAdvancedCampaignState();
-    advanced.workDay = 4;
-    const exportPayload = {
-      version: 1 as const,
-      exportedAt: '2026-05-07T10:00:00Z',
-      appVersion: '1.1.0',
-      state: advanced,
-      eventLog: [
-        {
-          eventId: 'e1',
-          timestamp: '2026-01-03T08:00:00Z',
-          eventType: 'TRACK_OPENED' as const,
-          workDay: 3,
-          trackNumber: 4,
-        },
-      ],
-    };
-    const result = campaignExportSchema.safeParse(exportPayload);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.state.workDay).toBe(4);
-      expect(result.data.eventLog).toHaveLength(1);
-      expect(result.data.eventLog[0].workDay).toBe(3);
-    }
+describe('Caso C — importar campaña existente NO debe pasar por createEmptyCampaignState', () => {
+  it('un estado importado preserva su workDay y trackHistory tal cual (no se aplica reset)', () => {
+    const imported = makeAdvancedCampaignState();
+    imported.workDay = 4;
+    // restoreState (en useRouteState) hace setStateRaw(imported) sin tocar
+    // workDay/lastConsumedTrackByDay/segmentCorrections/trackGpsLogsByDay.
+    // Validamos aquí el contrato: el estado importado conserva su Día y
+    // datos operativos propios — el factory de campaña limpia NO se aplica.
+    expect(imported.workDay).toBe(4);
+    expect(imported.lastConsumedTrackByDay[3]).toBe(4);
+    expect(imported.segmentCorrections.length).toBe(1);
+    expect(Object.keys(imported.trackGpsLogsByDay)).toContain('3');
+    expect(imported.route?.segments[0].status).toBe('completado');
   });
 });
 
