@@ -12,6 +12,18 @@
  */
 import { useState, useCallback } from 'react';
 import type { Route, AppState, Segment, Incident, IncidentCategory, IncidentImpact, LatLng, BaseLocation, TrackSession, BlockEndPrompt, SegmentCorrection, TrackGpsPoint } from '@/types/route';
+import type {
+  CaptureMission,
+  CaptureRun,
+  SegmentCapture,
+  TrimbleFieldStatus,
+  TrimbleQaStatus,
+  TrimbleIncident,
+  TrimbleDeliverable,
+  TrimbleGpsPoint,
+} from '@/types/trimble';
+import { findActiveCapture } from '@/types/trimble';
+import { canChangeAcquisitionMode } from '@/utils/trimble/mode-change-guard';
 import { getDefaultState, saveState, createEmptyCampaignState } from '@/utils/storage';
 import { clearEventsDB } from '@/utils/persistence';
 import { optimizeRoute } from '@/utils/route-optimizer';
