@@ -297,6 +297,13 @@ export default function SegmentsPage({
         persistentEvents: events,
         segmentCorrections: state.segmentCorrections ?? [],
         trackGpsLogsByDay: state.trackGpsLogsByDay ?? {},
+        trimble: (state.trimbleMissions?.length ?? 0) > 0 ? {
+          missions: state.trimbleMissions,
+          runs: state.trimbleRuns,
+          captures: state.trimbleSegmentCaptures,
+          incidents: state.trimbleIncidents,
+          deliverables: state.trimbleDeliverables,
+        } : undefined,
       });
       const reviewCount = result.findings.filter((f) => f.status !== 'OK').length;
       if (reviewCount > 0) {
