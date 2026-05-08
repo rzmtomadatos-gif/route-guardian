@@ -331,9 +331,16 @@ export function GoogleMapDisplay({
   // deterministically when the user presses "Refresh map" — this is the
   // only reliable way to force a full repaint of overlays without depending
   // on ref mutations (which don't trigger re-renders) or no-op state updates.
+  const trimbleStatusFingerprint = useMemo(() => {
+    if (!trimbleStatusBySegment || trimbleStatusBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleStatusBySegment.forEach((status, id) => parts.push(`${id}:${status}`));
+    return parts.sort().join(',');
+  }, [trimbleStatusBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
