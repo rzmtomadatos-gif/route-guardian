@@ -1812,8 +1812,343 @@ export function useRouteState() {
   }, [setState]);
 
   /** Set acquisition mode (RST or GARMIN) */
-  const setAcquisitionMode = useCallback((mode: import('@/types/route').AcquisitionMode) => {
-    setState((s) => ({ ...s, acquisitionMode: mode }));
+  const setAcquisitionMode = useCallback((mode: import('@/types/route').AcquisitionMode): { ok: boolean; reason?: string } => {
+    let result: { ok: boolean; reason?: string } = { ok: true };
+    setState((s) => {
+      if (s.acquisitionMode === mode) {
+        result = { ok: true };
+        return s;
+      }
+      const check = canChangeAcquisitionMode(s);
+      if (!check.ok) {
+        result = check;
+        return s;
+      }
+      result = { ok: true };
+      return { ...s, acquisitionMode: mode };
+    });
+    if (result.ok) {
+      if (mode === 'TRIMBLE_LIDAR') {
+        logEvent('TRIMBLE_MODE_ACTIVATED', { payload: { mode } });
+      }
+    }
+    return result;
+  }, [setState]);
+
+  // ── TRIMBLE_LIDAR actions ───────────────────────────────────────────────
+  /** Sólo permitido en modo TRIMBLE_LIDAR. Si ya hay misión abierta, falla. */
+  const startTrimbleMission = useCallback((data: Omit<CaptureMission, 'id' | 'startedAt' | 'endedAt' | 'workDay'> & { workDay?: number }): { ok: boolean; reason?: string; missionId?: string } => {
+    let outcome: { ok: boolean; reason?: string; missionId?: string } = { ok: false };
+    setState((s) => {
+      if (s.acquisitionMode !== 'TRIMBLE_LIDAR') {
+        outcome = { ok: false, reason: 'Modo Trimble inactivo' };
+        return s;
+      }
+      if (s.activeMissionId) {
+        outcome = { ok: false, reason: 'Ya hay una misión Trimble abierta' };
+        return s;
+      }
+      if ((s.trimbleMissions?.length ?? 0) >= 5_000) {
+        outcome = { ok: false, reason: 'Límite de misiones alcanzado' };
+        return s;
+      }
+      const id = `tm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const mission: CaptureMission = {
+        id,
+        workDay: data.workDay ?? s.workDay,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        vehicle: data.vehicle,
+        sensorRig: data.sensorRig,
+        operator: data.operator,
+        weather: data.weather,
+        notes: data.notes,
+      };
+      outcome = { ok: true, missionId: id };
+      return {
+        ...s,
+        trimbleMissions: [...(s.trimbleMissions ?? []), mission],
+        activeMissionId: id,
+      };
+    }, true);
+    if (outcome.ok && outcome.missionId) {
+      logEvent('TRIMBLE_MISSION_STARTED', { payload: { missionId: outcome.missionId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  /** Cierra la misión activa: cierra runs y capturas abiertas en cascada. */
+  const closeTrimbleMission = useCallback((closedReason: CaptureMission['closedReason'] = 'manual'): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    let closedMissionId: string | null = null;
+    setState((s) => {
+      const missionId = s.activeMissionId;
+      if (!missionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
+      const now = new Date().toISOString();
+      // Cerrar capturas abiertas de runs de esta misión
+      const captures = (s.trimbleSegmentCaptures ?? []).map((c) => {
+        if (c.missionId === missionId && c.endedAt === null) {
+          return { ...c, endedAt: now, fieldStatus: c.fieldStatus ?? 'capturado_pendiente_proceso' as TrimbleFieldStatus };
+        }
+        return c;
+      });
+      const runs = (s.trimbleRuns ?? []).map((r) =>
+        r.missionId === missionId && r.endedAt === null ? { ...r, endedAt: now } : r,
+      );
+      const missions = (s.trimbleMissions ?? []).map((m) =>
+        m.id === missionId ? { ...m, endedAt: now, closedReason } : m,
+      );
+      closedMissionId = missionId;
+      outcome = { ok: true };
+      return {
+        ...s,
+        trimbleSegmentCaptures: captures,
+        trimbleRuns: runs,
+        trimbleMissions: missions,
+        activeMissionId: null,
+        activeRunId: null,
+      };
+    }, true);
+    if (outcome.ok && closedMissionId) {
+      logEvent('TRIMBLE_MISSION_CLOSED', { payload: { missionId: closedMissionId, closedReason } });
+    }
+    return outcome;
+  }, [setState]);
+
+  const startTrimbleRun = useCallback((opts: { direction?: CaptureRun['direction']; startPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string; runId?: string } => {
+    let outcome: { ok: boolean; reason?: string; runId?: string } = { ok: false };
+    setState((s) => {
+      if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+      if (!s.activeMissionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
+      if (s.activeRunId) { outcome = { ok: false, reason: 'Ya hay una pasada abierta' }; return s; }
+      if ((s.trimbleRuns?.length ?? 0) >= 50_000) { outcome = { ok: false, reason: 'Límite de pasadas alcanzado' }; return s; }
+      const missionRuns = (s.trimbleRuns ?? []).filter((r) => r.missionId === s.activeMissionId);
+      const id = `tr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const run: CaptureRun = {
+        id,
+        missionId: s.activeMissionId,
+        index: missionRuns.length,
+        direction: opts.direction,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        startPosition: opts.startPosition,
+        notes: opts.notes,
+      };
+      outcome = { ok: true, runId: id };
+      return { ...s, trimbleRuns: [...(s.trimbleRuns ?? []), run], activeRunId: id };
+    }, true);
+    if (outcome.ok && outcome.runId) {
+      logEvent('TRIMBLE_RUN_STARTED', { payload: { runId: outcome.runId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  /** Cierra la pasada activa. Auto-cierra capturas abiertas con fieldStatus dado. */
+  const closeTrimbleRun = useCallback((opts: { autoCloseFieldStatus?: TrimbleFieldStatus; endPosition?: LatLng } = {}): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    let closedRunId: string | null = null;
+    setState((s) => {
+      const runId = s.activeRunId;
+      if (!runId) { outcome = { ok: false, reason: 'No hay pasada abierta' }; return s; }
+      const now = new Date().toISOString();
+      const autoStatus: TrimbleFieldStatus = opts.autoCloseFieldStatus ?? 'capturado_pendiente_proceso';
+      const captures = (s.trimbleSegmentCaptures ?? []).map((c) => {
+        if (c.runId === runId && c.endedAt === null) {
+          return { ...c, endedAt: now, fieldStatus: autoStatus };
+        }
+        return c;
+      });
+      const runs = (s.trimbleRuns ?? []).map((r) =>
+        r.id === runId ? { ...r, endedAt: now, endPosition: opts.endPosition ?? r.endPosition } : r,
+      );
+      closedRunId = runId;
+      outcome = { ok: true };
+      return { ...s, trimbleSegmentCaptures: captures, trimbleRuns: runs, activeRunId: null };
+    }, true);
+    if (outcome.ok && closedRunId) {
+      logEvent('TRIMBLE_RUN_CLOSED', { payload: { runId: closedRunId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  const invalidateTrimbleRun = useCallback((reason: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    let runId: string | null = null;
+    setState((s) => {
+      runId = s.activeRunId;
+      if (!runId) { outcome = { ok: false, reason: 'No hay pasada abierta' }; return s; }
+      const now = new Date().toISOString();
+      const captures = (s.trimbleSegmentCaptures ?? []).map((c) =>
+        c.runId === runId && c.endedAt === null ? { ...c, endedAt: now, fieldStatus: 'repetir' as TrimbleFieldStatus } : c,
+      );
+      const runs = (s.trimbleRuns ?? []).map((r) =>
+        r.id === runId ? { ...r, endedAt: now, invalidated: true } : r,
+      );
+      outcome = { ok: true };
+      return { ...s, trimbleSegmentCaptures: captures, trimbleRuns: runs, activeRunId: null };
+    }, true);
+    if (outcome.ok && runId) {
+      logEvent('TRIMBLE_RUN_INVALIDATED', { payload: { runId, reason } });
+    }
+    return outcome;
+  }, [setState]);
+
+  /**
+   * Abre una captura para un tramo. Falla si ya hay otra captura abierta en
+   * el run activo (invariante de única captura abierta por run).
+   */
+  const startTrimbleCapture = useCallback((segmentId: string, opts: { startPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string; captureId?: string } => {
+    let outcome: { ok: boolean; reason?: string; captureId?: string } = { ok: false };
+    setState((s) => {
+      if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+      if (!s.activeMissionId || !s.activeRunId) { outcome = { ok: false, reason: 'Necesitas una misión y pasada abiertas' }; return s; }
+      const open = findActiveCapture(s.trimbleSegmentCaptures ?? [], s.activeRunId);
+      if (open) { outcome = { ok: false, reason: 'Hay una captura abierta. Ciérrala antes de abrir otra.' }; return s; }
+      if ((s.trimbleSegmentCaptures?.length ?? 0) >= 100_000) { outcome = { ok: false, reason: 'Límite de capturas alcanzado' }; return s; }
+      const id = `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const capture: SegmentCapture = {
+        id,
+        segmentId,
+        runId: s.activeRunId,
+        missionId: s.activeMissionId,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        startPosition: opts.startPosition,
+        fieldStatus: 'en_captura',
+        fieldNotes: opts.notes,
+        qaStatus: null,
+      };
+      outcome = { ok: true, captureId: id };
+      return { ...s, trimbleSegmentCaptures: [...(s.trimbleSegmentCaptures ?? []), capture] };
+    }, true);
+    if (outcome.ok && outcome.captureId) {
+      logEvent('TRIMBLE_CAPTURE_STARTED', { segmentId, payload: { captureId: outcome.captureId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  /** Cierra la captura abierta del run activo con un fieldStatus dado. */
+  const closeTrimbleCapture = useCallback((fieldStatus: TrimbleFieldStatus, opts: { endPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    let closed: { id: string; segmentId: string; status: TrimbleFieldStatus } | null = null;
+    setState((s) => {
+      if (!s.activeRunId) { outcome = { ok: false, reason: 'No hay pasada abierta' }; return s; }
+      const open = findActiveCapture(s.trimbleSegmentCaptures ?? [], s.activeRunId);
+      if (!open) { outcome = { ok: false, reason: 'No hay captura abierta' }; return s; }
+      const now = new Date().toISOString();
+      const captures = (s.trimbleSegmentCaptures ?? []).map((c) =>
+        c.id === open.id
+          ? { ...c, endedAt: now, fieldStatus, endPosition: opts.endPosition ?? c.endPosition, fieldNotes: opts.notes ?? c.fieldNotes }
+          : c,
+      );
+      closed = { id: open.id, segmentId: open.segmentId, status: fieldStatus };
+      outcome = { ok: true };
+      return { ...s, trimbleSegmentCaptures: captures };
+    }, true);
+    if (outcome.ok && closed) {
+      logEvent('TRIMBLE_CAPTURE_CLOSED', { segmentId: closed.segmentId, payload: { captureId: closed.id, fieldStatus: closed.status } });
+      const evtMap: Record<TrimbleFieldStatus, import('@/utils/persistence/types').EventType> = {
+        en_captura: 'TRIMBLE_CAPTURE_CLOSED',
+        capturado_pendiente_proceso: 'TRIMBLE_CAPTURE_MARKED_PENDING_PROCESS',
+        repetir: 'TRIMBLE_CAPTURE_MARKED_REPEAT',
+        no_capturable: 'TRIMBLE_CAPTURE_MARKED_NON_CAPTURABLE',
+      };
+      const tail = evtMap[closed.status];
+      if (tail && tail !== 'TRIMBLE_CAPTURE_CLOSED') {
+        logEvent(tail, { segmentId: closed.segmentId, payload: { captureId: closed.id } });
+      }
+    }
+    return outcome;
+  }, [setState]);
+
+  /** SOLO gabinete. Fija qaStatus sobre una captura existente (no del campo). */
+  const setTrimbleQaStatus = useCallback((captureId: string, qa: TrimbleQaStatus, meta: { reviewedBy: string; notes?: string }): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    let segmentIdForLog: string | null = null;
+    setState((s) => {
+      const idx = (s.trimbleSegmentCaptures ?? []).findIndex((c) => c.id === captureId);
+      if (idx < 0) { outcome = { ok: false, reason: 'Captura no encontrada' }; return s; }
+      const cap = s.trimbleSegmentCaptures[idx];
+      const updated: SegmentCapture = {
+        ...cap,
+        qaStatus: qa,
+        qaNotes: meta.notes ?? cap.qaNotes,
+        qaReviewedBy: meta.reviewedBy,
+        qaReviewedAt: new Date().toISOString(),
+      };
+      const next = [...s.trimbleSegmentCaptures];
+      next[idx] = updated;
+      segmentIdForLog = cap.segmentId;
+      outcome = { ok: true };
+      return { ...s, trimbleSegmentCaptures: next };
+    }, true);
+    if (outcome.ok && segmentIdForLog) {
+      logEvent('TRIMBLE_QA_STATUS_SET', { segmentId: segmentIdForLog, payload: { captureId, qa, reviewedBy: meta.reviewedBy } });
+    }
+    return outcome;
+  }, [setState]);
+
+  const recordTrimbleIncident = useCallback((data: Omit<TrimbleIncident, 'id' | 'timestamp' | 'missionId'>): { ok: boolean; reason?: string; incidentId?: string } => {
+    let outcome: { ok: boolean; reason?: string; incidentId?: string } = { ok: false };
+    setState((s) => {
+      if (!s.activeMissionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
+      if ((s.trimbleIncidents?.length ?? 0) >= 10_000) { outcome = { ok: false, reason: 'Límite de incidencias Trimble alcanzado' }; return s; }
+      const id = `ti_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const inc: TrimbleIncident = {
+        ...data,
+        id,
+        missionId: s.activeMissionId,
+        timestamp: new Date().toISOString(),
+      };
+      outcome = { ok: true, incidentId: id };
+      return { ...s, trimbleIncidents: [...(s.trimbleIncidents ?? []), inc] };
+    }, true);
+    if (outcome.ok && outcome.incidentId) {
+      logEvent('TRIMBLE_INCIDENT_RECORDED', { payload: { incidentId: outcome.incidentId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  const linkTrimbleDeliverable = useCallback((data: Omit<TrimbleDeliverable, 'id' | 'uploadedAt'>): { ok: boolean; reason?: string; deliverableId?: string } => {
+    let outcome: { ok: boolean; reason?: string; deliverableId?: string } = { ok: false };
+    setState((s) => {
+      if ((s.trimbleDeliverables?.length ?? 0) >= 50_000) { outcome = { ok: false, reason: 'Límite de entregables alcanzado' }; return s; }
+      const id = `td_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const deliverable: TrimbleDeliverable = { ...data, id, uploadedAt: new Date().toISOString() };
+      outcome = { ok: true, deliverableId: id };
+      return { ...s, trimbleDeliverables: [...(s.trimbleDeliverables ?? []), deliverable] };
+    }, true);
+    if (outcome.ok && outcome.deliverableId) {
+      logEvent('TRIMBLE_DELIVERABLE_LINKED', { payload: { deliverableId: outcome.deliverableId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  const unlinkTrimbleDeliverable = useCallback((deliverableId: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    setState((s) => {
+      const exists = (s.trimbleDeliverables ?? []).some((d) => d.id === deliverableId);
+      if (!exists) { outcome = { ok: false, reason: 'Entregable no encontrado' }; return s; }
+      outcome = { ok: true };
+      return { ...s, trimbleDeliverables: (s.trimbleDeliverables ?? []).filter((d) => d.id !== deliverableId) };
+    }, true);
+    if (outcome.ok) {
+      logEvent('TRIMBLE_DELIVERABLE_UNLINKED', { payload: { deliverableId } });
+    }
+    return outcome;
+  }, [setState]);
+
+  /** Append-only de punto GPS Trimble. Aviso/bloqueo a 100k por run. */
+  const appendTrimbleGpsPoint = useCallback((point: TrimbleGpsPoint): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: false };
+    setState((s) => {
+      const byRun = s.trimbleGpsLogsByRun ?? {};
+      const prev = byRun[point.runId] ?? [];
+      if (prev.length >= 100_000) { outcome = { ok: false, reason: 'Límite GPS Trimble del run alcanzado' }; return s; }
+      outcome = { ok: true };
+      return { ...s, trimbleGpsLogsByRun: { ...byRun, [point.runId]: [...prev, point] } };
+    });
+    return outcome;
   }, [setState]);
 
   /** Restore full state from async persistence (IndexedDB) — sanitizes navigation state */
