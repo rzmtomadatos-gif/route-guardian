@@ -151,7 +151,6 @@ export function useCopilotDriver(token: string | null) {
   const [session, setSession] = useState<CopilotSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const parseSession = (raw: any): CopilotSession => ({
     ...raw,
