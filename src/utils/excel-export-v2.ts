@@ -156,6 +156,14 @@ export interface AutoFixSkipped {
   severity: 'REVISAR' | 'ERROR';
 }
 
+interface TrimbleData {
+  missions: import('@/types/trimble').CaptureMission[];
+  runs: import('@/types/trimble').CaptureRun[];
+  captures: import('@/types/trimble').SegmentCapture[];
+  incidents: import('@/types/trimble').TrimbleIncident[];
+  deliverables: import('@/types/trimble').TrimbleDeliverable[];
+}
+
 interface ExportContext {
   route: Route;
   incidents: Incident[];
@@ -165,6 +173,8 @@ interface ExportContext {
   segmentCorrections: SegmentCorrection[];
   /** Logs GPS reales por jornada y track. Solo se usa para distancias acumuladas reales. */
   trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
+  /** Datos Trimble (opcional). Las hojas Trimble solo se generan si missions.length > 0. */
+  trimble?: TrimbleData;
 }
 
 // ───────── Utilidades ─────────
