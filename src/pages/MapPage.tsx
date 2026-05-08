@@ -1385,7 +1385,17 @@ export default function MapPage({
         🐛 Debug
       </button>
 
-
+      {/* === TRIMBLE OPERATIVO (overlay) === */}
+      {state.acquisitionMode === 'TRIMBLE_LIDAR' && (
+        <div className="absolute top-3 right-3 z-20 pointer-events-none">
+          <TrimbleMapPanel
+            visibleSegmentIds={visibleSegmentIdSet}
+            orderIds={trimbleOrderIds}
+            copilot={copilot}
+            onSetActiveSegment={onSetActiveSegment}
+          />
+        </div>
+      )}
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
       {canNavigate && state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
