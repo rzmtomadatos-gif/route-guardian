@@ -5,7 +5,8 @@ import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 
@@ -74,6 +75,11 @@ interface Props {
    * No mueve el mapa cuando el estado actual es correcto.
    */
   mapRefreshRequest?: number;
+  /**
+   * Modo Trimble: si se provee, sobreescribe el color del tramo por el
+   * estado Trimble derivado. No afecta cuando es undefined o vacío.
+   */
+  trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
