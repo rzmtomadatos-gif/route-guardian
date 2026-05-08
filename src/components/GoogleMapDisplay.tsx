@@ -155,6 +155,7 @@ export function GoogleMapDisplay({
   searchTargetBounds,
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
+  trimbleStatusBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -432,9 +433,11 @@ export function GoogleMapDisplay({
         const isActive = seg.id === activeSegmentId;
         const isSelected = selectedSegmentIds?.has(seg.id);
         const layerColor = seg.color || layerColorMap?.get(seg.id);
-        const color = isSelected
-          ? '#8b5cf6'
+        const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
+        const baseColor = trimbleStatus
+          ? resolveTrimbleSegmentColor(trimbleStatus)
           : resolveSegmentColor(seg, activeSegmentId, layerColor);
+        const color = isSelected ? '#8b5cf6' : baseColor;
 
         const polyline = new google.maps.Polyline({
           path,
