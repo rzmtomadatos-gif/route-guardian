@@ -159,6 +159,14 @@ export function TrimbleFieldPanel() {
   };
 
   const handleIncident = () => {
+    // Si la incidencia invalida la pasada, exigimos confirmación previa
+    // y encadenamos invalidateTrimbleRun. Si no hay pasada activa,
+    // registramos la incidencia pero avisamos: no hay nada que invalidar.
+    if (incInvalidates && activeRun) {
+      if (!confirm('Esta incidencia invalidará la pasada actual. Las capturas abiertas pasarán a "repetir". ¿Continuar?')) {
+        return;
+      }
+    }
     const r = recordTrimbleIncident({
       category: incCat,
       severity: incSev,
@@ -167,8 +175,24 @@ export function TrimbleFieldPanel() {
       segmentId: activeCapture?.segmentId ?? null,
       invalidatesRun: incInvalidates,
     });
-    if (r.ok) toast.success('Incidencia Trimble registrada.');
-    else toast.error(r.reason || 'No se pudo registrar.');
+    if (!r.ok) {
+      toast.error(r.reason || 'No se pudo registrar.');
+      return;
+    }
+    if (incInvalidates) {
+      if (activeRun) {
+        const inv = invalidateTrimbleRun(incNote || incCat);
+        if (inv.ok) {
+          toast.success('Incidencia registrada y pasada invalidada.');
+        } else {
+          toast.error(inv.reason || 'Incidencia registrada, pero no se pudo invalidar la pasada.');
+        }
+      } else {
+        toast.warning('Incidencia registrada. No hay pasada activa que invalidar.');
+      }
+    } else {
+      toast.success('Incidencia Trimble registrada.');
+    }
     setIncNote('');
     setIncInvalidates(false);
   };
