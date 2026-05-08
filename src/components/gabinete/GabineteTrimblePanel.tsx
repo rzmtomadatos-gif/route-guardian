@@ -98,10 +98,10 @@ export function GabineteTrimblePanel() {
   const [delivDialog, setDelivDialog] = useState<DelivDialogState | null>(null);
   const [missionFilter, setMissionFilter] = useState<string>('all');
 
-  const trimbleMissions = state.trimbleMissions ?? [];
-  const trimbleRuns = state.trimbleRuns ?? [];
-  const trimbleSegmentCaptures = state.trimbleSegmentCaptures ?? [];
-  const trimbleDeliverables = state.trimbleDeliverables ?? [];
+  const trimbleMissions = trimbleMissions ?? [];
+  const trimbleRuns = trimbleRuns ?? [];
+  const trimbleSegmentCaptures = trimbleSegmentCaptures ?? [];
+  const trimbleDeliverables = trimbleDeliverables ?? [];
 
   const captures = useMemo(() => {
     let list = trimbleSegmentCaptures;
@@ -145,7 +145,7 @@ export function GabineteTrimblePanel() {
     setDelivDialog(null);
   };
 
-  if (state.trimbleMissions.length === 0) {
+  if (trimbleMissions.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/60 py-12 text-center text-xs text-muted-foreground">
         No hay datos Trimble en esta campaña.
@@ -153,7 +153,7 @@ export function GabineteTrimblePanel() {
     );
   }
 
-  const missions = [...state.trimbleMissions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const missions = [...trimbleMissions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 
   return (
     <div className="space-y-4">
@@ -172,7 +172,7 @@ export function GabineteTrimblePanel() {
           </SelectContent>
         </Select>
         <span className="text-[11px] text-muted-foreground ml-auto">
-          {captures.length} captura{captures.length === 1 ? '' : 's'} · {state.trimbleDeliverables.length} entregable{state.trimbleDeliverables.length === 1 ? '' : 's'}
+          {captures.length} captura{captures.length === 1 ? '' : 's'} · {trimbleDeliverables.length} entregable{trimbleDeliverables.length === 1 ? '' : 's'}
         </span>
       </div>
 
@@ -194,7 +194,7 @@ export function GabineteTrimblePanel() {
               <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin capturas para el filtro.</td></tr>
             )}
             {captures.map((c) => {
-              const run = state.trimbleRuns.find((r) => r.id === c.runId);
+              const run = trimbleRuns.find((r) => r.id === c.runId);
               const QaIcon = c.qaStatus ? QA_ICON[c.qaStatus] : null;
               return (
                 <tr key={c.id} className="border-t border-border">
@@ -289,10 +289,10 @@ export function GabineteTrimblePanel() {
               </tr>
             </thead>
             <tbody>
-              {state.trimbleDeliverables.length === 0 && (
+              {trimbleDeliverables.length === 0 && (
                 <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin entregables.</td></tr>
               )}
-              {state.trimbleDeliverables.map((d) => (
+              {trimbleDeliverables.map((d) => (
                 <tr key={d.id} className="border-t border-border">
                   <td className="px-2 py-2 whitespace-nowrap">{new Date(d.uploadedAt).toLocaleString('es-ES')}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{d.kind}</td>
