@@ -11,6 +11,7 @@
  * - Incident categories and impacts use the real enums from route.ts.
  */
 import { z } from 'zod';
+import { EVENT_TYPES } from './types';
 
 const MAX_SEGMENTS = 50_000;
 const MAX_EVENTS = 500_000;
