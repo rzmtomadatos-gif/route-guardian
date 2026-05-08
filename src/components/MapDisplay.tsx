@@ -4,7 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 import {
@@ -59,6 +60,8 @@ interface Props {
   searchCenterRequest?: number;
   /** Solicitud de refresco manual del mapa (ver GoogleMapDisplay). */
   mapRefreshRequest?: number;
+  /** Modo Trimble: si se provee, sobreescribe el color del tramo por estado Trimble. */
+  trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -112,6 +115,7 @@ export function MapDisplay({
   searchTargetBounds,
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
+  trimbleStatusBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
