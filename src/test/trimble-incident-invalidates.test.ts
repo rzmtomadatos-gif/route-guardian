@@ -1,16 +1,10 @@
 /**
  * Test: incidencia con invalidatesRun=true encadenada con invalidateTrimbleRun.
  *
- * Reproduce el flujo de UI de TrimbleFieldPanel a nivel de acciones:
- *  - abrir misión → pasada → captura
- *  - registrar incidencia bloqueante con invalidatesRun=true
- *  - llamar a invalidateTrimbleRun (lo que hace el handler tras confirmar)
- *
- * Verifica:
- *  - activeRunId queda null
- *  - run marcado invalidated
- *  - captura cerrada con fieldStatus = 'repetir'
- *  - eventLog contiene TRIMBLE_RUN_INVALIDATED
+ * Sigue la convención de trimble-actions.test.ts: NO confiamos en el
+ * valor devuelto por la acción dentro del mismo act() (el outcome
+ * pertenece al updater diferido); inspeccionamos el estado tras el
+ * commit.
  */
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -27,7 +21,7 @@ describe('Trimble — incidencia invalidante encadena invalidateTrimbleRun', () 
     const captureId = result.current.state.trimbleSegmentCaptures[0].id;
 
     act(() => {
-      const r = result.current.recordTrimbleIncident({
+      result.current.recordTrimbleIncident({
         category: 'gnss_perdida',
         severity: 'bloqueante',
         note: 'Pérdida total señal',
@@ -35,12 +29,10 @@ describe('Trimble — incidencia invalidante encadena invalidateTrimbleRun', () 
         segmentId: 'seg-X',
         invalidatesRun: true,
       });
-      expect(r.ok).toBe(true);
     });
-    act(() => {
-      const inv = result.current.invalidateTrimbleRun('Pérdida total señal');
-      expect(inv.ok).toBe(true);
-    });
+    expect(result.current.state.trimbleIncidents.length).toBe(1);
+
+    act(() => { result.current.invalidateTrimbleRun('Pérdida total señal'); });
 
     expect(result.current.state.activeRunId).toBeNull();
     const run = result.current.state.trimbleRuns.find((r) => r.id === runId)!;
@@ -49,19 +41,17 @@ describe('Trimble — incidencia invalidante encadena invalidateTrimbleRun', () 
     const cap = result.current.state.trimbleSegmentCaptures.find((c) => c.id === captureId)!;
     expect(cap.fieldStatus).toBe('repetir');
     expect(cap.endedAt).not.toBeNull();
-
-    // El evento TRIMBLE_RUN_INVALIDATED se persiste vía logEvent → SQLite,
-    // fuera de AppState. Aquí basta con verificar el efecto observable
-    // sobre el estado (run invalidado + captura en repetir).
   });
 
-  it('sin pasada activa, recordTrimbleIncident registra pero invalidateTrimbleRun falla', () => {
+  it('sin pasada activa: la incidencia se registra pero no hay nada que invalidar', () => {
     const { result } = renderHook(() => useRouteState());
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
     act(() => { result.current.startTrimbleMission({}); });
 
+    expect(result.current.state.activeRunId).toBeNull();
+
     act(() => {
-      const r = result.current.recordTrimbleIncident({
+      result.current.recordTrimbleIncident({
         category: 'otro',
         severity: 'media',
         note: 'sin pasada',
@@ -69,13 +59,11 @@ describe('Trimble — incidencia invalidante encadena invalidateTrimbleRun', () 
         segmentId: null,
         invalidatesRun: true,
       });
-      expect(r.ok).toBe(true);
-    });
-    act(() => {
-      const inv = result.current.invalidateTrimbleRun('sin pasada');
-      expect(inv.ok).toBe(false);
-      expect(inv.reason).toMatch(/pasada/i);
     });
     expect(result.current.state.trimbleIncidents.length).toBe(1);
+
+    // invalidateTrimbleRun debe ser no-op (no hay activeRunId).
+    act(() => { result.current.invalidateTrimbleRun('sin pasada'); });
+    expect(result.current.state.trimbleRuns.every((r) => !r.invalidated)).toBe(true);
   });
 });
