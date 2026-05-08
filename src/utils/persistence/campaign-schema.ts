@@ -162,7 +162,7 @@ const appStateSchema = z.object({
   trackSession: trackSessionSchema.default(null),
   blockEndPrompt: blockEndPromptSchema.default({ isOpen: false, trackNumber: null, reason: 'capacity' }),
   workDay: z.number().int().min(0).default(1),
-  acquisitionMode: z.enum(['RST', 'GARMIN']).default('RST'),
+  acquisitionMode: z.enum(['RST', 'GARMIN', 'TRIMBLE_LIDAR']).default('RST'),
   lastConsumedTrackByDay: z.record(z.string(), z.number().int().min(0))
     .default({})
     .transform((rec) => {
@@ -199,6 +199,18 @@ const appStateSchema = z.object({
       }
       return out;
     }),
+  // ── TRIMBLE_LIDAR collections (defaults para campañas RST/Garmin antiguas) ──
+  trimbleMissions: z.array(z.lazy(() => trimbleMissionSchema)).max(5_000).default([]),
+  trimbleRuns: z.array(z.lazy(() => trimbleRunSchema)).max(50_000).default([]),
+  trimbleSegmentCaptures: z.array(z.lazy(() => trimbleCaptureSchema)).max(100_000).default([]),
+  trimbleIncidents: z.array(z.lazy(() => trimbleIncidentSchema)).max(10_000).default([]),
+  trimbleDeliverables: z.array(z.lazy(() => trimbleDeliverableSchema)).max(50_000).default([]),
+  trimbleGpsLogsByRun: z.record(
+    z.string(),
+    z.array(z.lazy(() => trimbleGpsPointSchema)).max(100_000),
+  ).default({}),
+  activeMissionId: z.string().nullable().default(null),
+  activeRunId: z.string().nullable().default(null),
 }).strict();
 
 const trackGpsPointSchema = z.object({
@@ -215,7 +227,111 @@ const trackGpsPointSchema = z.object({
   source: z.literal('gps'),
 }).strict();
 
-// ── Event Log — real EventType enum ──
+// ── Trimble (dominio paralelo, fase 1) ───────────────────────────────────
+const trimbleFieldStatusEnum = z.enum([
+  'en_captura', 'capturado_pendiente_proceso', 'repetir', 'no_capturable',
+]);
+const trimbleQaStatusEnum = z.enum([
+  'procesado_ok', 'procesado_con_observaciones', 'descartado_por_calidad',
+]);
+
+const trimbleMissionSchema = z.object({
+  id: z.string().min(1).max(100),
+  workDay: z.number().int().min(0),
+  startedAt: isoDateString,
+  endedAt: isoDateString.nullable(),
+  vehicle: z.string().max(200).optional(),
+  sensorRig: z.string().max(200).optional(),
+  operator: z.string().max(200).optional(),
+  weather: z.string().max(500).optional(),
+  notes: z.string().max(2000).optional(),
+  closedReason: z.enum(['manual', 'fin_jornada', 'incidencia']).optional(),
+}).strict();
+
+const trimbleRunSchema = z.object({
+  id: z.string().min(1).max(100),
+  missionId: z.string().min(1).max(100),
+  index: z.number().int().min(0),
+  direction: z.enum(['ida', 'vuelta', 'otro']).optional(),
+  startedAt: isoDateString,
+  endedAt: isoDateString.nullable(),
+  startPosition: latLngSchema.optional(),
+  endPosition: latLngSchema.optional(),
+  notes: z.string().max(2000).optional(),
+  invalidated: z.boolean().optional(),
+}).strict();
+
+const trimbleCaptureSchema = z.object({
+  id: z.string().min(1).max(100),
+  segmentId: z.string().min(1).max(100),
+  runId: z.string().min(1).max(100),
+  missionId: z.string().min(1).max(100),
+  startedAt: isoDateString,
+  endedAt: isoDateString.nullable(),
+  startPosition: latLngSchema.optional(),
+  endPosition: latLngSchema.optional(),
+  fieldStatus: trimbleFieldStatusEnum,
+  fieldNotes: z.string().max(2000).optional(),
+  qaStatus: trimbleQaStatusEnum.nullable(),
+  qaNotes: z.string().max(2000).optional(),
+  qaReviewedBy: z.string().max(200).optional(),
+  qaReviewedAt: isoDateString.optional(),
+}).strict();
+
+const trimbleIncidentCategoryEnum = z.enum([
+  'gnss_perdida', 'imu_drift', 'oclusion_severa', 'fallo_sensor',
+  'fallo_almacenamiento', 'trafico_extremo', 'climatologia',
+  'acceso_imposible', 'otro',
+]);
+
+const trimbleIncidentSchema = z.object({
+  id: z.string().min(1).max(100),
+  missionId: z.string().min(1).max(100),
+  runId: z.string().min(1).max(100).nullable().optional(),
+  segmentId: z.string().min(1).max(100).nullable().optional(),
+  category: trimbleIncidentCategoryEnum,
+  severity: z.enum(['baja', 'media', 'alta', 'bloqueante']),
+  note: z.string().max(2000).optional(),
+  timestamp: isoDateString,
+  location: latLngSchema.optional(),
+  invalidatesRun: z.boolean().optional(),
+}).strict();
+
+const trimbleDeliverableSchema = z.object({
+  id: z.string().min(1).max(100),
+  kind: z.enum([
+    'trayectoria', 'nube_puntos', 'imagenes', 'ortho_lane',
+    'informe_qa', 'informe_pci_iri', 'csv', 'shp', 'kmz', 'pdf',
+    'las', 'tmx', 'otro',
+  ]),
+  missionId: z.string().min(1).max(100).nullable().optional(),
+  runId: z.string().min(1).max(100).nullable().optional(),
+  segmentId: z.string().min(1).max(100).nullable().optional(),
+  reference: z.string().min(1).max(2000),
+  fileName: z.string().max(500).optional(),
+  sizeBytes: z.number().int().min(0).optional(),
+  hash: z.string().max(200).optional(),
+  uploadedBy: z.string().max(200).optional(),
+  uploadedAt: isoDateString,
+  notes: z.string().max(2000).optional(),
+}).strict();
+
+const trimbleGpsPointSchema = z.object({
+  timestamp: isoDateString,
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().nullable().optional(),
+  speed: z.number().nullable().optional(),
+  heading: z.number().nullable().optional(),
+  missionId: z.string().min(1).max(100),
+  runId: z.string().min(1).max(100),
+  phase: z.enum(['transport', 'capture']),
+  segmentId: z.string().nullable().optional(),
+  source: z.literal('gps'),
+}).strict();
+
+// ── Event Log — debe estar 1:1 con EventType en src/utils/persistence/types.ts ──
+// Test src/test/trimble-event-type-alignment.test.ts garantiza la paridad estricta.
 const eventTypeEnum = z.enum([
   'CAMPAIGN_CREATED',
   'CAMPAIGN_IMPORTED',
@@ -240,7 +356,25 @@ const eventTypeEnum = z.enum([
   'NAV_STATE_CHANGED',
   'SEGMENT_CORRECTION_APPLIED',
   'SEGMENT_CORRECTION_REVERTED',
+  'SEGMENT_REACTIVATED_FOR_FIELD',
+  'SEGMENT_DUPLICATED',
   'MIGRATION_FROM_LOCALSTORAGE',
+  // Trimble (fase 1)
+  'TRIMBLE_MISSION_STARTED',
+  'TRIMBLE_MISSION_CLOSED',
+  'TRIMBLE_RUN_STARTED',
+  'TRIMBLE_RUN_CLOSED',
+  'TRIMBLE_RUN_INVALIDATED',
+  'TRIMBLE_CAPTURE_STARTED',
+  'TRIMBLE_CAPTURE_CLOSED',
+  'TRIMBLE_CAPTURE_MARKED_PENDING_PROCESS',
+  'TRIMBLE_CAPTURE_MARKED_REPEAT',
+  'TRIMBLE_CAPTURE_MARKED_NON_CAPTURABLE',
+  'TRIMBLE_INCIDENT_RECORDED',
+  'TRIMBLE_DELIVERABLE_LINKED',
+  'TRIMBLE_DELIVERABLE_UNLINKED',
+  'TRIMBLE_QA_STATUS_SET',
+  'TRIMBLE_MODE_ACTIVATED',
 ]);
 
 const correctableFieldEnum = z.enum([
