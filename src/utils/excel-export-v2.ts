@@ -1234,6 +1234,76 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
   });
   sh11.autoFilter = { from: { row: 2, column: 1 }, to: { row: attempts.length + 2, column: headers11.length } };
 
+  // ───────── Hojas TRIMBLE (sólo si hay datos) ─────────
+  // Aislamiento estricto: si no hay misiones Trimble, NO se añade ninguna
+  // hoja extra. RST/Garmin no se ven afectados.
+  const tr = ctx.trimble;
+  if (tr && tr.missions.length > 0) {
+    const segNameById = new Map<string, string>();
+    route.segments.forEach((s) => segNameById.set(s.id, s.companySegmentId ? `${s.companySegmentId} · ${s.name}` : s.name));
+
+    // 12_TRIMBLE_MISIONES
+    const tm = wb.addWorksheet('12_TRIMBLE_MISIONES', { views: [{ showGridLines: false }] });
+    setHeaders(tm, ['ID', 'DIA', 'INICIO', 'FIN', 'OPERADOR', 'VEHICULO', 'EQUIPO', 'CLIMA', 'CIERRE', 'NOTAS'],
+      [22, 6, 18, 18, 18, 18, 18, 14, 14, 40]);
+    tr.missions.forEach((m, i) => {
+      tm.getRow(i + 2).values = [
+        m.id, m.workDay, fmtDate(m.startedAt), fmtDate(m.endedAt),
+        safe(m.operator), safe(m.vehicle), safe(m.sensorRig), safe(m.weather),
+        safe(m.closedReason), safe(m.notes),
+      ];
+    });
+
+    // 13_TRIMBLE_PASADAS
+    const tp = wb.addWorksheet('13_TRIMBLE_PASADAS', { views: [{ showGridLines: false }] });
+    setHeaders(tp, ['ID', 'MISION', 'INDICE', 'SENTIDO', 'INICIO', 'FIN', 'INVALIDADA', 'NOTAS'],
+      [22, 22, 8, 10, 18, 18, 12, 40]);
+    tr.runs.forEach((r, i) => {
+      tp.getRow(i + 2).values = [
+        r.id, r.missionId, r.index, safe(r.direction),
+        fmtDate(r.startedAt), fmtDate(r.endedAt),
+        r.invalidated ? 'SI' : 'NO', safe(r.notes),
+      ];
+    });
+
+    // 14_TRIMBLE_CAPTURAS
+    const tc = wb.addWorksheet('14_TRIMBLE_CAPTURAS', { views: [{ showGridLines: false }] });
+    setHeaders(tc, ['ID', 'TRAMO', 'PASADA', 'MISION', 'INICIO', 'FIN', 'ESTADO_CAMPO', 'QA', 'QA_REVISADO_POR', 'QA_FECHA', 'NOTAS_CAMPO', 'NOTAS_QA'],
+      [22, 28, 22, 22, 18, 18, 22, 22, 18, 18, 30, 30]);
+    tr.captures.forEach((c, i) => {
+      tc.getRow(i + 2).values = [
+        c.id, segNameById.get(c.segmentId) ?? c.segmentId, c.runId, c.missionId,
+        fmtDate(c.startedAt), fmtDate(c.endedAt),
+        c.fieldStatus, safe(c.qaStatus), safe(c.qaReviewedBy), fmtDate(c.qaReviewedAt),
+        safe(c.fieldNotes), safe(c.qaNotes),
+      ];
+    });
+
+    // 15_TRIMBLE_INCIDENCIAS
+    const ti = wb.addWorksheet('15_TRIMBLE_INCIDENCIAS', { views: [{ showGridLines: false }] });
+    setHeaders(ti, ['ID', 'FECHA', 'MISION', 'PASADA', 'TRAMO', 'CATEGORIA', 'SEVERIDAD', 'INVALIDA_PASADA', 'NOTA'],
+      [22, 18, 22, 22, 28, 18, 12, 14, 40]);
+    tr.incidents.forEach((it, i) => {
+      ti.getRow(i + 2).values = [
+        it.id, fmtDate(it.timestamp), it.missionId, safe(it.runId),
+        it.segmentId ? (segNameById.get(it.segmentId) ?? it.segmentId) : NA,
+        it.category, it.severity, it.invalidatesRun ? 'SI' : 'NO', safe(it.note),
+      ];
+    });
+
+    // 16_TRIMBLE_ENTREGABLES
+    const td = wb.addWorksheet('16_TRIMBLE_ENTREGABLES', { views: [{ showGridLines: false }] });
+    setHeaders(td, ['ID', 'SUBIDO', 'TIPO', 'REFERENCIA', 'ARCHIVO', 'TRAMO', 'PASADA', 'MISION', 'SUBIDO_POR', 'NOTAS'],
+      [22, 18, 16, 50, 24, 28, 22, 22, 18, 30]);
+    tr.deliverables.forEach((d, i) => {
+      td.getRow(i + 2).values = [
+        d.id, fmtDate(d.uploadedAt), d.kind, d.reference, safe(d.fileName),
+        d.segmentId ? (segNameById.get(d.segmentId) ?? d.segmentId) : NA,
+        safe(d.runId), safe(d.missionId), safe(d.uploadedBy), safe(d.notes),
+      ];
+    });
+  }
+
   return { wb, applied, skipped, scopedCorrections, findings };
 }
 
@@ -1293,6 +1363,8 @@ export async function exportRouteToExcelV2(
     segmentCorrections?: SegmentCorrection[];
     /** Logs GPS reales por jornada y track. Necesario para distancias acumuladas reales. */
     trackGpsLogsByDay?: Record<number, Record<number, TrackGpsPoint[]>>;
+    /** Datos Trimble (misiones, pasadas, capturas, incidencias, entregables). */
+    trimble?: TrimbleData;
   },
 ): Promise<ExportV2Result> {
   const ctx: ExportContext = {
@@ -1303,6 +1375,7 @@ export async function exportRouteToExcelV2(
     selectedIds: options?.selectedIds,
     segmentCorrections: options?.segmentCorrections || [],
     trackGpsLogsByDay: options?.trackGpsLogsByDay,
+    trimble: options?.trimble,
   };
 
   const { wb, applied, skipped, scopedCorrections, findings } = await buildWorkbook(ctx, rstMode);
