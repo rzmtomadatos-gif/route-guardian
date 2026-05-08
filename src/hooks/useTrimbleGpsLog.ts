@@ -88,8 +88,15 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
       source: 'gps',
     };
 
-    lastByRunRef.current.set(activeRunId, { lat: pos.lat, lng: pos.lng });
-    appendTrimbleGpsPoint(point);
+    // Importante: solo actualizamos la caché local DESPUÉS de confirmar
+    // que el append se ha aceptado. Si appendTrimbleGpsPoint rechaza el
+    // punto (p.ej. límite de 100k por run), la caché debe quedar igual
+    // para no divergir del estado real persistido.
+    const result = appendTrimbleGpsPoint(point);
+    if (result.ok) {
+      lastByRunRef.current.set(activeRunId, { lat: pos.lat, lng: pos.lng });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo.position]);
 }
+
