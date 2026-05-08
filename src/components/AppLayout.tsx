@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Upload, Map, List, Settings, X, WifiOff, ClipboardEdit } from 'lucide-react';
+import { Upload, Map, List, Settings, X, WifiOff, ClipboardEdit, Radar } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useRouteStateContext } from '@/context/RouteStateContext';
 
 const baseNavItems = [
   { to: '/', icon: Upload, label: 'Cargar' },
@@ -11,6 +12,7 @@ const baseNavItems = [
 ];
 
 const gabineteNavItem = { to: '/gabinete', icon: ClipboardEdit, label: 'Gabinete' };
+const trimbleNavItem = { to: '/trimble', icon: Radar, label: 'Trimble' };
 
 interface Props {
   children: React.ReactNode;
@@ -22,11 +24,15 @@ export function AppLayout({ children, selectedCount = 0, onClearSelection }: Pro
   const location = useLocation();
   const { isOfflineMode } = useAuth();
   const { canViewGabinete, loading: roleLoading } = useUserRole();
+  const { state } = useRouteStateContext();
+
+  const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
 
   // Mostrar la tab Gabinete solo cuando el rol está confirmado (evita flash a operator).
-  const navItems = !roleLoading && canViewGabinete
-    ? [...baseNavItems, gabineteNavItem]
-    : baseNavItems;
+  // Tab Trimble visible sólo en modo TRIMBLE_LIDAR para no contaminar UI RST/Garmin.
+  let navItems = baseNavItems;
+  if (isTrimbleMode) navItems = [...navItems, trimbleNavItem];
+  if (!roleLoading && canViewGabinete) navItems = [...navItems, gabineteNavItem];
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">

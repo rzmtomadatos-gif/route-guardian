@@ -2,7 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon, Building2, Briefcase, UserCheck, FileSpreadsheet } from 'lucide-react';
+import { Trash2, Info, Key, Check, Eye, EyeOff, X, Loader2, CheckCircle, XCircle, User, Car, Cloud, Hash, Download, Upload, FileOutput, LogOut, Shield, Sun, Moon, MapIcon, Building2, Briefcase, UserCheck, FileSpreadsheet, Radio } from 'lucide-react';
+import { AcquisitionModeSelector } from '@/components/trimble/AcquisitionModeSelector';
 import { OfflineMapsManager } from '@/components/OfflineMapsManager';
 import { AboutSection } from '@/components/AboutSection';
 import { AllowedEmailsManager } from '@/components/AllowedEmailsManager';
@@ -342,6 +343,17 @@ export default function SettingsPage({ onClear, hasRoute, route, state, isDirty,
             <p className="text-[10px] text-muted-foreground">
               Al cambiar de tema, la caché offline se reconstruirá con las nuevas teselas al navegar con conexión.
             </p>
+          </div>
+        </div>
+
+        {/* Acquisition mode */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Radio className="w-4 h-4" />
+            <span className="text-sm font-medium">Modo de adquisición</span>
+          </div>
+          <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+            <AcquisitionModeSelector />
           </div>
         </div>
 

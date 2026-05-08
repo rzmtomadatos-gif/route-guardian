@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, ShieldOff, ClipboardEdit, Map as MapIcon, List } from 'lucide-react';
+import { Search, ShieldOff, ClipboardEdit, Map as MapIcon, List, Radar } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSegmentCorrections } from '@/hooks/useSegmentCorrections';
 import type { AppState, Segment, SegmentStatus } from '@/types/route';
@@ -27,6 +27,7 @@ import { GabineteSegmentsTable } from '@/components/gabinete/GabineteSegmentsTab
 import { GabineteSegmentDetailDialog } from '@/components/gabinete/GabineteSegmentDetailDialog';
 import { GpsTracksTable } from '@/components/gabinete/GpsTracksTable';
 import { GpsTrackDetailDialog } from '@/components/gabinete/GpsTrackDetailDialog';
+import { GabineteTrimblePanel } from '@/components/gabinete/GabineteTrimblePanel';
 import {
   getTrackPoints,
   listAvailableDays,
@@ -162,7 +163,7 @@ export default function GabinetePage({ state, onReactivateSegment, currentWorkDa
       </div>
 
       <Tabs defaultValue="segments" className="w-full">
-        <TabsList className="grid grid-cols-2 w-full sm:w-auto sm:inline-grid">
+        <TabsList className="grid grid-cols-3 w-full sm:w-auto sm:inline-grid">
           <TabsTrigger value="segments" className="text-xs gap-1.5">
             <List className="w-3.5 h-3.5" />
             Tramos
@@ -173,6 +174,15 @@ export default function GabinetePage({ state, onReactivateSegment, currentWorkDa
             {gpsDays.length > 0 && (
               <span className="ml-1 text-[10px] text-muted-foreground">
                 ({gpsDays.length}d)
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="trimble" className="text-xs gap-1.5">
+            <Radar className="w-3.5 h-3.5" />
+            Trimble
+            {state.trimbleSegmentCaptures.length > 0 && (
+              <span className="ml-1 text-[10px] text-muted-foreground">
+                ({state.trimbleSegmentCaptures.length})
               </span>
             )}
           </TabsTrigger>
@@ -283,6 +293,11 @@ export default function GabinetePage({ state, onReactivateSegment, currentWorkDa
               )}
             </>
           )}
+        </TabsContent>
+
+        {/* ---------- Sub-vista TRIMBLE ---------- */}
+        <TabsContent value="trimble" className="space-y-3 mt-3">
+          <GabineteTrimblePanel />
         </TabsContent>
       </Tabs>
 

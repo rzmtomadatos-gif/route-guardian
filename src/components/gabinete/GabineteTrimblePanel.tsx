@@ -1,0 +1,410 @@
+/**
+ * Panel gabinete Trimble.
+ *
+ * Tabla de capturas con acciones SOLO de gabinete:
+ *  - Fijar QA (procesado_ok / con_observaciones / descartado).
+ *  - Vincular / desvincular entregables externos (URL/NAS, NUNCA binarios).
+ *
+ * El campo nunca cambia QA y gabinete nunca cambia fieldStatus aquí.
+ */
+import { useMemo, useState } from 'react';
+import { useRouteStateContext } from '@/context/RouteStateContext';
+import type { TrimbleQaStatus, TrimbleDeliverable, TrimbleDeliverableKind, SegmentCapture } from '@/types/trimble';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { CheckCircle, AlertCircle, XCircle, Link2, Trash2, ClipboardCheck } from 'lucide-react';
+import { toast } from 'sonner';
+
+const FIELD_LABELS: Record<string, string> = {
+  en_captura: 'En captura',
+  capturado_pendiente_proceso: 'Capturado · pdte. proceso',
+  repetir: 'Repetir',
+  no_capturable: 'No capturable',
+};
+
+const QA_LABELS: Record<TrimbleQaStatus, string> = {
+  procesado_ok: 'OK',
+  procesado_con_observaciones: 'Con observaciones',
+  descartado_por_calidad: 'Descartado',
+};
+
+const QA_ICON: Record<TrimbleQaStatus, typeof CheckCircle> = {
+  procesado_ok: CheckCircle,
+  procesado_con_observaciones: AlertCircle,
+  descartado_por_calidad: XCircle,
+};
+
+const QA_COLOR: Record<TrimbleQaStatus, string> = {
+  procesado_ok: 'text-emerald-500',
+  procesado_con_observaciones: 'text-amber-500',
+  descartado_por_calidad: 'text-destructive',
+};
+
+const DELIVERABLE_KINDS: { value: TrimbleDeliverableKind; label: string }[] = [
+  { value: 'trayectoria', label: 'Trayectoria' },
+  { value: 'nube_puntos', label: 'Nube de puntos' },
+  { value: 'imagenes', label: 'Imágenes' },
+  { value: 'ortho_lane', label: 'Ortho lane' },
+  { value: 'informe_qa', label: 'Informe QA' },
+  { value: 'informe_pci_iri', label: 'Informe PCI/IRI' },
+  { value: 'csv', label: 'CSV' },
+  { value: 'shp', label: 'SHP' },
+  { value: 'kmz', label: 'KMZ' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'las', label: 'LAS' },
+  { value: 'tmx', label: 'TMX' },
+  { value: 'otro', label: 'Otro' },
+];
+
+interface QaDialogState {
+  capture: SegmentCapture;
+  qa: TrimbleQaStatus;
+  reviewedBy: string;
+  notes: string;
+}
+
+interface DelivDialogState {
+  scope: 'capture' | 'mission' | 'run';
+  segmentId?: string | null;
+  runId?: string | null;
+  missionId?: string | null;
+  kind: TrimbleDeliverableKind;
+  reference: string;
+  fileName: string;
+  notes: string;
+  uploadedBy: string;
+}
+
+export function GabineteTrimblePanel() {
+  const {
+    state,
+    setTrimbleQaStatus, linkTrimbleDeliverable, unlinkTrimbleDeliverable,
+  } = useRouteStateContext();
+
+  const segById = useMemo(() => {
+    const m = new Map<string, string>();
+    state.route?.segments.forEach((s) => {
+      m.set(s.id, s.companySegmentId ? `${s.companySegmentId} · ${s.name}` : s.name);
+    });
+    return m;
+  }, [state.route]);
+
+  const [qaDialog, setQaDialog] = useState<QaDialogState | null>(null);
+  const [delivDialog, setDelivDialog] = useState<DelivDialogState | null>(null);
+  const [missionFilter, setMissionFilter] = useState<string>('all');
+
+  const captures = useMemo(() => {
+    let list = state.trimbleSegmentCaptures;
+    if (missionFilter !== 'all') list = list.filter((c) => c.missionId === missionFilter);
+    return [...list].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  }, [state.trimbleSegmentCaptures, missionFilter]);
+
+  const handleSaveQa = () => {
+    if (!qaDialog) return;
+    if (!qaDialog.reviewedBy.trim()) {
+      toast.error('Indica quién revisa.');
+      return;
+    }
+    const r = setTrimbleQaStatus(qaDialog.capture.id, qaDialog.qa, {
+      reviewedBy: qaDialog.reviewedBy.trim(),
+      notes: qaDialog.notes || undefined,
+    });
+    if (r.ok) toast.success(`QA fijado: ${QA_LABELS[qaDialog.qa]}`);
+    else toast.error(r.reason || 'No se pudo guardar.');
+    setQaDialog(null);
+  };
+
+  const handleSaveDeliv = () => {
+    if (!delivDialog) return;
+    if (!delivDialog.reference.trim()) {
+      toast.error('Referencia obligatoria (URL o ruta NAS).');
+      return;
+    }
+    const r = linkTrimbleDeliverable({
+      kind: delivDialog.kind,
+      missionId: delivDialog.missionId ?? null,
+      runId: delivDialog.runId ?? null,
+      segmentId: delivDialog.segmentId ?? null,
+      reference: delivDialog.reference.trim(),
+      fileName: delivDialog.fileName.trim() || undefined,
+      notes: delivDialog.notes.trim() || undefined,
+      uploadedBy: delivDialog.uploadedBy.trim() || undefined,
+    });
+    if (r.ok) toast.success('Entregable vinculado.');
+    else toast.error(r.reason || 'No se pudo vincular.');
+    setDelivDialog(null);
+  };
+
+  if (state.trimbleMissions.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-border/60 py-12 text-center text-xs text-muted-foreground">
+        No hay datos Trimble en esta campaña.
+      </div>
+    );
+  }
+
+  const missions = [...state.trimbleMissions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros + KPIs */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={missionFilter} onValueChange={setMissionFilter}>
+          <SelectTrigger className="h-9 text-sm w-64"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las misiones</SelectItem>
+            {missions.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                Día {m.workDay} · {new Date(m.startedAt).toLocaleString('es-ES')}
+                {m.endedAt ? '' : ' · abierta'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-[11px] text-muted-foreground ml-auto">
+          {captures.length} captura{captures.length === 1 ? '' : 's'} · {state.trimbleDeliverables.length} entregable{state.trimbleDeliverables.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      {/* Tabla capturas */}
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/40">
+            <tr className="text-left">
+              <th className="px-2 py-2 font-medium">Inicio</th>
+              <th className="px-2 py-2 font-medium">Tramo</th>
+              <th className="px-2 py-2 font-medium">Pasada</th>
+              <th className="px-2 py-2 font-medium">Estado campo</th>
+              <th className="px-2 py-2 font-medium">QA</th>
+              <th className="px-2 py-2 font-medium text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {captures.length === 0 && (
+              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin capturas para el filtro.</td></tr>
+            )}
+            {captures.map((c) => {
+              const run = state.trimbleRuns.find((r) => r.id === c.runId);
+              const QaIcon = c.qaStatus ? QA_ICON[c.qaStatus] : null;
+              return (
+                <tr key={c.id} className="border-t border-border">
+                  <td className="px-2 py-2 whitespace-nowrap">{new Date(c.startedAt).toLocaleString('es-ES')}</td>
+                  <td className="px-2 py-2">{segById.get(c.segmentId) ?? c.segmentId}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">#{run?.index ?? '?'} {run?.direction ?? ''}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{FIELD_LABELS[c.fieldStatus] ?? c.fieldStatus}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    {c.qaStatus && QaIcon ? (
+                      <span className={`inline-flex items-center gap-1 ${QA_COLOR[c.qaStatus]}`}>
+                        <QaIcon className="w-3.5 h-3.5" />
+                        {QA_LABELS[c.qaStatus]}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 mr-1"
+                      onClick={() => setQaDialog({
+                        capture: c,
+                        qa: c.qaStatus ?? 'procesado_ok',
+                        reviewedBy: c.qaReviewedBy ?? '',
+                        notes: c.qaNotes ?? '',
+                      })}
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5 mr-1" />
+                      QA
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={() => setDelivDialog({
+                        scope: 'capture',
+                        segmentId: c.segmentId,
+                        runId: c.runId,
+                        missionId: c.missionId,
+                        kind: 'nube_puntos',
+                        reference: '',
+                        fileName: '',
+                        notes: '',
+                        uploadedBy: '',
+                      })}
+                    >
+                      <Link2 className="w-3.5 h-3.5 mr-1" />
+                      Entregable
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Entregables */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold">Entregables vinculados</h3>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={() => setDelivDialog({
+              scope: 'mission',
+              missionId: missionFilter !== 'all' ? missionFilter : (missions[missions.length - 1]?.id ?? null),
+              kind: 'informe_qa',
+              reference: '',
+              fileName: '',
+              notes: '',
+              uploadedBy: '',
+            })}
+          >
+            <Link2 className="w-3.5 h-3.5 mr-1" />
+            Vincular a misión
+          </Button>
+        </div>
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40">
+              <tr className="text-left">
+                <th className="px-2 py-2 font-medium">Subido</th>
+                <th className="px-2 py-2 font-medium">Tipo</th>
+                <th className="px-2 py-2 font-medium">Referencia</th>
+                <th className="px-2 py-2 font-medium">Tramo</th>
+                <th className="px-2 py-2 font-medium">Por</th>
+                <th className="px-2 py-2 font-medium text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.trimbleDeliverables.length === 0 && (
+                <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin entregables.</td></tr>
+              )}
+              {state.trimbleDeliverables.map((d) => (
+                <tr key={d.id} className="border-t border-border">
+                  <td className="px-2 py-2 whitespace-nowrap">{new Date(d.uploadedAt).toLocaleString('es-ES')}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{d.kind}</td>
+                  <td className="px-2 py-2 break-all max-w-[20rem]">{d.reference}</td>
+                  <td className="px-2 py-2">{d.segmentId ? (segById.get(d.segmentId) ?? d.segmentId) : '—'}</td>
+                  <td className="px-2 py-2">{d.uploadedBy ?? '—'}</td>
+                  <td className="px-2 py-2 text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 border-destructive/40 text-destructive hover:bg-destructive/10"
+                      onClick={() => {
+                        if (!confirm('¿Desvincular entregable?')) return;
+                        const r = unlinkTrimbleDeliverable(d.id);
+                        if (r.ok) toast.success('Desvinculado.');
+                        else toast.error(r.reason || 'No se pudo.');
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Diálogo QA */}
+      <Dialog open={qaDialog !== null} onOpenChange={(o) => { if (!o) setQaDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fijar QA</DialogTitle>
+          </DialogHeader>
+          {qaDialog && (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">
+                Tramo: <span className="text-foreground font-medium">{segById.get(qaDialog.capture.segmentId) ?? qaDialog.capture.segmentId}</span>
+              </div>
+              <Select value={qaDialog.qa} onValueChange={(v) => setQaDialog({ ...qaDialog, qa: v as TrimbleQaStatus })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="procesado_ok">Procesado OK</SelectItem>
+                  <SelectItem value="procesado_con_observaciones">Procesado con observaciones</SelectItem>
+                  <SelectItem value="descartado_por_calidad">Descartado por calidad</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Revisado por (nombre)"
+                value={qaDialog.reviewedBy}
+                onChange={(e) => setQaDialog({ ...qaDialog, reviewedBy: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <Textarea
+                placeholder="Notas de QA"
+                value={qaDialog.notes}
+                onChange={(e) => setQaDialog({ ...qaDialog, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQaDialog(null)}>Cancelar</Button>
+            <Button onClick={handleSaveQa}>Guardar QA</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo Entregable */}
+      <Dialog open={delivDialog !== null} onOpenChange={(o) => { if (!o) setDelivDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular entregable</DialogTitle>
+          </DialogHeader>
+          {delivDialog && (
+            <div className="space-y-3">
+              <Select value={delivDialog.kind} onValueChange={(v) => setDelivDialog({ ...delivDialog, kind: v as TrimbleDeliverableKind })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DELIVERABLE_KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Referencia (URL, ruta NAS, ID externo) — NUNCA un binario"
+                value={delivDialog.reference}
+                onChange={(e) => setDelivDialog({ ...delivDialog, reference: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <Input
+                placeholder="Nombre archivo (opcional)"
+                value={delivDialog.fileName}
+                onChange={(e) => setDelivDialog({ ...delivDialog, fileName: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <Input
+                placeholder="Subido por"
+                value={delivDialog.uploadedBy}
+                onChange={(e) => setDelivDialog({ ...delivDialog, uploadedBy: e.target.value })}
+                className="h-9 text-sm"
+              />
+              <Textarea
+                placeholder="Notas"
+                value={delivDialog.notes}
+                onChange={(e) => setDelivDialog({ ...delivDialog, notes: e.target.value })}
+                rows={2}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Los entregables son referencias externas: la nube de puntos no se almacena en VialRoute.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDelivDialog(null)}>Cancelar</Button>
+            <Button onClick={handleSaveDeliv}>Vincular</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
