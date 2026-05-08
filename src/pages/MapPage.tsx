@@ -1346,8 +1346,9 @@ export default function MapPage({
           searchTargetLocation={searchTargetLocation}
           searchTargetBounds={searchTargetBounds}
           searchCenterRequest={searchCenterRequest}
-          mapRefreshRequest={mapRefreshRequest} />
-        
+          mapRefreshRequest={mapRefreshRequest}
+          trimbleStatusBySegment={trimbleStatusBySegment} />
+
       </div>
 
       {/* Buscador de tramos / lugares — sólo visible al pulsar el atajo (/, Ctrl/Cmd+K) o el FAB Buscar.
