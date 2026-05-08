@@ -151,7 +151,6 @@ export function useCopilotDriver(token: string | null) {
   const [session, setSession] = useState<CopilotSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const parseSession = (raw: any): CopilotSession => ({
     ...raw,
@@ -161,40 +160,32 @@ export function useCopilotDriver(token: string | null) {
   useEffect(() => {
     if (!token) { setLoading(false); return; }
 
-    supabase
-      .rpc('read_copilot_session_by_token', { p_token: token })
-      .then(({ data, error: err }) => {
-        if (err || !data) {
-          setError('Sesión no encontrada');
-          setLoading(false);
-          return;
-        }
-        const raw = typeof data === 'string' ? JSON.parse(data) : data;
-        setSession(parseSession(raw));
-        setLoading(false);
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-        const channel = supabase
-          .channel(`copilot-${raw.id}`)
-          .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'copilot_sessions', filter: `id=eq.${raw.id}` },
-            (payload) => {
-              setSession(prev => {
-                const parsed = parseSession(payload.new);
-                if (!prev) return parsed;
-                return { ...prev, ...parsed, token: prev.token };
-              });
-            }
-          )
-          .subscribe();
-        channelRef.current = channel;
-      });
+    const fetchOnce = async () => {
+      const { data, error: err } = await supabase
+        .rpc('read_copilot_session_by_token', { p_token: token });
+      if (cancelled) return;
+      if (err || !data) {
+        setError('Sesión no encontrada');
+        setLoading(false);
+        return;
+      }
+      const raw = typeof data === 'string' ? JSON.parse(data) : data;
+      const parsed = parseSession(raw);
+      setSession(prev => prev ? { ...prev, ...parsed, token: prev.token } : parsed);
+      setLoading(false);
+    };
+
+    fetchOnce();
+    // Poll every 3s — drivers no longer have direct SELECT on copilot_sessions,
+    // so Realtime postgres_changes is not available for unauthenticated tokens.
+    pollTimer = setInterval(fetchOnce, 3000);
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, [token]);
 

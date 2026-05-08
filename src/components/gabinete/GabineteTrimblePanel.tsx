@@ -98,10 +98,10 @@ export function GabineteTrimblePanel() {
   const [delivDialog, setDelivDialog] = useState<DelivDialogState | null>(null);
   const [missionFilter, setMissionFilter] = useState<string>('all');
 
-  const trimbleMissions = trimbleMissions ?? [];
-  const trimbleRuns = trimbleRuns ?? [];
-  const trimbleSegmentCaptures = trimbleSegmentCaptures ?? [];
-  const trimbleDeliverables = trimbleDeliverables ?? [];
+  const trimbleMissions = state.trimbleMissions ?? [];
+  const trimbleRuns = state.trimbleRuns ?? [];
+  const trimbleSegmentCaptures = state.trimbleSegmentCaptures ?? [];
+  const trimbleDeliverables = state.trimbleDeliverables ?? [];
 
   const captures = useMemo(() => {
     let list = trimbleSegmentCaptures;
