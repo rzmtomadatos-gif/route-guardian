@@ -96,4 +96,7 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
     if (result.ok) {
       lastByRunRef.current.set(activeRunId, { lat: pos.lat, lng: pos.lng });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo.position]);
 }
+
