@@ -331,52 +331,10 @@ const trimbleGpsPointSchema = z.object({
   source: z.literal('gps'),
 }).strict();
 
-// ── Event Log — debe estar 1:1 con EventType en src/utils/persistence/types.ts ──
-// Test src/test/trimble-event-type-alignment.test.ts garantiza la paridad estricta.
-const eventTypeEnum = z.enum([
-  'CAMPAIGN_CREATED',
-  'CAMPAIGN_IMPORTED',
-  'CAMPAIGN_EXPORTED',
-  'ROUTE_LOADED',
-  'TRACK_OPENED',
-  'TRACK_CLOSED',
-  'SEGMENT_STARTED',
-  'SEGMENT_COMPLETED',
-  'SEGMENT_SKIPPED',
-  'SEGMENT_RESET',
-  'SEGMENT_REPEATED',
-  'SEGMENT_CANCELLED',
-  'SEGMENT_STATUS_CHANGED',
-  'INCIDENT_RECORDED',
-  'NAV_STARTED',
-  'NAV_STOPPED',
-  'WORK_DAY_CHANGED',
-  'HW_CONFIRM_F5',
-  'HW_CONFIRM_F7',
-  'HW_CONFIRM_F9',
-  'NAV_STATE_CHANGED',
-  'SEGMENT_CORRECTION_APPLIED',
-  'SEGMENT_CORRECTION_REVERTED',
-  'SEGMENT_REACTIVATED_FOR_FIELD',
-  'SEGMENT_DUPLICATED',
-  'MIGRATION_FROM_LOCALSTORAGE',
-  // Trimble (fase 1)
-  'TRIMBLE_MISSION_STARTED',
-  'TRIMBLE_MISSION_CLOSED',
-  'TRIMBLE_RUN_STARTED',
-  'TRIMBLE_RUN_CLOSED',
-  'TRIMBLE_RUN_INVALIDATED',
-  'TRIMBLE_CAPTURE_STARTED',
-  'TRIMBLE_CAPTURE_CLOSED',
-  'TRIMBLE_CAPTURE_MARKED_PENDING_PROCESS',
-  'TRIMBLE_CAPTURE_MARKED_REPEAT',
-  'TRIMBLE_CAPTURE_MARKED_NON_CAPTURABLE',
-  'TRIMBLE_INCIDENT_RECORDED',
-  'TRIMBLE_DELIVERABLE_LINKED',
-  'TRIMBLE_DELIVERABLE_UNLINKED',
-  'TRIMBLE_QA_STATUS_SET',
-  'TRIMBLE_MODE_ACTIVATED',
-]);
+// ── Event Log — derivado en runtime de EVENT_TYPES (fuente única). ──
+// El test src/test/trimble-event-type-alignment.test.ts valida la paridad
+// estricta sin listas manuales paralelas.
+const eventTypeEnum = z.enum(EVENT_TYPES as unknown as [EventType, ...EventType[]]);
 
 const correctableFieldEnum = z.enum([
   'name', 'notes', 'kmlId', 'companySegmentId', 'direction', 'type',
