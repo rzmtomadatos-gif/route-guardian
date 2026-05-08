@@ -141,9 +141,16 @@ export function MapDisplay({
   // deterministically when the user presses "Refresh map". This avoids
   // depending on ref mutations (which don't trigger re-renders) to force
   // a real repaint of polylines and arrows.
+  const trimbleStatusFingerprint = useMemo(() => {
+    if (!trimbleStatusBySegment || trimbleStatusBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleStatusBySegment.forEach((status, id) => parts.push(`${id}:${status}`));
+    return parts.sort().join(',');
+  }, [trimbleStatusBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
