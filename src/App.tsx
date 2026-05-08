@@ -25,6 +25,7 @@ import { RecoveryDialog } from "@/components/RecoveryDialog";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { RouteStateProvider } from "@/context/RouteStateContext";
 import { TrackGpsLogger } from "@/components/TrackGpsLogger";
+import { TrimbleGpsLogger } from "@/components/TrimbleGpsLogger";
 
 const queryClient = new QueryClient();
 
