@@ -5,7 +5,8 @@ import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 
@@ -74,6 +75,11 @@ interface Props {
    * No mueve el mapa cuando el estado actual es correcto.
    */
   mapRefreshRequest?: number;
+  /**
+   * Modo Trimble: si se provee, sobreescribe el color del tramo por el
+   * estado Trimble derivado. No afecta cuando es undefined o vacío.
+   */
+  trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -149,6 +155,7 @@ export function GoogleMapDisplay({
   searchTargetBounds,
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
+  trimbleStatusBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -324,9 +331,16 @@ export function GoogleMapDisplay({
   // deterministically when the user presses "Refresh map" — this is the
   // only reliable way to force a full repaint of overlays without depending
   // on ref mutations (which don't trigger re-renders) or no-op state updates.
+  const trimbleStatusFingerprint = useMemo(() => {
+    if (!trimbleStatusBySegment || trimbleStatusBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleStatusBySegment.forEach((status, id) => parts.push(`${id}:${status}`));
+    return parts.sort().join(',');
+  }, [trimbleStatusBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
@@ -426,9 +440,11 @@ export function GoogleMapDisplay({
         const isActive = seg.id === activeSegmentId;
         const isSelected = selectedSegmentIds?.has(seg.id);
         const layerColor = seg.color || layerColorMap?.get(seg.id);
-        const color = isSelected
-          ? '#8b5cf6'
+        const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
+        const baseColor = trimbleStatus
+          ? resolveTrimbleSegmentColor(trimbleStatus)
           : resolveSegmentColor(seg, activeSegmentId, layerColor);
+        const color = isSelected ? '#8b5cf6' : baseColor;
 
         const polyline = new google.maps.Polyline({
           path,

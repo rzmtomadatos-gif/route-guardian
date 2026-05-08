@@ -35,6 +35,9 @@ import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 import type { ReactivateOptions } from '@/utils/segment-reactivation';
 import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
+import { TrimbleMapPanel } from '@/components/trimble/TrimbleMapPanel';
+import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -1263,6 +1266,28 @@ export default function MapPage({
     return route.optimizedOrder.filter((id) => visibleIds.has(id));
   }, [route, visibleSegments]);
 
+  // ── Trimble: cola operativa + estado por tramo (solo en TRIMBLE_LIDAR) ──
+  const trimbleOrderIds = useMemo(() => {
+    if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return [];
+    if (activeRouteBlock.length > 0) return activeRouteBlock;
+    if (route?.optimizedOrder.length) return route.optimizedOrder;
+    return route?.segments.map((s) => s.id) ?? [];
+  }, [state.acquisitionMode, activeRouteBlock, route]);
+
+  const visibleSegmentIdSet = useMemo(
+    () => new Set(visibleSegments.map((s) => s.id)),
+    [visibleSegments],
+  );
+
+  const trimbleStatusBySegment = useMemo(() => {
+    if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return null;
+    const map = new Map<string, TrimbleSegmentStatus>();
+    for (const seg of visibleSegments) {
+      map.set(seg.id, deriveTrimbleSegmentStatus(seg.id, state.trimbleSegmentCaptures, state.activeRunId));
+    }
+    return map;
+  }, [state.acquisitionMode, visibleSegments, state.trimbleSegmentCaptures, state.activeRunId]);
+
   const layerColorMap = useMemo(() => {
     if (!route) return new Map<string, string>();
     // Build layer index map
@@ -1321,8 +1346,9 @@ export default function MapPage({
           searchTargetLocation={searchTargetLocation}
           searchTargetBounds={searchTargetBounds}
           searchCenterRequest={searchCenterRequest}
-          mapRefreshRequest={mapRefreshRequest} />
-        
+          mapRefreshRequest={mapRefreshRequest}
+          trimbleStatusBySegment={trimbleStatusBySegment} />
+
       </div>
 
       {/* Buscador de tramos / lugares — sólo visible al pulsar el atajo (/, Ctrl/Cmd+K) o el FAB Buscar.

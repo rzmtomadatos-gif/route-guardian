@@ -1,4 +1,5 @@
 import type { Segment } from '@/types/route';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 
 /**
  * Reserved state colors — these must NEVER be used as layer colors.
@@ -76,4 +77,27 @@ export function resolveSegmentColor(
   if (seg.needsRepeat || seg.status === 'posible_repetir') return '#f97316';
   // 5. Pending → layer color or default gray
   return layerColor || seg.color || '#6b7280';
+}
+
+/**
+ * Tabla de colores Trimble por estado. Solo se aplica cuando el modo de
+ * adquisición es TRIMBLE_LIDAR y el caller ha facilitado un mapa explícito
+ * de estados por tramo. NO sustituye los colores RST/Garmin.
+ *
+ * El esquema evita confusión entre "capturado en campo, pendiente proceso"
+ * (azul/cyan = aún no terminado) y "procesado_ok" (verde sólido).
+ */
+const TRIMBLE_STATUS_COLOR: Record<TrimbleSegmentStatus, string> = {
+  pendiente: '#6b7280',                       // gris neutro
+  en_captura: '#f59e0b',                      // amarillo (en captura)
+  capturado_pendiente_proceso: '#06b6d4',     // cyan (intermedio)
+  procesado_ok: '#22c55e',                    // verde sólido
+  procesado_con_observaciones: '#84cc16',     // lima (OK con notas)
+  repetir: '#f97316',                         // naranja
+  no_capturable: '#3f3f46',                   // gris oscuro
+  descartado_por_calidad: '#ef4444',          // rojo
+};
+
+export function resolveTrimbleSegmentColor(status: TrimbleSegmentStatus): string {
+  return TRIMBLE_STATUS_COLOR[status];
 }

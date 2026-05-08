@@ -4,7 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 import {
@@ -59,6 +60,8 @@ interface Props {
   searchCenterRequest?: number;
   /** Solicitud de refresco manual del mapa (ver GoogleMapDisplay). */
   mapRefreshRequest?: number;
+  /** Modo Trimble: si se provee, sobreescribe el color del tramo por estado Trimble. */
+  trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -112,6 +115,7 @@ export function MapDisplay({
   searchTargetBounds,
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
+  trimbleStatusBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -137,9 +141,16 @@ export function MapDisplay({
   // deterministically when the user presses "Refresh map". This avoids
   // depending on ref mutations (which don't trigger re-renders) to force
   // a real repaint of polylines and arrows.
+  const trimbleStatusFingerprint = useMemo(() => {
+    if (!trimbleStatusBySegment || trimbleStatusBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleStatusBySegment.forEach((status, id) => parts.push(`${id}:${status}`));
+    return parts.sort().join(',');
+  }, [trimbleStatusBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
@@ -422,7 +433,10 @@ export function MapDisplay({
 
         const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
         const isActive = seg.id === activeSegmentId;
-        const color = resolveSegmentColor(seg, activeSegmentId);
+        const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
+        const color = trimbleStatus
+          ? resolveTrimbleSegmentColor(trimbleStatus)
+          : resolveSegmentColor(seg, activeSegmentId);
 
         const polyline = L.polyline(latLngs, {
           color,
