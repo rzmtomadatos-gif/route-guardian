@@ -159,6 +159,7 @@ function AppRoutes() {
   return (
     <RouteStateProvider value={routeState}>
     <TrackGpsLogger geo={geo} />
+    <TrimbleGpsLogger geo={geo} />
     <RecoveryDialog
       open={recoveryInfo !== null}
       inProgressCount={recoveryInfo?.count ?? 0}
