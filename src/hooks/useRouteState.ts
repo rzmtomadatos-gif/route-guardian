@@ -2261,5 +2261,18 @@ export function useRouteState() {
     setSegmentCorrections,
     readCommittedState,
     appendTrackGpsPoint,
+    // Trimble (fase 1)
+    startTrimbleMission,
+    closeTrimbleMission,
+    startTrimbleRun,
+    closeTrimbleRun,
+    invalidateTrimbleRun,
+    startTrimbleCapture,
+    closeTrimbleCapture,
+    setTrimbleQaStatus,
+    recordTrimbleIncident,
+    linkTrimbleDeliverable,
+    unlinkTrimbleDeliverable,
+    appendTrimbleGpsPoint,
   };
 }
