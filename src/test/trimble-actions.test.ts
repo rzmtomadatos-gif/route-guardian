@@ -10,7 +10,7 @@ import { useRouteState } from '@/hooks/useRouteState';
 function setupTrimble() {
   const hook = renderHook(() => useRouteState());
   act(() => {
-    hook.result.current.changeAcquisitionMode('TRIMBLE_LIDAR');
+    hook.result.current.setAcquisitionMode('TRIMBLE_LIDAR');
   });
   return hook;
 }
