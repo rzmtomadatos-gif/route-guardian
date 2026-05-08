@@ -98,11 +98,16 @@ export function GabineteTrimblePanel() {
   const [delivDialog, setDelivDialog] = useState<DelivDialogState | null>(null);
   const [missionFilter, setMissionFilter] = useState<string>('all');
 
+  const trimbleMissions = state.trimbleMissions ?? [];
+  const trimbleRuns = state.trimbleRuns ?? [];
+  const trimbleSegmentCaptures = state.trimbleSegmentCaptures ?? [];
+  const trimbleDeliverables = state.trimbleDeliverables ?? [];
+
   const captures = useMemo(() => {
-    let list = state.trimbleSegmentCaptures;
+    let list = trimbleSegmentCaptures;
     if (missionFilter !== 'all') list = list.filter((c) => c.missionId === missionFilter);
     return [...list].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  }, [state.trimbleSegmentCaptures, missionFilter]);
+  }, [trimbleSegmentCaptures, missionFilter]);
 
   const handleSaveQa = () => {
     if (!qaDialog) return;
