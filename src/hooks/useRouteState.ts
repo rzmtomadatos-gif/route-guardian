@@ -1932,7 +1932,7 @@ export function useRouteState() {
       const run: CaptureRun = {
         id,
         missionId: s.activeMissionId,
-        index: missionRuns.length,
+        index: missionRuns.length + 1,
         direction: opts.direction,
         startedAt: new Date().toISOString(),
         endedAt: null,
