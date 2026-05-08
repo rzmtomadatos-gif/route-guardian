@@ -433,7 +433,10 @@ export function MapDisplay({
 
         const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
         const isActive = seg.id === activeSegmentId;
-        const color = resolveSegmentColor(seg, activeSegmentId);
+        const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
+        const color = trimbleStatus
+          ? resolveTrimbleSegmentColor(trimbleStatus)
+          : resolveSegmentColor(seg, activeSegmentId);
 
         const polyline = L.polyline(latLngs, {
           color,
