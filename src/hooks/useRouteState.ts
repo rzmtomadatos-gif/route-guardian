@@ -1885,10 +1885,15 @@ export function useRouteState() {
       const missionId = s.activeMissionId;
       if (!missionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
       const now = new Date().toISOString();
-      // Cerrar capturas abiertas de runs de esta misión
+      // Cerrar capturas abiertas de runs de esta misión.
+      // Cualquier captura aún `en_captura` debe consolidarse como
+      // `capturado_pendiente_proceso`: una captura cerrada NUNCA puede
+      // quedar marcada como en curso.
       const captures = (s.trimbleSegmentCaptures ?? []).map((c) => {
         if (c.missionId === missionId && c.endedAt === null) {
-          return { ...c, endedAt: now, fieldStatus: c.fieldStatus ?? 'capturado_pendiente_proceso' as TrimbleFieldStatus };
+          const consolidated: TrimbleFieldStatus =
+            c.fieldStatus === 'en_captura' ? 'capturado_pendiente_proceso' : c.fieldStatus;
+          return { ...c, endedAt: now, fieldStatus: consolidated };
         }
         return c;
       });
