@@ -48,16 +48,8 @@ export default function AuthPage() {
     }
     setLoading(true);
 
-    // Verificar si el email está en la lista de autorizados
-    const { data: allowed } = await supabase
-      .rpc('check_email_allowed', { p_email: email.toLowerCase().trim() });
-
-    if (!allowed) {
-      toast.error('Este email no está autorizado. Contacta con el administrador.');
-      setLoading(false);
-      return;
-    }
-
+    // El servidor (auth hook validate-signup-allowlist) valida la lista de autorizados.
+    // No comprobamos en cliente para no permitir enumeración del allowlist.
     const { error } = await signUp(email, password, fullName || undefined);
     setLoading(false);
     if (error) {
