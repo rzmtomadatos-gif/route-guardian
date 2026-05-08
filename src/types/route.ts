@@ -1,4 +1,4 @@
-export type AcquisitionMode = 'RST' | 'GARMIN';
+export type AcquisitionMode = 'RST' | 'GARMIN' | 'TRIMBLE_LIDAR';
 export type SegmentDirection = 'creciente' | 'ambos';
 export type SegmentType = 'tramo' | 'rotonda';
 export type SegmentStatus = 'pendiente' | 'en_progreso' | 'completado' | 'posible_repetir';
@@ -220,6 +220,24 @@ export interface AppState {
    * (segmento status='en_progreso').
    */
   trackGpsLogsByDay: Record<number, Record<number, TrackGpsPoint[]>>;
+
+  // ── TRIMBLE_LIDAR (dominio paralelo) ─────────────────────────────────────
+  /** Misiones de captura Trimble. Vacío en RST/GARMIN. */
+  trimbleMissions: import('@/types/trimble').CaptureMission[];
+  /** Pasadas (runs) por misión. */
+  trimbleRuns: import('@/types/trimble').CaptureRun[];
+  /** Capturas por tramo dentro de un run. */
+  trimbleSegmentCaptures: import('@/types/trimble').SegmentCapture[];
+  /** Incidencias específicas Trimble (NO usar `incidents` del flujo RST). */
+  trimbleIncidents: import('@/types/trimble').TrimbleIncident[];
+  /** Referencias a entregables externos (URL/NAS/ID). Nunca binarios. */
+  trimbleDeliverables: import('@/types/trimble').TrimbleDeliverable[];
+  /** GPS Trimble: puntos por runId. Independiente de TrackSession. */
+  trimbleGpsLogsByRun: Record<string, import('@/types/trimble').TrimbleGpsPoint[]>;
+  /** Misión Trimble abierta (null si ninguna). */
+  activeMissionId: string | null;
+  /** Run Trimble abierto (null si ninguno). NO se persiste activeCaptureId: se deriva. */
+  activeRunId: string | null;
 }
 
 /** Punto GPS persistido durante navegación activa con track abierto. */

@@ -54,6 +54,14 @@ const DEFAULT_STATE: AppState = {
   lastConsumedTrackByDay: {},
   segmentCorrections: [],
   trackGpsLogsByDay: {},
+  trimbleMissions: [],
+  trimbleRuns: [],
+  trimbleSegmentCaptures: [],
+  trimbleIncidents: [],
+  trimbleDeliverables: [],
+  trimbleGpsLogsByRun: {},
+  activeMissionId: null,
+  activeRunId: null,
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */

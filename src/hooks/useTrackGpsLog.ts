@@ -69,6 +69,8 @@ export function useTrackGpsLog(geo: GeoSnapshot): void {
   }, [trackKey, state.trackGpsLogsByDay]);
 
   useEffect(() => {
+    // En modo TRIMBLE_LIDAR este hook NO registra nada — el GPS lo gestiona useTrimbleGpsLog.
+    if (state.acquisitionMode === 'TRIMBLE_LIDAR') return;
     // Reglas 1, 5: navegación activa + track activo + GPS válido.
     if (!state.navigationActive) return;
     const session = state.trackSession;

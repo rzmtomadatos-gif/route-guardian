@@ -95,6 +95,15 @@ export function createEmptyCampaignState(prefs: CampaignResetPreferences = {}): 
     lastConsumedTrackByDay: {},
     segmentCorrections: [],
     trackGpsLogsByDay: {},
+    // Trimble (dominio paralelo): vacío en cualquier modo al crear campaña.
+    trimbleMissions: [],
+    trimbleRuns: [],
+    trimbleSegmentCaptures: [],
+    trimbleIncidents: [],
+    trimbleDeliverables: [],
+    trimbleGpsLogsByRun: {},
+    activeMissionId: null,
+    activeRunId: null,
   };
 }
 

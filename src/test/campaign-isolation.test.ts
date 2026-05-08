@@ -122,6 +122,14 @@ function makeAdvancedCampaignState(): AppState {
         ],
       },
     },
+    trimbleMissions: [],
+    trimbleRuns: [],
+    trimbleSegmentCaptures: [],
+    trimbleIncidents: [],
+    trimbleDeliverables: [],
+    trimbleGpsLogsByRun: {},
+    activeMissionId: null,
+    activeRunId: null,
   };
 }
 
