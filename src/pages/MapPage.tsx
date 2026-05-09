@@ -35,7 +35,7 @@ import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
 import type { ReactivateOptions } from '@/utils/segment-reactivation';
 import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
-import { TrimbleMapPanel } from '@/components/trimble/TrimbleMapPanel';
+import { TrimbleLegend } from '@/components/map/TrimbleLegend';
 import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
 
@@ -1385,17 +1385,13 @@ export default function MapPage({
         🐛 Debug
       </button>
 
-      {/* === TRIMBLE OPERATIVO (overlay) === */}
+      {/* === TRIMBLE: leyenda de estados (solo visual) === */}
       {state.acquisitionMode === 'TRIMBLE_LIDAR' && (
-        <div className="absolute top-3 right-3 z-20 pointer-events-none">
-          <TrimbleMapPanel
-            visibleSegmentIds={visibleSegmentIdSet}
-            orderIds={trimbleOrderIds}
-            copilot={copilot}
-            onSetActiveSegment={onSetActiveSegment}
-          />
+        <div className="absolute bottom-3 left-3 z-20 pointer-events-none">
+          <TrimbleLegend />
         </div>
       )}
+
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
       {canNavigate && state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
@@ -1732,6 +1728,10 @@ export default function MapPage({
           if (seg) setReactivateTarget(seg);
         }}
         canNavigate={canNavigate}
+        trimbleVisibleSegmentIds={visibleSegmentIdSet}
+        trimbleOrderIds={trimbleOrderIds}
+        onCopilotPushQueue={copilot.pushQueue}
+        onOpenAdvancedTrimble={() => navigate('/trimble')}
         canCancelStart={
           !!(activeSegment && activeSegment.status === 'en_progreso' &&
             (navTracker.operationalState === 'idle' || navTracker.operationalState === 'approaching'))
