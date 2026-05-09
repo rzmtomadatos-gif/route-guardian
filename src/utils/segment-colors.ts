@@ -87,7 +87,7 @@ export function resolveSegmentColor(
  * El esquema evita confusión entre "capturado en campo, pendiente proceso"
  * (azul/cyan = aún no terminado) y "procesado_ok" (verde sólido).
  */
-const TRIMBLE_STATUS_COLOR: Record<TrimbleSegmentStatus, string> = {
+export const TRIMBLE_STATUS_COLOR: Record<TrimbleSegmentStatus, string> = {
   pendiente: '#6b7280',                       // gris neutro
   en_captura: '#f59e0b',                      // amarillo (en captura)
   capturado_pendiente_proceso: '#06b6d4',     // cyan (intermedio)
