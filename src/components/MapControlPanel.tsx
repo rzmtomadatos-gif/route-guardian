@@ -23,6 +23,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { TrimbleNavigationPanel } from '@/components/map-control/TrimbleNavigationPanel';
 
 const FILTER_KEY = 'vialroute_nav_filter';
 
@@ -95,6 +96,11 @@ interface Props {
   /** Cancel start props */
   canCancelStart?: boolean;
   onCancelStart?: () => void;
+  /** Trimble: cola operativa (modo TRIMBLE_LIDAR) */
+  trimbleVisibleSegmentIds?: Set<string>;
+  trimbleOrderIds?: string[];
+  onCopilotPushQueue?: (items: import('@/hooks/useCopilotSession').QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
+  onOpenAdvancedTrimble?: () => void;
 }
 
 export function MapControlPanel({
@@ -149,7 +155,34 @@ export function MapControlPanel({
   onReactivateSegment,
   canCancelStart = false,
   onCancelStart,
+  trimbleVisibleSegmentIds,
+  trimbleOrderIds,
+  onCopilotPushQueue,
+  onOpenAdvancedTrimble,
 }: Props) {
+  // ── Modo TRIMBLE_LIDAR: panel dedicado, sustituye al chrome RST/Garmin ──
+  if (acquisitionMode === 'TRIMBLE_LIDAR') {
+    return (
+      <TrimbleNavigationPanel
+        visibleSegmentIds={trimbleVisibleSegmentIds ?? new Set(segments.map((s) => s.id))}
+        orderIds={trimbleOrderIds ?? optimizedOrder}
+        copilotSession={copilotSession}
+        copilotActive={copilotActive}
+        onCopilotStart={onCopilotStart}
+        onCopilotEnd={onCopilotEnd}
+        onCopilotPushQueue={onCopilotPushQueue ?? (async () => {})}
+        onSetActiveSegment={onSegmentSelect}
+        onAddIncident={onAddIncident}
+        currentPosition={currentPosition}
+        gpsEnabled={gpsEnabled}
+        gpsAccuracy={gpsAccuracy}
+        gpsSpeed={gpsSpeed}
+        gpsError={gpsError}
+        onOpenAdvanced={onOpenAdvancedTrimble ?? (() => {})}
+      />
+    );
+  }
+
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
