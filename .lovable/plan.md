@@ -1,277 +1,224 @@
-# Plan: Trimble operativo en mapa + copiloto (revisado)
+## Objetivo
 
-Objetivo: en `TRIMBLE_LIDAR`, el operador trabaja desde el mapa sin buscar tramos. La cola sale del orden operativo real (`activeRouteBlock` o `optimizedOrder`), el conductor recibe inicio+fin de los próximos tramos vía batch existente, y al cerrar una captura se avanza automáticamente.
+Unificar la UI operativa del mapa: un único panel inferior (`MapControlPanel`) que muta según `acquisitionMode`. Eliminar `TrimbleMapPanel` como overlay independiente, mover la configuración fuera del mapa, y añadir sincronización clara de cola Trimble con el conductor.
 
-## 1. Utilidad pura: `src/utils/trimble/recording-queue.ts`
+---
 
-### `deriveTrimbleSegmentStatus(segmentId, captures, activeRunId)` → `TrimbleSegmentStatus`
+## 1. Reorganización: configuración fuera del mapa
 
-Algoritmo (estricto, en este orden):
+`**SettingsPage.tsx**` — añadir/consolidar (si no están ya):
 
-1. Captura abierta del segmento en el run activo (`runId === activeRunId && endedAt === null`) → `en_captura`.
-2. De las capturas cerradas del segmento (`endedAt !== null`), tomar la **última** por `endedAt`.
-3. Si esa última tiene `qaStatus` no nulo → devolver `qaStatus`.
-4. Si no, devolver su `fieldStatus`.
-5. Si no hay capturas → `pendiente`.
+- Selector `acquisitionMode` (RST / GARMIN / TRIMBLE_LIDAR).
+- Selector de día de trabajo.
+- Tamaño de bloque RST / tramos por track.
+- Sección "Ajustes RST", "Ajustes Garmin", "Ajustes Trimble" (placeholder si vacío).
+- Toggle "Auto-enviar cola al conductor al cambiar" (Trimble).
 
-No prioriza "existe alguna descartada/OK"; solo cuenta la **última cerrada**.
+`**MapControlPanel.tsx**` y `MapPage.tsx` — eliminar de la UI del mapa:
 
-### `buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds, limit)`
+- Selector de día de trabajo.
+- Selector de tramos por bloque.
+- Botones de cambio de modo de adquisición.
+- Cualquier configuración persistente.
 
-Firma:
+(La lógica/handlers se mantiene en el state; sólo se quita la superficie UI del mapa.)
 
-```ts
-buildTrimbleRecordingQueue(
-  state: AppState,
-  visibleSegmentIds: Set<string>,
-  orderIds: string[],
-  limit: number = SEGMENTS_PER_BATCH
-): Array<{ segment: Segment; status: TrimbleSegmentStatus; start: LatLng; end: LatLng; positionInOrder: number }>
-```
+---
 
-Reglas:
+## 2. `MapControlPanel` acquisition-aware
 
-- Recorre `orderIds` en orden.
-- Filtra: presentes en `visibleSegmentIds` y existentes en `state.route.segments`.
-- **Incluir** solo: `pendiente`, `en_captura`, `repetir`.
-- **Excluir**: `capturado_pendiente_proceso`, `procesado_ok`, `procesado_con_observaciones`, `descartado_por_calidad`, `no_capturable`.
-(Si gabinete quiere repetir un tramo aceptado con observaciones, debe marcarlo como `repetir`.)
-- `start = coordinates[0]`, `end = coordinates[length-1]`.
-- Devuelve hasta `limit` (por defecto `SEGMENTS_PER_BATCH = 4`).
+Refactor de `MapControlPanel.tsx` a un router por modo:
 
-## 2. Copiloto: reutilizar batch existente
-
-No duplicar nada de `src/utils/google-maps-batch.ts`. Añadir solo wrapper en el mismo archivo o en `recording-queue.ts`:
-
-```ts
-trimbleQueueToStops(
-  queue: Array<{ start: LatLng; end: LatLng }>
-): BatchStop[]
-```
-
-- Para cada item de la cola: empuja `{ lat: start.lat, lng: start.lng }` y `{ lat: end.lat, lng: end.lng }`.
-- 4 tramos × 2 = 8 paradas. Encaja con el límite implícito de Google Maps (no se sube a 5/10 paradas hasta validar en campo).
-
-`QueueItem` (Realtime) de Trimble: una entrada por parada con nombre claro:
-
-```
-[
-  { segmentId: s.id, name: `INICIO · ${s.name}`, lat: start.lat, lng: start.lng },
-  { segmentId: s.id, name: `FIN · ${s.name}`,    lat: end.lat,   lng: end.lng   },
-  ...
-]
-```
-
-Esto hace que en `/driver-mini` el conductor vea explícitamente "INICIO" y "FIN" de cada tramo.
-
-Helper local en `MapPage`:
-
-```ts
-function buildTrimbleCopilotPayload(queue) {
-  const stops = trimbleQueueToStops(queue);            // 8 paradas si SEGMENTS_PER_BATCH=4
-  const items = queue.flatMap(q => [
-    { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
-    { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
-  ]);
-  const url = buildGoogleMapsBatchUrl(stops);
-  return { items, url };
+```tsx
+switch (acquisitionMode) {
+  case 'RST':           return <RstNavigationPanel ... />;
+  case 'GARMIN':        return <GarminNavigationPanel ... />;
+  case 'TRIMBLE_LIDAR': return <TrimbleNavigationPanel ... />;
 }
 ```
 
-Envío: `await copilot.pushQueue(items, 0, url);`.
+Crear subcomponentes en `src/components/map-control/`:
 
-## 3. Panel mapa: `src/components/trimble/TrimbleMapPanel.tsx`
+- `RstNavigationPanel.tsx` — extrae el flujo RST actual (F5/F7/F9, bloque, etc.).
+- `GarminNavigationPanel.tsx` — extrae el flujo Garmin actual.
+- `TrimbleNavigationPanel.tsx` — nuevo, integra lo que hoy hace `TrimbleMapPanel` + sincronización conductor.
 
-Solo se monta si `state.acquisitionMode === 'TRIMBLE_LIDAR'`. Compacto, anclado al área inferior del mapa. Acciones autosuficientes — el operador no necesita ir a `/trimble`:
+Visualmente sigue siendo el mismo panel inferior con el mismo chrome (cyclic widths 100% / 360 / 260).
 
-- **Si no hay misión activa**: botón "Abrir misión" (form mínimo en popover: vehículo + operador, resto en `/trimble`).
-- **Si hay misión y no hay pasada**: botón "Abrir pasada" (selector dirección ida/vuelta + iniciar).
-- **Si hay misión + pasada**:
-  - Cabecera: misión + pasada activas (badges compactos).
-  - "Tramo actual" (queue[0]): nombre, `companySegmentId`, badge de estado.
-  - Próximos hasta `SEGMENTS_PER_BATCH - 1` tramos en lista compacta con badge.
-  - Acciones del tramo actual:
-    - "Iniciar captura" → `startTrimbleCapture(queue[0].segment.id)` + `onSetActiveSegment(queue[0].segment.id)`.
-    - Si hay captura abierta de ese tramo: "Cerrar como capturado", "Repetir", "No capturable" → `closeTrimbleCapture(fieldStatus)`.
-    - "Incidencia" → abre dialog reutilizando los inputs ya existentes en `TrimbleFieldPanel` (extraer a `TrimbleIncidentDialog` para no duplicar).
-  - "Enviar al conductor" → `buildTrimbleCopilotPayload(queue)` + `copilot.pushQueue(...)`. Si no hay sesión, toast con CTA al `CopilotPanel` ya existente.
+---
 
-`/trimble` permanece como vista avanzada (lista manual, gestión de misiones cerradas, etc.). Etiqueta visible en su cabecera: "Vista avanzada / emergencia".
+## 3. `TrimbleNavigationPanel` (sustituye al overlay)
 
-## 4. Avance automático
+Reglas de render:
 
-Tras `closeTrimbleCapture` ok:
+- **Cabecera fija**: modo · misión activa · pasada activa · GPS · estado copiloto · estado sincronización cola.
+- **Sin misión**: botón "Abrir misión" + link "Vista avanzada" (`/trimble`).
+- **Misión sin pasada**: selector ida/vuelta/otro + "Abrir pasada" + "Cerrar misión".
+- **Misión + pasada**:
+  - Tramo actual (auto desde cola, no selección manual): nombre, ID empresa, estado, próximos.
+  - Acciones: Iniciar / Cerrar / Repetir / No capturable / Incidencia.
+  - Bloque "Conductor" con estado de sincronización + botón único `Enviar/Actualizar conductor`.
 
-- La cola se recalcula sola (`useMemo` sobre `state.trimbleSegmentCaptures` + `orderIds` + `visibleSegmentIds`).
-- `onSetActiveSegment(newQueue[0]?.segment.id)` para centrar en mapa.
-- Si `copilot.active` y la primera parada del batch nuevo difiere de la actual del conductor (`session.segment_id !== newItems[0]?.segmentId`), toast "Cola actualizada — ¿enviar al conductor?" con botón "Enviar".
-- El envío automático sin confirmación se evita para no spamear al conductor en marcha.
+Reusa `buildTrimbleRecordingQueue`, `trimbleQueueToStops`, `buildGoogleMapsBatchUrl`, `copilot.pushQueue` (sin duplicar lógica).
 
-## 5. Mapa: estado visual Trimble
+---
 
-En `MapPage`, cuando `acquisitionMode === 'TRIMBLE_LIDAR'`:
+## 4. Sincronización con conductor (fingerprint)
 
-- Calcular `trimbleStatusBySegment: Map<string, TrimbleSegmentStatus>` con `deriveTrimbleSegmentStatus` para los segmentos visibles (memoizado por `state.trimbleSegmentCaptures` + `state.activeRunId`).
-- Pasar prop opcional `trimbleStatusBySegment` a `GoogleMapDisplay` y `MapDisplay`. Si está presente, sobreescribe el color del tramo según tabla de tokens semánticos (en `index.css`):
+Nuevo util `src/utils/trimble/queue-fingerprint.ts`:
 
+```ts
+export function trimbleQueueFingerprint(queue: TrimbleQueueItem[]): string {
+  return queue.map(q => `${q.segment.id}:${q.status}`).join('|');
+}
+```
 
-| Estado                        | Color (token)                                                  |
-| ----------------------------- | -------------------------------------------------------------- |
-| `pendiente`                   | gris neutro (`--trimble-pending`)                              |
-| `en_captura`                  | 🟡 amarillo (`--trimble-capturing`)                            |
-| `capturado_pendiente_proceso` | azul/cyan (`--trimble-pending-process`) — distinguible de "OK" |
-| `procesado_ok`                | 🟢 verde sólido (`--trimble-ok`)                               |
-| `procesado_con_observaciones` | 🟡 amarillo borde discontinuo (`--trimble-ok-notes`)           |
-| `repetir`                     | 🟠 naranja (`--trimble-repeat`)                                |
-| `no_capturable`               | ⚫ gris oscuro (`--trimble-not-capturable`)                     |
-| `descartado_por_calidad`      | 🔴 rojo (`--trimble-discarded`)                                |
+En `TrimbleNavigationPanel`:
 
+- `lastSentFingerprintRef` guardado en `useRef` + `sessionStorage` (key `trimble.lastQueueFp`).
+- Calcular fingerprint actual cada render.
+- Si `current !== lastSent` y hay `copilot.session` activa → estado "Ruta desactualizada" (botón en `bg-amber-500` destacado).
+- Si igual → "Conductor actualizado" (variante outline).
+- Al pulsar enviar: `pushQueue(...)` y actualizar fingerprint.
+- Si en Settings está activado "auto-enviar": disparar automáticamente vía `useEffect` con debounce 800 ms.
 
-Tramo actual y siguiente: borde grueso/glow (reutilizar resaltado existente de `activeSegment` y `nextSegment`).
+---
 
-En modo Trimble: NO se pintan overlays RST (referencias 300/150/30, F5, etc.). NO se mezclan colores RST con Trimble.
+## 5. `SegmentsPage` — columnas y filtros Trimble
 
-## 6. Cambios en archivos existentes
+Cuando `acquisitionMode === 'TRIMBLE_LIDAR'` o existan capturas:
 
-- `src/pages/MapPage.tsx`:
-  - `orderIds = activeRouteBlock.length > 0 ? activeRouteBlock : state.route?.optimizedOrder ?? []`.
-  - `visibleSegmentIds` desde `getVisibleMapSegments`.
-  - `const trimbleQueue = useMemo(() => acquisitionMode === 'TRIMBLE_LIDAR' ? buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds) : [], [...])`.
-  - `trimbleStatusBySegment` igualmente memoizado.
-  - Montar `<TrimbleMapPanel ... />` cuando modo Trimble; ocultar `MapControlPanel` o reducir sus acciones RST irrelevantes.
-- `src/components/GoogleMapDisplay.tsx` y `src/components/MapDisplay.tsx`:
-  - Aceptar prop opcional `trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus>`.
-  - Si presente, usar tabla de colores Trimble en vez de la RST.
-- `src/components/trimble/TrimbleFieldPanel.tsx`:
-  - Extraer la sección de incidencia a `TrimbleIncidentDialog` para reutilizar en `TrimbleMapPanel`.
-  - Mantener selector manual como "modo emergencia / cambio manual".
-- `src/index.css`:
-  - Añadir tokens HSL para los 8 estados de la tabla.
+- Nuevas columnas: Estado Trimble (badge con color del esquema), última misión, última pasada, fecha captura, QA, intentos, entregables (count).
+- Nuevos filtros: Pendientes / Capturados pendientes proceso / Repetir / No capturables / QA OK / Descartados.
+- Reusa `deriveTrimbleSegmentStatus` y `STATUS_BADGE_CLASS`.
 
-## 7. Tests nuevos
+Helper `src/utils/trimble/segment-summary.ts` para derivar última misión/pasada/fecha por tramo desde `trimbleSegmentCaptures`.
 
-`src/test/trimble-segment-status.test.ts`:
+---
 
-- Captura abierta en run activo gana → `en_captura`.
-- Última cerrada con `qaStatus = 'procesado_ok'` → `procesado_ok` (aunque haya una previa `descartado_por_calidad`).
-- Última cerrada con `qaStatus = 'descartado_por_calidad'` → `descartado_por_calidad` (aunque haya una previa OK).
-- Última cerrada sin qaStatus, fieldStatus = `repetir` → `repetir`.
-- Sin capturas → `pendiente`.
+## 6. `GabineteTrimblePanel` — 3 vistas
 
-`src/test/trimble-recording-queue.test.ts`:
+Refactor con tabs internos:
 
-- Respeta `orderIds` provisto.
-- Filtra por `visibleSegmentIds`.
-- Incluye solo `pendiente`, `en_captura`, `repetir`.
-- Excluye `capturado_pendiente_proceso`, `procesado_ok`, `procesado_con_observaciones`, `descartado_por_calidad`, `no_capturable`.
-- `start` = `coordinates[0]`, `end` = `coordinates[length-1]`.
-- Limit por defecto `SEGMENTS_PER_BATCH` (4).
+- **Resumen** (existente, mantener cards de KPIs).
+- **Por tramo** (nueva, primaria): tabla — ID empresa · nombre · capa · estado campo · estado QA · última misión · última pasada · intentos · incidencia · entregables · acción QA.
+- **Entregables**: tabla — tipo · tramo · misión · pasada · referencia · archivo · subido por · fecha.
+- "Capturas (detalle técnico)" pasa a tab secundario.
 
-`src/test/trimble-copilot-batch.test.ts`:
+---
 
-- `trimbleQueueToStops`: 4 tramos → 8 paradas, en orden start, end, start, end…
-- `buildGoogleMapsBatchUrl(stops)` con esas paradas: `destination` = end del último, waypoints = el resto en orden.
-- `buildTrimbleCopilotPayload`: `items` tiene 8 entradas con nombres `INICIO · …` y `FIN · …`, `segmentId` repetido 2 veces consecutivas.
+## 7. Leyenda Trimble en mapa
 
-`src/test/trimble-auto-advance.test.ts`:
+Pequeño componente `TrimbleLegend.tsx` mostrado en `MapPage` solo si `acquisitionMode === 'TRIMBLE_LIDAR'`. Posición: esquina inferior izquierda, colapsable. Usa `TRIMBLE_STATUS_COLOR` ya existente en `segment-colors.ts` (exportarlo).
 
-- Cerrar captura como `capturado_pendiente_proceso` → ese tramo desaparece de la cola.
-- Cerrar como `repetir` → ese tramo permanece en la cola en su posición.
-- Cerrar como `no_capturable` → desaparece de la cola.
+---
 
-`src/test/trimble-mode-isolation.test.ts` (extender):
+## 8. Limpieza
 
-- En `RST` y `GARMIN`, `MapPage` no calcula `trimbleStatusBySegment` ni cola (cubre el guard del memo).
-- `GoogleMapDisplay` sin prop `trimbleStatusBySegment` mantiene colores RST.
+- Borrar import y render de `TrimbleMapPanel` en `MapPage.tsx`.
+- Mantener el archivo `TrimbleMapPanel.tsx` solo si se reutiliza en `/trimble` como vista avanzada; si no, eliminarlo.
+- En modo RST/Garmin: panel no muestra nada Trimble; en modo Trimble: nada RST/F5/bloque ni Garmin.
 
-## 8. Verificación
+---
 
-- `npx tsc --noEmit`
-- Suite Trimble (incluye 4 nuevos tests).
-- Suite legacy import/export.
-- Suite Excel en aislamiento.
-- Suite completa.
+## 9. Tests
 
-## Criterio de aceptación
+Nuevos en `src/test/`:
 
-Operador en mapa, modo Trimble:
+- `map-control-panel-mode-switch.test.tsx` — render por modo, ausencia de controles ajenos.
+- `trimble-queue-fingerprint.test.ts` — cambia con cierres.
+- `trimble-driver-sync.test.tsx` — fingerprint cambia → botón destacado; click → `pushQueue` llamado.
+- `segments-page-trimble-columns.test.tsx` — columnas y filtros visibles en modo Trimble.
+- `gabinete-trimble-by-segment.test.tsx` — tab "Por tramo" presente.
 
-1. Abre misión y pasada desde el panel del mapa.
-2. Ve "Tramo actual" sin buscarlo + próximos `SEGMENTS_PER_BATCH - 1`.
-3. "Enviar al conductor" → `/driver-mini` muestra hasta 8 paradas con etiquetas `INICIO ·` / `FIN ·`.
-4. "Iniciar captura" → tramo en `en_captura`, color amarillo en mapa.
-5. "Cerrar captura" → estado actualizado, cola avanza, sugerencia de reenvío al conductor.
-6. RST y Garmin intactos: panel Trimble no aparece, colores Trimble no se aplican, overlays RST funcionan igual.
-7. Exportación Excel sigue incluyendo trazabilidad Trimble (ya implementada).
+Mantener tests legacy: `trimble-recording-queue.test.ts`, `trimble-segment-status.test.ts`, `trimble-copilot-batch.test.ts`, suites RST/Garmin/Excel sin cambios.
 
-## Plan aprobado para implementación con estos ajustes menores obligatorios:
+---
 
-1. Fallback de orden
+## 10. Verificación final
 
-En MapPage:
+`tsc --noEmit` (vía build automático del harness) + `bunx vitest run` filtrando por:
 
-- usar `activeRouteBlock` si existe;
+- `trimble-`
+- `map-control`
+- `copilot`
+- `excel-export` (aislado)
 
-- si no, `route.optimizedOrder`;
+---
 
-- si ambos están vacíos, usar `route.segments.map(s => s.id)`.
+## Archivos afectados (resumen)
 
-Esto evita dejar la cola Trimble vacía en campañas sin optimización previa.
+**Crear**:
 
-2. Geometría insuficiente
+- `src/components/map-control/RstNavigationPanel.tsx`
+- `src/components/map-control/GarminNavigationPanel.tsx`
+- `src/components/map-control/TrimbleNavigationPanel.tsx`
+- `src/components/map/TrimbleLegend.tsx`
+- `src/utils/trimble/queue-fingerprint.ts`
+- `src/utils/trimble/segment-summary.ts`
+- 5 tests nuevos.
 
-`buildTrimbleRecordingQueue` debe excluir tramos con `coordinates.length < 2`.
+**Editar**:
 
-Añadir warning/log interno o contador para que el operador/gabinete sepa que hay tramos sin geometría suficiente.
+- `src/components/MapControlPanel.tsx` (router por modo, extraer subpaneles).
+- `src/pages/MapPage.tsx` (quitar `TrimbleMapPanel`, añadir leyenda, quitar selectores de configuración).
+- `src/pages/SettingsPage.tsx` (consolidar selectores movidos).
+- `src/pages/SegmentsPage.tsx` (columnas + filtros Trimble).
+- `src/components/gabinete/GabineteTrimblePanel.tsx` (3 tabs).
+- `src/utils/segment-colors.ts` (exportar `TRIMBLE_STATUS_COLOR`).
 
-Añadir test específico.
+**Eliminar (si no se reutiliza)**:
 
-3. Sesión copiloto
+- `src/components/trimble/TrimbleMapPanel.tsx`.
 
-Si no hay sesión copiloto activa:
+## Antes de considerar terminado el refactor, debe existir una checklist de paridad funcional para RST y Garmin.
 
-- mostrar CTA “Crear sesión copiloto” desde `TrimbleMapPanel`;
+RST debe conservar:
 
-- si se crea correctamente, permitir enviar la cola;
+- iniciar/detener navegación;
 
-- si falla, mostrar error claro pero no bloquear misión/pasada/captura Trimble.
+- tramo actual / siguiente;
 
-4. Copiloto INICIO/FIN
+- inicio y finalización de tramo;
 
-Mantener `QueueItem` sin migrar, pero los nombres deben ser:
+- incidencias;
 
-- `INICIO · nombre_tramo`
+- repetir/reactivar;
 
-- `FIN · nombre_tramo`
+- salto de tramo;
 
-Test obligatorio:
+- cancelación de inicio si existe;
 
-- 4 tramos → 8 items;
+- copiloto;
 
-- item 1 = INICIO;
+- progreso de bloque/track;
 
-- item 2 = FIN;
+- cierre/finalización de track;
 
-- ambos comparten segmentId;
+- GPS;
 
-- `batch_url.destination` = fin del último tramo;
+- estado de fin de vídeo;
 
-- `waypoints` conserva el orden completo anterior.
+- base;
 
-Con esos ajustes, implementar:
+- optimización;
 
-- `recording-queue.ts`
+- anterior/siguiente;
 
-- `TrimbleMapPanel`
+- modo colapsado/expandido y cambio de ancho.
 
-- integración en MapPage
+Garmin debe conservar:
 
-- colores Trimble opcionales en GoogleMapDisplay/MapDisplay
+- navegación;
 
-- tests nuevos
+- registro operativo;
 
-- verificación completa.
+- copiloto;
 
-Condición:
+- estados visibles;
 
-No tocar lógica RST/Garmin salvo el guard visual para ocultar acciones RST cuando `acquisitionMode === 'TRIMBLE_LIDAR'`.
+- GPS;
+
+- acciones propias sin mostrar controles RST innecesarios.
+
+No se aprueba si RST o Garmin pierden funcionalidad respecto al panel actual.
