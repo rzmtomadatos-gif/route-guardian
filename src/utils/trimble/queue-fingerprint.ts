@@ -2,21 +2,38 @@
  * Fingerprint estable de una cola operativa Trimble.
  *
  * Se usa para detectar cuándo la cola enviada al conductor (modo Copiloto)
- * ha quedado obsoleta tras cerrar/reabrir capturas. El panel del mapa
- * compara el fingerprint actual con el último enviado y, si cambia, marca
- * "Ruta del conductor desactualizada" y permite reenviar.
+ * ha quedado obsoleta tras cerrar/reabrir capturas o tras cambiar el orden,
+ * los estados o la geometría inicial/final del tramo.
  *
  * Forma:
- *   "<segId1>:<status1>|<segId2>:<status2>|…"
+ *   "<idx>:<segId>:<status>:<startLat,startLng>:<endLat,endLng>|…"
  *
- * No incluye coordenadas porque, dentro de la misma campaña, un cambio de
- * coordenadas implica un cambio de segmentId distinto. Si en el futuro el
- * mismo segmentId puede tener geometría editada, añadir un hash corto.
+ * Coordenadas redondeadas a 6 decimales (~0.11 m a 40º lat) — suficiente
+ * para detectar cualquier edición de geometría operativa.
  */
 import type { TrimbleQueueItem } from '@/utils/trimble/recording-queue';
 
+const r6 = (n: number): string => n.toFixed(6);
+
 export function trimbleQueueFingerprint(
-  queue: ReadonlyArray<Pick<TrimbleQueueItem, 'segment' | 'status'>>,
+  queue: ReadonlyArray<Pick<TrimbleQueueItem, 'segment' | 'status' | 'start' | 'end'>>,
 ): string {
-  return queue.map((q) => `${q.segment.id}:${q.status}`).join('|');
+  return queue
+    .map((q, i) =>
+      `${i}:${q.segment.id}:${q.status}:${r6(q.start.lat)},${r6(q.start.lng)}:${r6(q.end.lat)},${r6(q.end.lng)}`,
+    )
+    .join('|');
+}
+
+/**
+ * Clave de sessionStorage scopeada a la combinación operativa actual.
+ * Si cambia campaña/ruta, misión o pasada → se obtiene una clave nueva
+ * y por tanto el fingerprint guardado se considera ausente (cola desactualizada).
+ */
+export function trimbleFingerprintStorageKey(
+  routeId: string | null | undefined,
+  missionId: string | null | undefined,
+  runId: string | null | undefined,
+): string {
+  return `vialroute.trimble.lastQueueFp.${routeId ?? '_'}.${missionId ?? '_'}.${runId ?? '_'}`;
 }
