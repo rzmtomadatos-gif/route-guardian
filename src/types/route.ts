@@ -238,6 +238,10 @@ export interface AppState {
   activeMissionId: string | null;
   /** Run Trimble abierto (null si ninguno). NO se persiste activeCaptureId: se deriva. */
   activeRunId: string | null;
+  /** Sesiones de grabación continua Trimble (motor de captura por cobertura GPS). */
+  trimbleRecordingSessions: import('@/types/trimble').TrimbleRecordingSession[];
+  /** Sesión de grabación Trimble activa (null si ninguna). */
+  activeTrimbleRecordingId: string | null;
 }
 
 /** Punto GPS persistido durante navegación activa con track abierto. */
