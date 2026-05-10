@@ -105,7 +105,7 @@ export function buildTrimbleRecordingQueue(
 
   for (let i = 0; i < orderIds.length && items.length < limit; i++) {
     const id = orderIds[i];
-    if (!visibleSegmentIds.has(id)) continue;
+    if (!eligibleSegmentIds.has(id)) continue;
     const segment = segById.get(id);
     if (!segment) continue;
     const status = deriveTrimbleSegmentStatus(id, captures, activeRunId);
