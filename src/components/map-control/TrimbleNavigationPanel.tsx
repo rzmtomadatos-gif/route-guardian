@@ -72,6 +72,7 @@ interface Props {
   gpsAccuracy: number | null;
   gpsSpeed: number | null;
   gpsError: string | null;
+  onToggleGps: (enabled: boolean) => void;
   onOpenAdvanced: () => void;
 }
 
@@ -90,6 +91,7 @@ export function TrimbleNavigationPanel({
   gpsAccuracy,
   gpsSpeed,
   gpsError,
+  onToggleGps,
   onOpenAdvanced,
 }: Props) {
   const {
@@ -305,6 +307,17 @@ export function TrimbleNavigationPanel({
 
           {/* Quick actions row */}
           <div className="flex items-center gap-1 flex-wrap">
+            <Button
+              variant={gpsEnabled ? 'outline' : 'default'}
+              size="sm"
+              className={`h-9 ${gpsEnabled ? 'border-accent/60 text-accent' : 'bg-primary text-primary-foreground'}`}
+              onClick={() => onToggleGps(!gpsEnabled)}
+              title={gpsEnabled ? 'GPS activo — desactivar' : 'Activar GPS'}
+              data-testid="trimble-gps-toggle-btn"
+            >
+              {gpsEnabled ? <LocateFixed className="w-4 h-4 mr-1" /> : <LocateOff className="w-4 h-4 mr-1" />}
+              {gpsEnabled ? 'GPS activo' : 'Activar GPS'}
+            </Button>
             <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd}>
               <Button variant="outline" size="sm" className={`h-9 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
                 <Radio className="w-4 h-4" />

@@ -1276,10 +1276,20 @@ export default function MapPage({
     return route?.segments.map((s) => s.id) ?? [];
   }, [state.acquisitionMode, route]);
 
-  const visibleSegmentIdSet = useMemo(
-    () => new Set(visibleSegments.map((s) => s.id)),
-    [visibleSegments],
-  );
+  // Trimble: elegibilidad por CAPAS ACTIVAS (NO por viewport del mapa).
+  // El viewport solo limita el render visual; la cola operativa Trimble
+  // debe contemplar todos los tramos de capas activas aunque estén fuera
+  // de la pantalla (campañas con cientos/miles de tramos).
+  const trimbleEligibleSegmentIds = useMemo(() => {
+    if (!route) return new Set<string>();
+    const ids = new Set<string>();
+    for (const seg of route.segments) {
+      if (seg.layer && hiddenLayers.has(seg.layer)) continue;
+      ids.add(seg.id);
+    }
+    return ids;
+  }, [route, hiddenLayers]);
+
 
   const trimbleStatusBySegment = useMemo(() => {
     if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return null;
@@ -1730,7 +1740,7 @@ export default function MapPage({
           if (seg) setReactivateTarget(seg);
         }}
         canNavigate={canNavigate}
-        trimbleVisibleSegmentIds={visibleSegmentIdSet}
+        trimbleVisibleSegmentIds={trimbleEligibleSegmentIds}
         trimbleOrderIds={trimbleOrderIds}
         onCopilotPushQueue={copilot.pushQueue}
         onOpenAdvancedTrimble={() => navigate('/trimble')}

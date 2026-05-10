@@ -89,6 +89,7 @@ export function MapControlPanel(props: Props) {
         gpsAccuracy={props.gpsAccuracy}
         gpsSpeed={props.gpsSpeed}
         gpsError={props.gpsError}
+        onToggleGps={props.onToggleGps}
         onOpenAdvanced={props.onOpenAdvancedTrimble ?? (() => {})}
       />
     );
