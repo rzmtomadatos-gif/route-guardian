@@ -303,9 +303,21 @@ export function TrimbleNavigationPanel({
   // y hay una razón operativa pendiente (cierre / incidencia / optimización),
   // enviar automáticamente con debounce anti-spam.
   useEffect(() => {
-    if (!copilotActive || !copilotSession) return;
+    // Si no hay copiloto activo o no hay sesión, no podemos enviar; descartamos
+    // razones pendientes para evitar que un cambio futuro herede un motivo viejo.
+    if (!copilotActive || !copilotSession) {
+      if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+      return;
+    }
     if (driverBatch.length === 0) return;
-    if (currentFp === lastSentFp) return;
+    // Si el lote no ha cambiado respecto al último envío, NO hay nada que enviar.
+    // Limpiamos cualquier razón pendiente para que un cambio posterior real
+    // (order_changed / layer_changed / two_completed) no se envíe con un
+    // motivo obsoleto (p. ej. 'optimized' que no produjo cambio en el lote).
+    if (currentFp === lastSentFp) {
+      if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+      return;
+    }
     const reason = pendingAutoReasonRef.current;
     if (!reason) return;
     if (autoSendInFlightRef.current) return;
@@ -327,22 +339,31 @@ export function TrimbleNavigationPanel({
     if (status === 'capturado_pendiente_proceso') {
       completedSinceLastSendRef.current += 1;
       if (completedSinceLastSendRef.current >= 2) {
-        pendingAutoReasonRef.current = 'two_completed';
+        markPendingReason('two_completed');
       }
     } else if (status === 'no_capturable') {
-      pendingAutoReasonRef.current = 'non_capturable';
+      markPendingReason('non_capturable');
     }
   };
 
   // ── Detección de cambios en orden/capas para autoenvío ────────────
-  // Se evalúa de forma síncrona durante el render para que el efecto
-  // de autoenvío vea `pendingAutoReasonRef` ya actualizado al recalcular
-  // `currentFp`. En el primer render solo se inicializan las refs.
   const orderFingerprint = useMemo(() => orderIds.join('|'), [orderIds]);
   const eligibleFingerprint = useMemo(
     () => Array.from(trimbleEligibleSegmentIds).sort().join('|'),
     [trimbleEligibleSegmentIds],
   );
+
+  // Limpieza síncrona de razones obsoletas:
+  //  - Sin copiloto activo, ninguna razón pendiente puede materializarse.
+  //  - Si el lote actual coincide con el último enviado (`currentFp === lastSentFp`),
+  //    una razón anterior (p. ej. 'optimized' que no alteró el lote) debe
+  //    descartarse para que un cambio posterior real no se envíe con motivo viejo.
+  if (!copilotActive || !copilotSession) {
+    if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+  } else if (currentFp === lastSentFp) {
+    if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+  }
+
   const prevOrderFingerprintRef = useRef<string | null>(null);
   const prevEligibleFingerprintRef = useRef<string | null>(null);
   if (prevOrderFingerprintRef.current === null) {
@@ -362,6 +383,15 @@ export function TrimbleNavigationPanel({
     }
   }
 
+  // Helper: sólo dejamos razones pendientes si hay copiloto activo. Si no,
+  // se descartarían igualmente en la limpieza síncrona del próximo render,
+  // pero hay una ventana entre el click y ese render en la que un cambio de
+  // estado externo podría disparar el efecto con un motivo no querido.
+  const markPendingReason = (reason: TrimbleDriverSendReason) => {
+    if (!copilotActive || !copilotSession) return;
+    pendingAutoReasonRef.current = reason;
+  };
+
   const handleIncidentSubmit = (
     segmentId: string,
     cat: IncidentCategory,
@@ -370,14 +400,12 @@ export function TrimbleNavigationPanel({
     location?: LatLng,
     nonRec?: boolean,
   ) => {
-    // Si la incidencia saca el tramo de la cola (no recordable) o cambia el batch,
-    // marcar motivo. El efecto del fingerprint decide si realmente envía.
-    pendingAutoReasonRef.current = 'incident_blocks_route';
+    markPendingReason('incident_blocks_route');
     onAddIncident(segmentId, cat, impact, note, location, nonRec);
   };
 
   const handleReoptimizeClick = () => {
-    pendingAutoReasonRef.current = 'optimized';
+    markPendingReason('optimized');
     onReoptimize();
   };
 
