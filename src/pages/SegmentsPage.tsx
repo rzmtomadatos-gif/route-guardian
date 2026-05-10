@@ -589,8 +589,18 @@ export default function SegmentsPage({
                     (s.companySegmentId || '').toLowerCase().includes(q),
                 );
               }
+              // Orden operativo: optimizedOrder cuando exista; los no incluidos al final
+              if (route.optimizedOrder && route.optimizedOrder.length > 0) {
+                const order = displayOrderMap;
+                segs.sort((a, b) => {
+                  const ai = order.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+                  const bi = order.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+                  return ai - bi;
+                });
+              }
               return segs;
             })()}
+            displayOrderMap={displayOrderMap}
             onEditSegment={setEditingSeg}
             onViewOnMap={(segId) => {
               onSetActiveSegment(segId);
