@@ -191,6 +191,10 @@ export interface TrimbleGpsPoint {
   recordingSessionId?: string | null;
   /** Tramo más cercano detectado en el momento del registro (si aplica). */
   matchedSegmentId?: string | null;
+  /** Distancia en metros al eje del tramo detectado (si aplica). */
+  distanceToMatchedSegmentMeters?: number | null;
+  /** Progreso 0..1 sobre la polilínea del tramo detectado (si aplica). */
+  progressOnMatchedSegment?: number | null;
 }
 
 /**

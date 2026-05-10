@@ -2230,8 +2230,11 @@ export function useRouteState() {
         pointsAnalyzed = allPoints.length;
 
         const elig = opts.eligibleSegmentIds ?? null;
+        // Solo se admiten tramos en estado operativo 'pendiente' o 'repetir'.
+        // Se excluyen capturados, procesados, descartados, no_capturable,
+        // tramos con incidencia bloqueante y tramos marcados nonRecordable.
         const TERMINAL_FIELD: ReadonlySet<TrimbleFieldStatus> = new Set([
-          'capturado_pendiente_proceso', 'no_capturable',
+          'capturado_pendiente_proceso', 'no_capturable', 'en_captura',
         ]);
         const capturesByseg = new Map<string, SegmentCapture[]>();
         for (const c of (s.trimbleSegmentCaptures ?? [])) {
@@ -2239,18 +2242,28 @@ export function useRouteState() {
           arr.push(c);
           capturesByseg.set(c.segmentId, arr);
         }
-        const isTerminal = (segId: string): boolean => {
+        const blockedBySegmentIncident = new Set<string>();
+        for (const inc of (s.trimbleIncidents ?? [])) {
+          if (!inc.segmentId) continue;
+          if (inc.severity === 'bloqueante' || inc.invalidatesRun) {
+            blockedBySegmentIncident.add(inc.segmentId);
+          }
+        }
+        const isEligibleField = (segId: string): boolean => {
           const arr = capturesByseg.get(segId) ?? [];
-          return arr.some(
-            (c) => TERMINAL_FIELD.has(c.fieldStatus) ||
-                   c.qaStatus === 'procesado_ok' ||
-                   c.qaStatus === 'descartado_por_calidad',
-          );
+          if (arr.length === 0) return true; // pendiente
+          for (const c of arr) {
+            if (TERMINAL_FIELD.has(c.fieldStatus)) return false;
+            if (c.qaStatus === 'procesado_ok' || c.qaStatus === 'descartado_por_calidad') return false;
+          }
+          return arr.every((c) => c.fieldStatus === 'repetir');
         };
 
         const candidates = s.route.segments.filter((seg) => {
           if (elig && !elig.has(seg.id)) return false;
-          if (isTerminal(seg.id)) return false;
+          if (seg.nonRecordable) return false;
+          if (blockedBySegmentIncident.has(seg.id)) return false;
+          if (!isEligibleField(seg.id)) return false;
           return true;
         });
 

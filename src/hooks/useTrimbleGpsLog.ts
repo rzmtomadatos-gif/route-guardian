@@ -6,17 +6,20 @@
  *    && `state.activeMissionId` && `state.activeRunId`.
  *  - Persiste en `state.trimbleGpsLogsByRun[activeRunId]`.
  *  - Throttling por distancia ≥ 10 m respecto al último punto persistido del MISMO run.
- *  - `phase = 'capture'` si hay captura activa (derivada por findActiveCapture);
- *    si no, `phase = 'transport'`.
- *  - `segmentId` proviene de la captura activa.
+ *  - `phase = 'capture'` SOLO si hay grabación continua activa
+ *    (`state.activeTrimbleRecordingId`). La captura manual queda como
+ *    emergencia y no activa la fase GPS de grabación continua.
+ *  - Enriquecimiento por tramo más cercano (matchedSegmentId,
+ *    distanceToMatchedSegmentMeters, progressOnMatchedSegment) usando
+ *    findCurrentSegmentFromGps con preferencia por tramos en cola operativa.
  *  - Independiente de TrackSession: NO depende del flujo RST/Garmin.
  *  - En modos RST/GARMIN no hace nada.
  */
 import { useEffect, useRef } from 'react';
 import type { LatLng } from '@/types/route';
 import type { TrimbleGpsPoint } from '@/types/trimble';
-import { findActiveCapture } from '@/types/trimble';
 import { useRouteStateContext } from '@/context/RouteStateContext';
+import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
 
 const MIN_DISTANCE_METERS = 10;
 
@@ -71,9 +74,25 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
       if (dist < MIN_DISTANCE_METERS) return;
     }
 
-    const activeCapture = findActiveCapture(state.trimbleSegmentCaptures ?? [], activeRunId);
     const recordingId = state.activeTrimbleRecordingId ?? null;
-    const phase: TrimbleGpsPoint['phase'] = recordingId || activeCapture ? 'capture' : 'transport';
+    const phase: TrimbleGpsPoint['phase'] = recordingId ? 'capture' : 'transport';
+
+    // Enriquecimiento: detectar tramo más cercano para inteligencia operativa.
+    let matchedSegmentId: string | null = null;
+    let distanceToMatchedSegmentMeters: number | null = null;
+    let progressOnMatchedSegment: number | null = null;
+    const segments = state.route?.segments;
+    if (segments && segments.length > 0) {
+      // Preferimos los tramos del orden operativo (cola actual) cuando exista.
+      const optimized = state.route?.optimizedOrder;
+      const preferredSegmentIds = optimized && optimized.length > 0
+        ? new Set(optimized.slice(0, 8))
+        : undefined;
+      const match = findCurrentSegmentFromGps(pos, segments, { preferredSegmentIds });
+      matchedSegmentId = match.segmentId;
+      distanceToMatchedSegmentMeters = match.distanceMeters;
+      progressOnMatchedSegment = match.progress;
+    }
 
     const point: TrimbleGpsPoint = {
       timestamp: new Date().toISOString(),
@@ -85,15 +104,16 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
       missionId,
       runId: activeRunId,
       phase,
-      segmentId: activeCapture?.segmentId ?? null,
+      segmentId: matchedSegmentId,
       source: 'gps',
       recordingSessionId: recordingId,
+      matchedSegmentId,
+      distanceToMatchedSegmentMeters,
+      progressOnMatchedSegment,
     };
 
     // Importante: solo actualizamos la caché local DESPUÉS de confirmar
-    // que el append se ha aceptado. Si appendTrimbleGpsPoint rechaza el
-    // punto (p.ej. límite de 100k por run), la caché debe quedar igual
-    // para no divergir del estado real persistido.
+    // que el append se ha aceptado.
     const result = appendTrimbleGpsPoint(point);
     if (result.ok) {
       lastByRunRef.current.set(activeRunId, { lat: pos.lat, lng: pos.lng });
@@ -101,4 +121,3 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo.position]);
 }
-
