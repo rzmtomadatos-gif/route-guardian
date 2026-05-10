@@ -339,10 +339,10 @@ export function TrimbleNavigationPanel({
     if (status === 'capturado_pendiente_proceso') {
       completedSinceLastSendRef.current += 1;
       if (completedSinceLastSendRef.current >= 2) {
-        pendingAutoReasonRef.current = 'two_completed';
+        markPendingReason('two_completed');
       }
     } else if (status === 'no_capturable') {
-      pendingAutoReasonRef.current = 'non_capturable';
+      markPendingReason('non_capturable');
     }
   };
 
