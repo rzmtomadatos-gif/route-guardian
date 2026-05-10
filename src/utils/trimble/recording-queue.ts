@@ -74,14 +74,22 @@ export interface TrimbleQueueResult {
 }
 
 /**
- * Construye la cola operativa Trimble COMPLETA.
+ * Construye la cola operativa Trimble COMPLETA con regla de corredor.
  *
- * Recorre TODO `orderIds` y devuelve todos los tramos accionables
- * (pendiente / en_captura / repetir) cuyas capas estén activas.
+ * Recorre TODO `orderIds` y devuelve los tramos accionables
+ * (pendiente / en_captura / repetir) cuyas capas estén activas, agrupados
+ * por corredor: una vez iniciado un corredor compuesto (p.ej. "AVDA ESPAÑA
+ * 1/8"), TODAS sus partes accionables se consumen antes de saltar a otro
+ * corredor, aunque en optimizedOrder estuviesen intercaladas.
  *
- * IMPORTANTE: el límite del lote del conductor (SEGMENTS_PER_BATCH = 4)
- * NO se aplica aquí. Se aplica únicamente al construir el `driverBatch`
- * (ver `TrimbleNavigationPanel.sendToDriver`).
+ * Reglas:
+ *  - Una incidencia (no_capturable / procesado_*) en una parte saca esa
+ *    parte concreta de la cola, pero NO rompe el corredor.
+ *  - El estado `repetir` mantiene la parte en la cola del corredor.
+ *  - El límite del lote del conductor (SEGMENTS_PER_BATCH = 4) NO se aplica
+ *    aquí; se aplica al construir `driverBatch` en TrimbleNavigationPanel.
+ *  - El viewport del mapa NO debe usarse como filtro: pásese el conjunto
+ *    de tramos elegibles por capas activas (`trimbleEligibleSegmentIds`).
  *
  * @param state              AppState (lee `route.segments`, capturas, activeRunId).
  * @param eligibleSegmentIds IDs de tramos elegibles (capas activas, NO viewport).
