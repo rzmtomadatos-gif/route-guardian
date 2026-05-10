@@ -1744,7 +1744,7 @@ export default function MapPage({
           if (seg) setReactivateTarget(seg);
         }}
         canNavigate={canNavigate}
-        trimbleVisibleSegmentIds={visibleSegmentIdSet}
+        trimbleVisibleSegmentIds={trimbleEligibleSegmentIds}
         trimbleOrderIds={trimbleOrderIds}
         onCopilotPushQueue={copilot.pushQueue}
         onOpenAdvancedTrimble={() => navigate('/trimble')}
