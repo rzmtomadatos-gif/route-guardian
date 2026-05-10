@@ -73,6 +73,8 @@ const DEFAULT_STATE: AppState = {
   trimbleGpsLogsByRun: {},
   activeMissionId: null,
   activeRunId: null,
+  trimbleRecordingSessions: [],
+  activeTrimbleRecordingId: null,
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */
