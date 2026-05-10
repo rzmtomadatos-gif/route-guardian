@@ -424,6 +424,16 @@ export function TrimbleNavigationPanel({
                 <Radio className="w-4 h-4" />
               </Button>
             </CopilotPanel>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={handleReoptimizeClick}
+              title="Optimizar todo el itinerario Trimble"
+              data-testid="trimble-optimize-all-btn"
+            >
+              <Wand2 className="w-4 h-4 mr-1" /> Optimizar todo
+            </Button>
             <Button variant="ghost" size="sm" className="h-9" onClick={onOpenAdvanced} title="Vista avanzada Trimble">
               <ExternalLink className="w-4 h-4 mr-1" /> Avanzado
             </Button>
