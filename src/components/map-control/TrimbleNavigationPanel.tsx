@@ -58,7 +58,7 @@ const STATUS_BADGE_CLASS: Record<TrimbleSegmentStatus, string> = {
 };
 
 interface Props {
-  visibleSegmentIds: Set<string>;
+  trimbleEligibleSegmentIds: Set<string>;
   orderIds: string[];
   copilotSession: CopilotSession | null;
   copilotActive: boolean;
@@ -77,7 +77,7 @@ interface Props {
 }
 
 export function TrimbleNavigationPanel({
-  visibleSegmentIds,
+  trimbleEligibleSegmentIds,
   orderIds,
   copilotSession,
   copilotActive,
@@ -117,13 +117,24 @@ export function TrimbleNavigationPanel({
   // Cola operativa COMPLETA Trimble (sin límite). El límite SEGMENTS_PER_BATCH
   // se aplica solo al lote del conductor y a la ventana visible del panel.
   const { items: fullQueue, skippedNoGeometry } = useMemo(
-    () => buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds),
-    [state, visibleSegmentIds, orderIds],
+    () => buildTrimbleRecordingQueue(state, trimbleEligibleSegmentIds, orderIds),
+    [state, trimbleEligibleSegmentIds, orderIds],
   );
 
   // Lote del conductor + ventana del panel: primeros SEGMENTS_PER_BATCH (4).
   const driverBatch = useMemo(() => fullQueue.slice(0, SEGMENTS_PER_BATCH), [fullQueue]);
   const remainingAfterBatch = Math.max(0, fullQueue.length - SEGMENTS_PER_BATCH);
+
+  useEffect(() => {
+    console.info('[TRIMBLE QUEUE DEBUG]', {
+      routeSegments: state.route?.segments.length,
+      eligibleIds: trimbleEligibleSegmentIds.size,
+      orderIds: orderIds.length,
+      fullQueue: fullQueue.length,
+      driverBatch: driverBatch.length,
+      remainingAfterBatch,
+    });
+  }, [state.route?.segments.length, trimbleEligibleSegmentIds.size, orderIds.length, fullQueue.length, driverBatch.length, remainingAfterBatch]);
 
   const current: TrimbleQueueItem | null = driverBatch[0] ?? null;
   const next = driverBatch.slice(1);
