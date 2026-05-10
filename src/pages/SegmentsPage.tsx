@@ -122,6 +122,10 @@ export default function SegmentsPage({
   const [sortByProximity, setSortByProximity] = useState(false);
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
+  const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
+  const [viewMode, setViewMode] = useState<'layers' | 'trimble'>(
+    isTrimbleMode ? 'trimble' : 'layers',
+  );
 
   // Geolocation for proximity features
   const geo = useGeolocation(true);
