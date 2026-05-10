@@ -589,6 +589,60 @@ export function TrimbleNavigationPanel({
               {/* --- Misión + pasada --- */}
               {activeMission && activeRun && (
                 <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                  {/* Grabación continua */}
+                  <div
+                    className={`rounded-lg p-2 border ${activeRecording ? 'border-red-500/60 bg-red-500/10' : 'border-border bg-background/40'}`}
+                    data-testid="trimble-recording-block"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-medium flex items-center gap-1">
+                        {activeRecording ? (
+                          <>
+                            <Disc className="w-3 h-3 text-red-500 animate-pulse" />
+                            <span className="text-red-500">Grabando · {recordingPoints.length} pts</span>
+                          </>
+                        ) : (
+                          <>
+                            <Circle className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Sin grabación activa</span>
+                          </>
+                        )}
+                      </span>
+                      {detectedSegment && (
+                        <span className="text-[10px] text-cyan-500 truncate max-w-[60%]" title={detectedSegment.name}>
+                          GPS → {detectedSegment.name}
+                          {detectedSegmentMatch?.progress != null && (
+                            <span className="opacity-70"> · {Math.round(detectedSegmentMatch.progress * 100)}%</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {!activeRecording ? (
+                      <Button
+                        onClick={handleStartRecording}
+                        size="sm"
+                        className="w-full bg-red-500 hover:bg-red-600 text-white"
+                        disabled={!gpsEnabled}
+                        data-testid="trimble-start-recording-btn"
+                      >
+                        <Disc className="w-4 h-4 mr-2" /> Iniciar grabación continua
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleCloseRecording}
+                        size="sm"
+                        variant="outline"
+                        className="w-full border-red-500/60 text-red-500"
+                        data-testid="trimble-close-recording-btn"
+                      >
+                        <StopCircle className="w-4 h-4 mr-2" /> Cerrar grabación · analizar cobertura
+                      </Button>
+                    )}
+                    <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
+                      Las capturas se generan automáticamente al cerrar, en función de la cobertura GPS.
+                    </p>
+                  </div>
+
                   {!current ? (
                     <p className="text-xs text-muted-foreground py-2 text-center">
                       No hay tramos pendientes/repetir en las capas activas.
