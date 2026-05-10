@@ -347,14 +347,23 @@ export function TrimbleNavigationPanel({
   };
 
   // ── Detección de cambios en orden/capas para autoenvío ────────────
-  // Se evalúa de forma síncrona durante el render para que el efecto
-  // de autoenvío vea `pendingAutoReasonRef` ya actualizado al recalcular
-  // `currentFp`. En el primer render solo se inicializan las refs.
   const orderFingerprint = useMemo(() => orderIds.join('|'), [orderIds]);
   const eligibleFingerprint = useMemo(
     () => Array.from(trimbleEligibleSegmentIds).sort().join('|'),
     [trimbleEligibleSegmentIds],
   );
+
+  // Limpieza síncrona de razones obsoletas:
+  //  - Sin copiloto activo, ninguna razón pendiente puede materializarse.
+  //  - Si el lote actual coincide con el último enviado (`currentFp === lastSentFp`),
+  //    una razón anterior (p. ej. 'optimized' que no alteró el lote) debe
+  //    descartarse para que un cambio posterior real no se envíe con motivo viejo.
+  if (!copilotActive || !copilotSession) {
+    if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+  } else if (currentFp === lastSentFp) {
+    if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+  }
+
   const prevOrderFingerprintRef = useRef<string | null>(null);
   const prevEligibleFingerprintRef = useRef<string | null>(null);
   if (prevOrderFingerprintRef.current === null) {
