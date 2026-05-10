@@ -123,9 +123,18 @@ export default function SegmentsPage({
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
-  const [viewMode, setViewMode] = useState<'layers' | 'trimble'>(
-    isTrimbleMode ? 'trimble' : 'layers',
-  );
+  const hasTrimbleData = (state.trimbleMissions?.length ?? 0) > 0;
+  const [viewMode, setViewModeState] = useState<'layers' | 'trimble'>(() => {
+    try {
+      const saved = localStorage.getItem('vialroute_segments_view_mode');
+      if (saved === 'layers' || saved === 'trimble') return saved;
+    } catch {}
+    return isTrimbleMode ? 'trimble' : 'layers';
+  });
+  const setViewMode = useCallback((mode: 'layers' | 'trimble') => {
+    setViewModeState(mode);
+    try { localStorage.setItem('vialroute_segments_view_mode', mode); } catch {}
+  }, []);
 
   // Geolocation for proximity features
   const geo = useGeolocation(true);
