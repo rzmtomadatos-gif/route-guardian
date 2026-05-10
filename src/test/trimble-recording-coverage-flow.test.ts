@@ -45,13 +45,9 @@ describe('Trimble recording — cobertura GPS auto-captura', () => {
     act(() => { result.current.startTrimbleMission({}); });
     act(() => { result.current.startTrimbleRun({}); });
 
-    const recOut = (() => {
-      let out: { ok: boolean; recordingId?: string } = { ok: false };
-      act(() => { out = result.current.startTrimbleRecording({}); });
-      return out;
-    })();
-    expect(recOut.ok).toBe(true);
-    const recId = recOut.recordingId!;
+    act(() => { result.current.startTrimbleRecording({}); });
+    const recId = result.current.state.activeTrimbleRecordingId!;
+    expect(recId).toBeTruthy();
     const runId = result.current.state.activeRunId!;
 
     // Inyectamos puntos GPS directamente en el log (simulando useTrimbleGpsLog).
