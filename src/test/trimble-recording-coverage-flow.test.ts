@@ -53,37 +53,36 @@ describe('Trimble recording — cobertura GPS auto-captura', () => {
     // Inyectamos puntos GPS directamente en el log (simulando useTrimbleGpsLog).
     // segA: 12 puntos cubriendo la ruta de extremo a extremo.
     // segB: solo 3 puntos al inicio (no llega a 85% endProgress).
+    const missionId = result.current.state.activeMissionId!;
     const baseTime = Date.now();
-    const points = [];
+    const points: any[] = [];
     for (let i = 0; i <= 11; i++) {
       points.push({
-        runId,
-        timestamp: baseTime + i * 1000,
-        position: { lat: 40.0000 + (0.005 * i) / 11, lng: -3.7000 },
-        accuracy: 5,
-        speed: 10,
+        timestamp: new Date(baseTime + i * 1000).toISOString(),
+        lat: 40.0000 + (0.005 * i) / 11,
+        lng: -3.7000,
+        accuracy: 5, speed: 10,
+        missionId, runId,
         phase: 'capture' as const,
+        source: 'gps' as const,
         recordingSessionId: recId,
       });
     }
-    // Tramo B: solo arranque
     for (let i = 0; i <= 2; i++) {
       points.push({
-        runId,
-        timestamp: baseTime + 20000 + i * 1000,
-        position: { lat: 40.0100 + (0.0008 * i), lng: -3.7000 },
-        accuracy: 5,
-        speed: 10,
+        timestamp: new Date(baseTime + 20000 + i * 1000).toISOString(),
+        lat: 40.0100 + (0.0008 * i),
+        lng: -3.7000,
+        accuracy: 5, speed: 10,
+        missionId, runId,
         phase: 'capture' as const,
+        source: 'gps' as const,
         recordingSessionId: recId,
       });
     }
 
     act(() => {
-      // Insertamos los puntos por la API pública del hook (appendTrimbleGpsPoint).
-      for (const p of points) {
-        result.current.appendTrimbleGpsPoint(p as any);
-      }
+      for (const p of points) result.current.appendTrimbleGpsPoint(p);
     });
 
     let closeOut: any;
