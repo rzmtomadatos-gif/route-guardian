@@ -1267,12 +1267,14 @@ export default function MapPage({
   }, [route, visibleSegments]);
 
   // ── Trimble: cola operativa + estado por tramo (solo en TRIMBLE_LIDAR) ──
+  // Cola Trimble: usa SIEMPRE el orden global completo (`optimizedOrder` o
+  // segmentos en orden natural). NO se usa `activeRouteBlock` porque limita
+  // a la ventana RST/track y rompe la operación Trimble continua.
   const trimbleOrderIds = useMemo(() => {
     if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return [];
-    if (activeRouteBlock.length > 0) return activeRouteBlock;
     if (route?.optimizedOrder.length) return route.optimizedOrder;
     return route?.segments.map((s) => s.id) ?? [];
-  }, [state.acquisitionMode, activeRouteBlock, route]);
+  }, [state.acquisitionMode, route]);
 
   const visibleSegmentIdSet = useMemo(
     () => new Set(visibleSegments.map((s) => s.id)),
