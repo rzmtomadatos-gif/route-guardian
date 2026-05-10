@@ -181,6 +181,7 @@ export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditS
           <table className="w-full text-xs">
             <thead className="bg-muted/60 border-b border-border sticky top-0 z-10">
               <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-2 px-2 text-center w-10">#</th>
                 <th className="py-2 px-2">ID</th>
                 <th className="py-2 px-2">Nombre</th>
                 <th className="py-2 px-2">Estado Trimble</th>
@@ -189,15 +190,21 @@ export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditS
                 <th className="py-2 px-2 text-center">Últ. pasada</th>
                 <th className="py-2 px-2">Últ. captura</th>
                 <th className="py-2 px-2 text-center">Entreg.</th>
+                <th className="py-2 px-2 text-center">Incid.</th>
                 <th className="py-2 px-2"></th>
               </tr>
             </thead>
             <tbody>
-              {visible.map(({ seg, status, summary }) => (
+              {visible.map(({ seg, status, summary, incidentCount, incidentHigh }) => {
+                const orderIdx = displayOrderMap?.get(seg.id);
+                return (
                 <tr
                   key={seg.id}
                   className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors"
                 >
+                  <td className="py-1.5 px-2 text-center font-mono text-[11px] text-muted-foreground">
+                    {orderIdx ?? '—'}
+                  </td>
                   <td className="py-1.5 px-2 font-mono text-[11px] text-muted-foreground">
                     {seg.companySegmentId ?? '—'}
                   </td>
@@ -228,6 +235,22 @@ export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditS
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
+                  <td className="py-1.5 px-2 text-center">
+                    {incidentCount > 0 ? (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                          incidentHigh
+                            ? 'bg-destructive/15 text-destructive border-destructive/30 font-semibold'
+                            : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
+                        }`}
+                        title={incidentHigh ? 'Incluye severidad alta/bloqueante' : 'Incidencias Trimble'}
+                      >
+                        {incidentCount}{incidentHigh ? '!' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="py-1.5 px-2 text-right whitespace-nowrap">
                     <Button
                       size="sm"
@@ -249,7 +272,8 @@ export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditS
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
