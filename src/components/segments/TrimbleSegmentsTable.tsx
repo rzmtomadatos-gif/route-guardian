@@ -14,6 +14,7 @@ import {
   TRIMBLE_FIELD_STATUSES,
   TRIMBLE_QA_STATUSES,
   type TrimbleSegmentStatus,
+  type TrimbleIncident,
 } from '@/types/trimble';
 import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import { buildTrimbleSegmentSummary } from '@/utils/trimble/segment-summary';
