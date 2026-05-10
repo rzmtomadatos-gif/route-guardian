@@ -137,6 +137,7 @@ export function TrimbleNavigationPanel({
   const remainingAfterBatch = Math.max(0, fullQueue.length - SEGMENTS_PER_BATCH);
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     console.info('[TRIMBLE QUEUE DEBUG]', {
       routeSegments: state.route?.segments.length,
       eligibleIds: trimbleEligibleSegmentIds.size,
