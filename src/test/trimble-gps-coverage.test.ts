@@ -52,10 +52,10 @@ describe('analyzeTrimbleGpsCoverage', () => {
     expect(r.partial[0].reason).toBe('missing_start');
   });
 
-  it('4) Hueco interior grande 0..0.4 y 0.7..1 — gap_too_large', () => {
-    const seg = makeSeg('s1', 200);
-    const a = [0, 0.1, 0.2, 0.3, 0.4].map((p, i) => pt(p, i, 200));
-    const b = [0.7, 0.8, 0.9, 1.0].map((p, i) => pt(p, 10 + i, 200));
+  it('4) Hueco interior grande 0..0.3 y 0.8..1 — gap_too_large', () => {
+    const seg = makeSeg('s1', 500);
+    const a = [0, 0.1, 0.2, 0.3].map((p, i) => pt(p, i, 500));
+    const b = [0.8, 0.9, 1.0].map((p, i) => pt(p, 10 + i, 500));
     const r = analyzeTrimbleGpsCoverage([...a, ...b], [seg]);
     expect(r.captured).toHaveLength(0);
     expect(['gap_too_large', 'low_coverage']).toContain(r.partial[0].reason);
