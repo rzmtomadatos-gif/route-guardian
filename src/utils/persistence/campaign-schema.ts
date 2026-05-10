@@ -212,6 +212,8 @@ const appStateSchema = z.object({
   ).default({}),
   activeMissionId: z.string().nullable().default(null),
   activeRunId: z.string().nullable().default(null),
+  trimbleRecordingSessions: z.array(z.lazy(() => trimbleRecordingSessionSchema)).max(50_000).default([]),
+  activeTrimbleRecordingId: z.string().nullable().default(null),
 }).strict();
 
 const trackGpsPointSchema = z.object({
@@ -277,6 +279,21 @@ const trimbleCaptureSchema = z.object({
   qaNotes: z.string().max(2000).optional(),
   qaReviewedBy: z.string().max(200).optional(),
   qaReviewedAt: isoDateString.optional(),
+  captureSource: z.enum(['manual', 'gps_auto']).optional(),
+  recordingSessionId: z.string().min(1).max(100).nullable().optional(),
+  coverageRatio: z.number().min(0).max(1).nullable().optional(),
+  matchedPoints: z.number().int().min(0).nullable().optional(),
+}).strict();
+
+const trimbleRecordingSessionSchema = z.object({
+  id: z.string().min(1).max(100),
+  missionId: z.string().min(1).max(100),
+  runId: z.string().min(1).max(100),
+  startedAt: isoDateString,
+  endedAt: isoDateString.nullable(),
+  startPosition: latLngSchema.optional(),
+  endPosition: latLngSchema.optional(),
+  notes: z.string().max(2000).optional(),
 }).strict();
 
 const trimbleIncidentCategoryEnum = z.enum([
@@ -329,6 +346,8 @@ const trimbleGpsPointSchema = z.object({
   phase: z.enum(['transport', 'capture']),
   segmentId: z.string().nullable().optional(),
   source: z.literal('gps'),
+  recordingSessionId: z.string().min(1).max(100).nullable().optional(),
+  matchedSegmentId: z.string().min(1).max(100).nullable().optional(),
 }).strict();
 
 // ── Event Log — derivado en runtime de EVENT_TYPES (fuente única). ──

@@ -104,6 +104,8 @@ export function createEmptyCampaignState(prefs: CampaignResetPreferences = {}): 
     trimbleGpsLogsByRun: {},
     activeMissionId: null,
     activeRunId: null,
+    trimbleRecordingSessions: [],
+    activeTrimbleRecordingId: null,
   };
 }
 

@@ -130,6 +130,8 @@ function makeAdvancedCampaignState(): AppState {
     trimbleGpsLogsByRun: {},
     activeMissionId: null,
     activeRunId: null,
+    trimbleRecordingSessions: [],
+    activeTrimbleRecordingId: null,
   };
 }
 

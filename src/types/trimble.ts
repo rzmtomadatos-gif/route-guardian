@@ -89,6 +89,33 @@ export interface SegmentCapture {
   qaNotes?: string;
   qaReviewedBy?: string;
   qaReviewedAt?: string;
+  /** Origen de la captura: manual (operador) o gps_auto (motor de cobertura). */
+  captureSource?: 'manual' | 'gps_auto';
+  /** Si captureSource='gps_auto', sesión de grabación que la generó. */
+  recordingSessionId?: string | null;
+  /** Cobertura GPS [0..1] solo para gps_auto. */
+  coverageRatio?: number | null;
+  /** Nº de puntos GPS dentro de tolerancia para gps_auto. */
+  matchedPoints?: number | null;
+}
+
+/**
+ * Sesión de grabación continua Trimble. Reemplaza el flujo manual tramo a
+ * tramo en campo: el operador inicia/cierra una grabación y al cierre se
+ * generan automáticamente los SegmentCapture por análisis de cobertura GPS.
+ *
+ * El flujo manual (startTrimbleCapture/closeTrimbleCapture) NO se elimina;
+ * queda como respaldo desde vista avanzada o gabinete.
+ */
+export interface TrimbleRecordingSession {
+  id: string;
+  missionId: string;
+  runId: string;
+  startedAt: string;
+  endedAt: string | null;
+  startPosition?: LatLng;
+  endPosition?: LatLng;
+  notes?: string;
 }
 
 export type TrimbleIncidentCategory =
@@ -160,6 +187,10 @@ export interface TrimbleGpsPoint {
   phase: 'transport' | 'capture';
   segmentId?: string | null;
   source: 'gps';
+  /** Sesión de grabación continua a la que pertenece (si aplica). */
+  recordingSessionId?: string | null;
+  /** Tramo más cercano detectado en el momento del registro (si aplica). */
+  matchedSegmentId?: string | null;
 }
 
 /**

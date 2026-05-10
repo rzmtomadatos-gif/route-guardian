@@ -72,7 +72,8 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
     }
 
     const activeCapture = findActiveCapture(state.trimbleSegmentCaptures ?? [], activeRunId);
-    const phase: TrimbleGpsPoint['phase'] = activeCapture ? 'capture' : 'transport';
+    const recordingId = state.activeTrimbleRecordingId ?? null;
+    const phase: TrimbleGpsPoint['phase'] = recordingId || activeCapture ? 'capture' : 'transport';
 
     const point: TrimbleGpsPoint = {
       timestamp: new Date().toISOString(),
@@ -86,6 +87,7 @@ export function useTrimbleGpsLog(geo: GeoSnapshot): void {
       phase,
       segmentId: activeCapture?.segmentId ?? null,
       source: 'gps',
+      recordingSessionId: recordingId,
     };
 
     // Importante: solo actualizamos la caché local DESPUÉS de confirmar
