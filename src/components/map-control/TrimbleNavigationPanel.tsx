@@ -102,6 +102,7 @@ export function TrimbleNavigationPanel({
   gpsSpeed,
   gpsError,
   onToggleGps,
+  onReoptimize,
   onOpenAdvanced,
 }: Props) {
   const {
