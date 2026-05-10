@@ -21,8 +21,10 @@ import type {
   TrimbleIncident,
   TrimbleDeliverable,
   TrimbleGpsPoint,
+  TrimbleRecordingSession,
 } from '@/types/trimble';
 import { findActiveCapture } from '@/types/trimble';
+import { analyzeTrimbleGpsCoverage } from '@/utils/trimble/gps-coverage';
 import { canChangeAcquisitionMode } from '@/utils/trimble/mode-change-guard';
 import { getDefaultState, saveState, createEmptyCampaignState } from '@/utils/storage';
 import { clearEventsDB } from '@/utils/persistence';
