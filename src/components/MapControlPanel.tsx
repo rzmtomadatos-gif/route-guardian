@@ -75,7 +75,7 @@ export function MapControlPanel(props: Props) {
   if (props.acquisitionMode === 'TRIMBLE_LIDAR') {
     return (
       <TrimbleNavigationPanel
-        visibleSegmentIds={props.trimbleEligibleSegmentIds}
+        trimbleEligibleSegmentIds={props.trimbleEligibleSegmentIds}
         orderIds={props.trimbleOrderIds ?? []}
         copilotSession={props.copilotSession}
         copilotActive={props.copilotActive}
