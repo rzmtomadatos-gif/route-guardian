@@ -34,7 +34,6 @@ import { logEvent } from '@/utils/persistence/event-log';
 import type { LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
 import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
-const SS_FP_KEY = 'vialroute.trimble.lastQueueFp';
 
 const STATUS_LABELS: Record<TrimbleSegmentStatus, string> = {
   pendiente: 'Pendiente',
