@@ -14,6 +14,7 @@ import {
   TRIMBLE_FIELD_STATUSES,
   TRIMBLE_QA_STATUSES,
   type TrimbleSegmentStatus,
+  type TrimbleIncident,
 } from '@/types/trimble';
 import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import { buildTrimbleSegmentSummary } from '@/utils/trimble/segment-summary';
@@ -49,13 +50,27 @@ const ALL_STATUSES: TrimbleSegmentStatus[] = [
   ...TRIMBLE_QA_STATUSES,
 ];
 
-type StatusFilter = TrimbleSegmentStatus | 'todos';
+type StatusFilter = TrimbleSegmentStatus | 'todos' | 'con_incidencia';
 
 interface Props {
   state: AppState;
   segments: Segment[];
+  displayOrderMap?: Map<string, number>;
   onEditSegment: (s: Segment) => void;
   onViewOnMap: (segId: string) => void;
+}
+
+const HIGH_SEVERITIES = new Set(['alta', 'bloqueante']);
+
+function buildIncidentIndex(incidents: ReadonlyArray<TrimbleIncident>) {
+  const counts = new Map<string, number>();
+  const high = new Set<string>();
+  for (const inc of incidents) {
+    if (!inc.segmentId) continue;
+    counts.set(inc.segmentId, (counts.get(inc.segmentId) ?? 0) + 1);
+    if (HIGH_SEVERITIES.has(inc.severity)) high.add(inc.segmentId);
+  }
+  return { counts, high };
 }
 
 function formatDate(iso: string | null): string {
@@ -69,7 +84,7 @@ function formatDate(iso: string | null): string {
   } catch { return iso; }
 }
 
-export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnMap }: Props) {
+export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditSegment, onViewOnMap }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [page, setPage] = useState(0);
 
@@ -77,25 +92,34 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
   const missions = state.trimbleMissions ?? [];
   const runs = state.trimbleRuns ?? [];
   const deliverables = state.trimbleDeliverables ?? [];
+  const trimbleIncidents = state.trimbleIncidents ?? [];
   const activeRunId = state.activeRunId;
+
+  const incidentIndex = useMemo(() => buildIncidentIndex(trimbleIncidents), [trimbleIncidents]);
 
   const rows = useMemo(() => {
     return segments.map((seg) => {
       const status = deriveTrimbleSegmentStatus(seg.id, captures, activeRunId);
       const summary = buildTrimbleSegmentSummary(seg.id, captures, missions, runs, deliverables);
-      return { seg, status, summary };
+      const incidentCount = incidentIndex.counts.get(seg.id) ?? 0;
+      const incidentHigh = incidentIndex.high.has(seg.id);
+      return { seg, status, summary, incidentCount, incidentHigh };
     });
-  }, [segments, captures, missions, runs, deliverables, activeRunId]);
+  }, [segments, captures, missions, runs, deliverables, activeRunId, incidentIndex]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { todos: rows.length };
+    const c: Record<string, number> = { todos: rows.length, con_incidencia: 0 };
     for (const s of ALL_STATUSES) c[s] = 0;
-    for (const r of rows) c[r.status] = (c[r.status] ?? 0) + 1;
+    for (const r of rows) {
+      c[r.status] = (c[r.status] ?? 0) + 1;
+      if (r.incidentCount > 0) c.con_incidencia++;
+    }
     return c;
   }, [rows]);
 
   const filtered = useMemo(() => {
     if (statusFilter === 'todos') return rows;
+    if (statusFilter === 'con_incidencia') return rows.filter((r) => r.incidentCount > 0);
     return rows.filter((r) => r.status === statusFilter);
   }, [rows, statusFilter]);
 
@@ -133,6 +157,17 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
               {STATUS_LABEL[s]} ({counts[s] ?? 0})
             </button>
           ))}
+          <button
+            onClick={() => { setStatusFilter('con_incidencia'); setPage(0); }}
+            className={`px-2 py-1 rounded text-[10px] font-medium border ${
+              statusFilter === 'con_incidencia'
+                ? 'bg-destructive/15 text-destructive border-destructive/30 ring-1 ring-current'
+                : 'bg-secondary text-muted-foreground border-transparent hover:text-foreground'
+            }`}
+            title="Tramos con incidencia Trimble"
+          >
+            Con incidencia ({counts.con_incidencia ?? 0})
+          </button>
         </div>
       </div>
 
@@ -146,6 +181,7 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
           <table className="w-full text-xs">
             <thead className="bg-muted/60 border-b border-border sticky top-0 z-10">
               <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-2 px-2 text-center w-10">#</th>
                 <th className="py-2 px-2">ID</th>
                 <th className="py-2 px-2">Nombre</th>
                 <th className="py-2 px-2">Estado Trimble</th>
@@ -154,15 +190,21 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
                 <th className="py-2 px-2 text-center">Últ. pasada</th>
                 <th className="py-2 px-2">Últ. captura</th>
                 <th className="py-2 px-2 text-center">Entreg.</th>
+                <th className="py-2 px-2 text-center">Incid.</th>
                 <th className="py-2 px-2"></th>
               </tr>
             </thead>
             <tbody>
-              {visible.map(({ seg, status, summary }) => (
+              {visible.map(({ seg, status, summary, incidentCount, incidentHigh }) => {
+                const orderIdx = displayOrderMap?.get(seg.id);
+                return (
                 <tr
                   key={seg.id}
                   className="border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors"
                 >
+                  <td className="py-1.5 px-2 text-center font-mono text-[11px] text-muted-foreground">
+                    {orderIdx ?? '—'}
+                  </td>
                   <td className="py-1.5 px-2 font-mono text-[11px] text-muted-foreground">
                     {seg.companySegmentId ?? '—'}
                   </td>
@@ -193,6 +235,22 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
+                  <td className="py-1.5 px-2 text-center">
+                    {incidentCount > 0 ? (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                          incidentHigh
+                            ? 'bg-destructive/15 text-destructive border-destructive/30 font-semibold'
+                            : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
+                        }`}
+                        title={incidentHigh ? 'Incluye severidad alta/bloqueante' : 'Incidencias Trimble'}
+                      >
+                        {incidentCount}{incidentHigh ? '!' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="py-1.5 px-2 text-right whitespace-nowrap">
                     <Button
                       size="sm"
@@ -214,7 +272,8 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

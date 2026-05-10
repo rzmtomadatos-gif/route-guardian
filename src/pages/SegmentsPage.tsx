@@ -123,9 +123,18 @@ export default function SegmentsPage({
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
-  const [viewMode, setViewMode] = useState<'layers' | 'trimble'>(
-    isTrimbleMode ? 'trimble' : 'layers',
-  );
+  
+  const [viewMode, setViewModeState] = useState<'layers' | 'trimble'>(() => {
+    try {
+      const saved = localStorage.getItem('vialroute_segments_view_mode');
+      if (saved === 'layers' || saved === 'trimble') return saved;
+    } catch {}
+    return isTrimbleMode ? 'trimble' : 'layers';
+  });
+  const setViewMode = useCallback((mode: 'layers' | 'trimble') => {
+    setViewModeState(mode);
+    try { localStorage.setItem('vialroute_segments_view_mode', mode); } catch {}
+  }, []);
 
   // Geolocation for proximity features
   const geo = useGeolocation(true);
@@ -580,8 +589,18 @@ export default function SegmentsPage({
                     (s.companySegmentId || '').toLowerCase().includes(q),
                 );
               }
+              // Orden operativo: optimizedOrder cuando exista; los no incluidos al final
+              if (route.optimizedOrder && route.optimizedOrder.length > 0) {
+                const order = displayOrderMap;
+                segs.sort((a, b) => {
+                  const ai = order.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+                  const bi = order.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+                  return ai - bi;
+                });
+              }
               return segs;
             })()}
+            displayOrderMap={displayOrderMap}
             onEditSegment={setEditingSeg}
             onViewOnMap={(segId) => {
               onSetActiveSegment(segId);
