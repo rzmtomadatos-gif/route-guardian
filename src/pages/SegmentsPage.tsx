@@ -561,37 +561,64 @@ export default function SegmentsPage({
         />
       )}
 
-      {/* Layer panel – main content */}
+      {/* Main content: Trimble flat view o Layer panel */}
       <div className="flex-1 overflow-hidden">
-        <LayerPanel
-          segments={filtered}
-          incidents={incidents}
-          selectedIds={selectedIds}
-          availableLayers={route.availableLayers}
-          hiddenLayers={hiddenLayers}
-          onHiddenLayersChange={onHiddenLayersChange}
-          onToggleSelect={toggleSelect}
-          onSelectMultiple={selectMultiple}
-          onEditSegment={setEditingSeg}
-          onViewOnMap={(segId) => {
-            onSetActiveSegment(segId);
-            navigate('/map');
-          }}
-          onResetSegment={onResetSegment}
-          onDeleteSegment={onDeleteSegment}
-          onRenameLayer={onRenameLayer}
-          onDeleteLayer={onDeleteLayer}
-          onMoveToLayer={onMoveToLayer}
-          onMergeSegments={onMergeSegments}
-          onAddLayer={onAddLayer}
-           vehicleDistanceMap={vehicleDistanceMap}
-           recommendedSegmentId={recommendedSegmentId}
-           displayOrderMap={displayOrderMap}
-           onReorderInRoute={(id, dir) => onReorder(id, dir)}
-           onReverseSegment={onReverseSegment}
-           optimizedOrderLength={route.optimizedOrder.length}
-           onRequestReactivate={(seg) => setReactivateTarget(seg)}
-         />
+        {viewMode === 'trimble' ? (
+          <TrimbleSegmentsTable
+            state={state}
+            segments={(() => {
+              // Aplica visibilidad por capa y búsqueda, pero NO el statusFilter RST
+              let segs = route.segments.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
+              if (search) {
+                const q = search.toLowerCase();
+                segs = segs.filter(
+                  (s) =>
+                    s.name.toLowerCase().includes(q) ||
+                    s.kmlId.toLowerCase().includes(q) ||
+                    String(s.trackNumber).includes(q) ||
+                    (s.layer || '').toLowerCase().includes(q) ||
+                    (s.companySegmentId || '').toLowerCase().includes(q),
+                );
+              }
+              return segs;
+            })()}
+            onEditSegment={setEditingSeg}
+            onViewOnMap={(segId) => {
+              onSetActiveSegment(segId);
+              navigate('/map');
+            }}
+          />
+        ) : (
+          <LayerPanel
+            segments={filtered}
+            incidents={incidents}
+            selectedIds={selectedIds}
+            availableLayers={route.availableLayers}
+            hiddenLayers={hiddenLayers}
+            onHiddenLayersChange={onHiddenLayersChange}
+            onToggleSelect={toggleSelect}
+            onSelectMultiple={selectMultiple}
+            onEditSegment={setEditingSeg}
+            onViewOnMap={(segId) => {
+              onSetActiveSegment(segId);
+              navigate('/map');
+            }}
+            onResetSegment={onResetSegment}
+            onDeleteSegment={onDeleteSegment}
+            onRenameLayer={onRenameLayer}
+            onDeleteLayer={onDeleteLayer}
+            onMoveToLayer={onMoveToLayer}
+            onMergeSegments={onMergeSegments}
+            onAddLayer={onAddLayer}
+            vehicleDistanceMap={vehicleDistanceMap}
+            recommendedSegmentId={recommendedSegmentId}
+            displayOrderMap={displayOrderMap}
+            onReorderInRoute={(id, dir) => onReorder(id, dir)}
+            onReverseSegment={onReverseSegment}
+            optimizedOrderLength={route.optimizedOrder.length}
+            onRequestReactivate={(seg) => setReactivateTarget(seg)}
+          />
+        )}
       </div>
 
       <ReactivateSegmentDialog
