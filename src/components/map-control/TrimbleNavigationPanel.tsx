@@ -383,6 +383,15 @@ export function TrimbleNavigationPanel({
     }
   }
 
+  // Helper: sólo dejamos razones pendientes si hay copiloto activo. Si no,
+  // se descartarían igualmente en la limpieza síncrona del próximo render,
+  // pero hay una ventana entre el click y ese render en la que un cambio de
+  // estado externo podría disparar el efecto con un motivo no querido.
+  const markPendingReason = (reason: TrimbleDriverSendReason) => {
+    if (!copilotActive || !copilotSession) return;
+    pendingAutoReasonRef.current = reason;
+  };
+
   const handleIncidentSubmit = (
     segmentId: string,
     cat: IncidentCategory,
@@ -391,14 +400,12 @@ export function TrimbleNavigationPanel({
     location?: LatLng,
     nonRec?: boolean,
   ) => {
-    // Si la incidencia saca el tramo de la cola (no recordable) o cambia el batch,
-    // marcar motivo. El efecto del fingerprint decide si realmente envía.
-    pendingAutoReasonRef.current = 'incident_blocks_route';
+    markPendingReason('incident_blocks_route');
     onAddIncident(segmentId, cat, impact, note, location, nonRec);
   };
 
   const handleReoptimizeClick = () => {
-    pendingAutoReasonRef.current = 'optimized';
+    markPendingReason('optimized');
     onReoptimize();
   };
 
