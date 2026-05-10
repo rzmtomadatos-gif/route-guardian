@@ -346,6 +346,8 @@ const trimbleGpsPointSchema = z.object({
   phase: z.enum(['transport', 'capture']),
   segmentId: z.string().nullable().optional(),
   source: z.literal('gps'),
+  recordingSessionId: z.string().min(1).max(100).nullable().optional(),
+  matchedSegmentId: z.string().min(1).max(100).nullable().optional(),
 }).strict();
 
 // ── Event Log — derivado en runtime de EVENT_TYPES (fuente única). ──
