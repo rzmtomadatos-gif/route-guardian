@@ -84,7 +84,7 @@ function formatDate(iso: string | null): string {
   } catch { return iso; }
 }
 
-export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnMap }: Props) {
+export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditSegment, onViewOnMap }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [page, setPage] = useState(0);
 
@@ -92,25 +92,34 @@ export function TrimbleSegmentsTable({ state, segments, onEditSegment, onViewOnM
   const missions = state.trimbleMissions ?? [];
   const runs = state.trimbleRuns ?? [];
   const deliverables = state.trimbleDeliverables ?? [];
+  const trimbleIncidents = state.trimbleIncidents ?? [];
   const activeRunId = state.activeRunId;
+
+  const incidentIndex = useMemo(() => buildIncidentIndex(trimbleIncidents), [trimbleIncidents]);
 
   const rows = useMemo(() => {
     return segments.map((seg) => {
       const status = deriveTrimbleSegmentStatus(seg.id, captures, activeRunId);
       const summary = buildTrimbleSegmentSummary(seg.id, captures, missions, runs, deliverables);
-      return { seg, status, summary };
+      const incidentCount = incidentIndex.counts.get(seg.id) ?? 0;
+      const incidentHigh = incidentIndex.high.has(seg.id);
+      return { seg, status, summary, incidentCount, incidentHigh };
     });
-  }, [segments, captures, missions, runs, deliverables, activeRunId]);
+  }, [segments, captures, missions, runs, deliverables, activeRunId, incidentIndex]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { todos: rows.length };
+    const c: Record<string, number> = { todos: rows.length, con_incidencia: 0 };
     for (const s of ALL_STATUSES) c[s] = 0;
-    for (const r of rows) c[r.status] = (c[r.status] ?? 0) + 1;
+    for (const r of rows) {
+      c[r.status] = (c[r.status] ?? 0) + 1;
+      if (r.incidentCount > 0) c.con_incidencia++;
+    }
     return c;
   }, [rows]);
 
   const filtered = useMemo(() => {
     if (statusFilter === 'todos') return rows;
+    if (statusFilter === 'con_incidencia') return rows.filter((r) => r.incidentCount > 0);
     return rows.filter((r) => r.status === statusFilter);
   }, [rows, statusFilter]);
 
