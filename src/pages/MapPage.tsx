@@ -37,6 +37,7 @@ import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, 
 import type { ReactivateOptions } from '@/utils/segment-reactivation';
 import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 import { TrimbleLegend } from '@/components/map/TrimbleLegend';
+import { TrimbleCoverageOverlay } from '@/components/map/TrimbleCoverageOverlay';
 import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
 
@@ -1395,6 +1396,9 @@ export default function MapPage({
           <TrimbleLegend />
         </div>
       )}
+
+      {/* === TRIMBLE: overlay de cobertura GPS (en vivo + último cierre) === */}
+      {state.acquisitionMode === 'TRIMBLE_LIDAR' && <TrimbleCoverageOverlay />}
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
