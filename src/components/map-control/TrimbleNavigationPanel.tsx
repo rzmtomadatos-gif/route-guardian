@@ -240,6 +240,49 @@ export function TrimbleNavigationPanel({
     return true;
   };
 
+  // ── Grabación continua + detección GPS ────────────────────────────
+  const recordingPoints = useMemo(() => {
+    if (!activeRecording) return [];
+    const all = state.trimbleGpsLogsByRun?.[activeRecording.runId] ?? [];
+    return all.filter((p) => p.recordingSessionId === activeRecording.id && p.phase === 'capture');
+  }, [activeRecording, state.trimbleGpsLogsByRun]);
+
+  const preferredQueueIds = useMemo(
+    () => new Set(driverBatch.map((q) => q.segment.id)),
+    [driverBatch],
+  );
+  const detectedSegmentMatch = useMemo(() => {
+    if (!currentPosition || !state.route) return null;
+    return findCurrentSegmentFromGps(currentPosition, state.route.segments, {
+      preferredSegmentIds: preferredQueueIds,
+    });
+  }, [currentPosition, state.route, preferredQueueIds]);
+  const detectedSegment = useMemo(() => {
+    if (!detectedSegmentMatch?.segmentId || !state.route) return null;
+    return state.route.segments.find((s) => s.id === detectedSegmentMatch.segmentId) ?? null;
+  }, [detectedSegmentMatch, state.route]);
+
+  const handleStartRecording = () => {
+    if (!gpsEnabled) { toast.error('Activa el GPS antes de empezar a grabar.'); return; }
+    const r = startTrimbleRecording({ startPosition: currentPosition ?? undefined });
+    if (r.ok) toast.success('Grabación iniciada. La cobertura se detectará automáticamente.');
+    else toast.error(r.reason || 'No se pudo iniciar grabación.');
+  };
+  const handleCloseRecording = () => {
+    const r = closeTrimbleRecording({
+      endPosition: currentPosition ?? undefined,
+      eligibleSegmentIds: trimbleEligibleSegmentIds,
+    });
+    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar grabación.'); return; }
+    const auto = r.autoCapturedCount ?? 0;
+    const partial = r.partialCount ?? 0;
+    if (auto > 0) {
+      toast.success(`Grabación cerrada — ${auto} tramo(s) auto-capturado(s)${partial ? ` · ${partial} parcial(es)` : ''}.`);
+    } else {
+      toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''}.`);
+    }
+  };
+
   // ── Auto-envío al conductor ────────────────────────────────────────
   const completedSinceLastSendRef = useRef(0);
   const pendingAutoReasonRef = useRef<TrimbleDriverSendReason | null>(null);
