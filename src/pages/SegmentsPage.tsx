@@ -438,25 +438,53 @@ export default function SegmentsPage({
           </Button>
         </div>
 
-        {/* Status filter chips */}
-        <div className="flex gap-0.5 mb-2">
-          {STATUS_OPTIONS.map((opt) => (
+        {/* Status filter chips (solo en vista por capas) */}
+        {viewMode === 'layers' && (
+          <div className="flex gap-0.5 mb-2">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
+                }}
+                className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                  statusFilter === opt.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* View mode toggle: solo si hay misiones Trimble o estamos en modo Trimble */}
+        {(isTrimbleMode || (state.trimbleMissions?.length ?? 0) > 0) && (
+          <div className="flex gap-0.5 mb-2">
             <button
-              key={opt.value}
-              onClick={() => {
-                setStatusFilter(opt.value);
-                try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
-              }}
-              className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-                statusFilter === opt.value
+              onClick={() => setViewMode('layers')}
+              className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
+                viewMode === 'layers'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
             >
-              {opt.label}
+              <List className="w-3 h-3" /> Vista por capas
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => setViewMode('trimble')}
+              className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
+                viewMode === 'trimble'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Radar className="w-3 h-3" /> Vista Trimble
+            </button>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="flex gap-1.5">
