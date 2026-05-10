@@ -96,7 +96,7 @@ interface Props {
   onCancelStart?: () => void;
 }
 
-export function MapControlPanel({
+export function RstGarminMapControlPanel({
   segments,
   optimizedOrder,
   activeSegmentId,
@@ -148,34 +148,7 @@ export function MapControlPanel({
   onReactivateSegment,
   canCancelStart = false,
   onCancelStart,
-  trimbleVisibleSegmentIds,
-  trimbleOrderIds,
-  onCopilotPushQueue,
-  onOpenAdvancedTrimble,
 }: Props) {
-  // ── Modo TRIMBLE_LIDAR: panel dedicado, sustituye al chrome RST/Garmin ──
-  if (acquisitionMode === 'TRIMBLE_LIDAR') {
-    return (
-      <TrimbleNavigationPanel
-        visibleSegmentIds={trimbleVisibleSegmentIds ?? new Set(segments.map((s) => s.id))}
-        orderIds={trimbleOrderIds ?? optimizedOrder}
-        copilotSession={copilotSession}
-        copilotActive={copilotActive}
-        onCopilotStart={onCopilotStart}
-        onCopilotEnd={onCopilotEnd}
-        onCopilotPushQueue={onCopilotPushQueue ?? (async () => {})}
-        onSetActiveSegment={onSegmentSelect}
-        onAddIncident={onAddIncident}
-        currentPosition={currentPosition}
-        gpsEnabled={gpsEnabled}
-        gpsAccuracy={gpsAccuracy}
-        gpsSpeed={gpsSpeed}
-        gpsError={gpsError}
-        onOpenAdvanced={onOpenAdvancedTrimble ?? (() => {})}
-      />
-    );
-  }
-
   const [expanded, setExpanded] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterType>(loadFilter);
   const [showSecondary, setShowSecondary] = useState(false);
