@@ -335,6 +335,9 @@ export function TrimbleNavigationPanel({
   };
 
   // ── Detección de cambios en orden/capas para autoenvío ────────────
+  // Se evalúa de forma síncrona durante el render para que el efecto
+  // de autoenvío vea `pendingAutoReasonRef` ya actualizado al recalcular
+  // `currentFp`. En el primer render solo se inicializan las refs.
   const orderFingerprint = useMemo(() => orderIds.join('|'), [orderIds]);
   const eligibleFingerprint = useMemo(
     () => Array.from(trimbleEligibleSegmentIds).sort().join('|'),
@@ -342,31 +345,22 @@ export function TrimbleNavigationPanel({
   );
   const prevOrderFingerprintRef = useRef<string | null>(null);
   const prevEligibleFingerprintRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (prevOrderFingerprintRef.current === null) {
-      prevOrderFingerprintRef.current = orderFingerprint;
-      return;
+  if (prevOrderFingerprintRef.current === null) {
+    prevOrderFingerprintRef.current = orderFingerprint;
+  } else if (prevOrderFingerprintRef.current !== orderFingerprint) {
+    prevOrderFingerprintRef.current = orderFingerprint;
+    if (!pendingAutoReasonRef.current) {
+      pendingAutoReasonRef.current = 'order_changed';
     }
-    if (prevOrderFingerprintRef.current !== orderFingerprint) {
-      prevOrderFingerprintRef.current = orderFingerprint;
-      // No pisar reasons más específicas (optimized, two_completed, etc.)
-      if (!pendingAutoReasonRef.current) {
-        pendingAutoReasonRef.current = 'order_changed';
-      }
+  }
+  if (prevEligibleFingerprintRef.current === null) {
+    prevEligibleFingerprintRef.current = eligibleFingerprint;
+  } else if (prevEligibleFingerprintRef.current !== eligibleFingerprint) {
+    prevEligibleFingerprintRef.current = eligibleFingerprint;
+    if (!pendingAutoReasonRef.current) {
+      pendingAutoReasonRef.current = 'layer_changed';
     }
-  }, [orderFingerprint]);
-  useEffect(() => {
-    if (prevEligibleFingerprintRef.current === null) {
-      prevEligibleFingerprintRef.current = eligibleFingerprint;
-      return;
-    }
-    if (prevEligibleFingerprintRef.current !== eligibleFingerprint) {
-      prevEligibleFingerprintRef.current = eligibleFingerprint;
-      if (!pendingAutoReasonRef.current) {
-        pendingAutoReasonRef.current = 'layer_changed';
-      }
-    }
-  }, [eligibleFingerprint]);
+  }
 
   const handleIncidentSubmit = (
     segmentId: string,
