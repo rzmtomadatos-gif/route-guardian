@@ -74,6 +74,8 @@ const baseProps = {
   copilotActive: false,
   onCopilotStart: asyncNoop,
   onCopilotEnd: asyncNoop,
+  trimbleEligibleSegmentIds: new Set<string>(),
+  trimbleOrderIds: [],
 };
 
 describe('MapControlPanel router', () => {
