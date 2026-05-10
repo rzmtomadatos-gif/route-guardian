@@ -1,30 +1,54 @@
 /**
  * Panel gabinete Trimble.
  *
- * Tabla de capturas con acciones SOLO de gabinete:
+ * 3 pestañas:
+ *  - Resumen: KPIs agregados.
+ *  - Por tramo: vista primaria, una fila por tramo con su estado derivado,
+ *    intentos, última misión/pasada, entregables.
+ *  - Capturas y entregables: detalle técnico (acciones QA + vincular).
+ *
+ * Acciones SOLO de gabinete:
  *  - Fijar QA (procesado_ok / con_observaciones / descartado).
  *  - Vincular / desvincular entregables externos (URL/NAS, NUNCA binarios).
- *
- * El campo nunca cambia QA y gabinete nunca cambia fieldStatus aquí.
  */
 import { useMemo, useState } from 'react';
 import { useRouteStateContext } from '@/context/RouteStateContext';
-import type { TrimbleQaStatus, TrimbleDeliverable, TrimbleDeliverableKind, SegmentCapture } from '@/types/trimble';
+import type {
+  TrimbleQaStatus, TrimbleDeliverableKind, SegmentCapture, TrimbleSegmentStatus,
+} from '@/types/trimble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { CheckCircle, AlertCircle, XCircle, Link2, Trash2, ClipboardCheck } from 'lucide-react';
+import {
+  CheckCircle, AlertCircle, XCircle, Link2, Trash2, ClipboardCheck,
+  ListTree, LayoutGrid, FileBox,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
+import { buildTrimbleSegmentSummary } from '@/utils/trimble/segment-summary';
+import { TRIMBLE_STATUS_COLOR } from '@/utils/segment-colors';
 
 const FIELD_LABELS: Record<string, string> = {
   en_captura: 'En captura',
   capturado_pendiente_proceso: 'Capturado · pdte. proceso',
   repetir: 'Repetir',
   no_capturable: 'No capturable',
+};
+
+const STATUS_LABELS: Record<TrimbleSegmentStatus, string> = {
+  pendiente: 'Pendiente',
+  en_captura: 'En captura',
+  capturado_pendiente_proceso: 'Capturado · pdte. proceso',
+  procesado_ok: 'Procesado OK',
+  procesado_con_observaciones: 'Procesado c/ observaciones',
+  repetir: 'Repetir',
+  no_capturable: 'No capturable',
+  descartado_por_calidad: 'Descartado',
 };
 
 const QA_LABELS: Record<TrimbleQaStatus, string> = {
@@ -80,34 +104,80 @@ interface DelivDialogState {
   uploadedBy: string;
 }
 
+function fmtDate(s: string | null): string {
+  if (!s) return '—';
+  try { return new Date(s).toLocaleString('es-ES'); } catch { return s; }
+}
+
 export function GabineteTrimblePanel() {
   const {
     state,
     setTrimbleQaStatus, linkTrimbleDeliverable, unlinkTrimbleDeliverable,
   } = useRouteStateContext();
 
+  const segments = state.route?.segments ?? [];
   const segById = useMemo(() => {
     const m = new Map<string, string>();
-    state.route?.segments.forEach((s) => {
+    segments.forEach((s) => {
       m.set(s.id, s.companySegmentId ? `${s.companySegmentId} · ${s.name}` : s.name);
     });
     return m;
-  }, [state.route]);
+  }, [segments]);
 
   const [qaDialog, setQaDialog] = useState<QaDialogState | null>(null);
   const [delivDialog, setDelivDialog] = useState<DelivDialogState | null>(null);
   const [missionFilter, setMissionFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<TrimbleSegmentStatus | 'all'>('all');
 
   const trimbleMissions = state.trimbleMissions ?? [];
   const trimbleRuns = state.trimbleRuns ?? [];
   const trimbleSegmentCaptures = state.trimbleSegmentCaptures ?? [];
   const trimbleDeliverables = state.trimbleDeliverables ?? [];
+  const activeRunId = state.activeRunId ?? null;
 
   const captures = useMemo(() => {
     let list = trimbleSegmentCaptures;
     if (missionFilter !== 'all') list = list.filter((c) => c.missionId === missionFilter);
     return [...list].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   }, [trimbleSegmentCaptures, missionFilter]);
+
+  // Resumen por tramo (con filtro de misión aplicado a las capturas)
+  const perSegment = useMemo(() => {
+    const filteredCaps = missionFilter === 'all'
+      ? trimbleSegmentCaptures
+      : trimbleSegmentCaptures.filter((c) => c.missionId === missionFilter);
+    return segments.map((seg) => {
+      const summary = buildTrimbleSegmentSummary(
+        seg.id, filteredCaps, trimbleMissions, trimbleRuns, trimbleDeliverables,
+      );
+      const status = deriveTrimbleSegmentStatus(seg.id, filteredCaps, activeRunId);
+      return { seg, summary, status };
+    });
+  }, [segments, trimbleSegmentCaptures, trimbleMissions, trimbleRuns, trimbleDeliverables, missionFilter, activeRunId]);
+
+  const filteredPerSegment = useMemo(() => {
+    if (statusFilter === 'all') return perSegment;
+    return perSegment.filter((r) => r.status === statusFilter);
+  }, [perSegment, statusFilter]);
+
+  // KPIs resumen
+  const kpis = useMemo(() => {
+    const counts: Record<TrimbleSegmentStatus, number> = {
+      pendiente: 0, en_captura: 0, capturado_pendiente_proceso: 0,
+      procesado_ok: 0, procesado_con_observaciones: 0,
+      repetir: 0, no_capturable: 0, descartado_por_calidad: 0,
+    };
+    perSegment.forEach((r) => { counts[r.status]++; });
+    const captured = perSegment.filter((r) => r.summary.attempts > 0).length;
+    return {
+      counts,
+      totalSegments: perSegment.length,
+      captured,
+      missions: trimbleMissions.length,
+      runs: trimbleRuns.length,
+      deliverables: trimbleDeliverables.length,
+    };
+  }, [perSegment, trimbleMissions.length, trimbleRuns.length, trimbleDeliverables.length]);
 
   const handleSaveQa = () => {
     if (!qaDialog) return;
@@ -157,7 +227,7 @@ export function GabineteTrimblePanel() {
 
   return (
     <div className="space-y-4">
-      {/* Filtros + KPIs */}
+      {/* Filtro de misión global a las 3 vistas */}
       <div className="flex flex-wrap items-center gap-2">
         <Select value={missionFilter} onValueChange={setMissionFilter}>
           <SelectTrigger className="h-9 text-sm w-64"><SelectValue /></SelectTrigger>
@@ -165,161 +235,261 @@ export function GabineteTrimblePanel() {
             <SelectItem value="all">Todas las misiones</SelectItem>
             {missions.map((m) => (
               <SelectItem key={m.id} value={m.id}>
-                Día {m.workDay} · {new Date(m.startedAt).toLocaleString('es-ES')}
+                Día {m.workDay} · {fmtDate(m.startedAt)}
                 {m.endedAt ? '' : ' · abierta'}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <span className="text-[11px] text-muted-foreground ml-auto">
-          {captures.length} captura{captures.length === 1 ? '' : 's'} · {trimbleDeliverables.length} entregable{trimbleDeliverables.length === 1 ? '' : 's'}
+          {kpis.totalSegments} tramo{kpis.totalSegments === 1 ? '' : 's'} · {captures.length} captura{captures.length === 1 ? '' : 's'} · {trimbleDeliverables.length} entregable{trimbleDeliverables.length === 1 ? '' : 's'}
         </span>
       </div>
 
-      {/* Tabla capturas */}
-      <div className="overflow-x-auto rounded-md border border-border">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/40">
-            <tr className="text-left">
-              <th className="px-2 py-2 font-medium">Inicio</th>
-              <th className="px-2 py-2 font-medium">Tramo</th>
-              <th className="px-2 py-2 font-medium">Pasada</th>
-              <th className="px-2 py-2 font-medium">Estado campo</th>
-              <th className="px-2 py-2 font-medium">QA</th>
-              <th className="px-2 py-2 font-medium text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {captures.length === 0 && (
-              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin capturas para el filtro.</td></tr>
-            )}
-            {captures.map((c) => {
-              const run = trimbleRuns.find((r) => r.id === c.runId);
-              const QaIcon = c.qaStatus ? QA_ICON[c.qaStatus] : null;
-              return (
-                <tr key={c.id} className="border-t border-border">
-                  <td className="px-2 py-2 whitespace-nowrap">{new Date(c.startedAt).toLocaleString('es-ES')}</td>
-                  <td className="px-2 py-2">{segById.get(c.segmentId) ?? c.segmentId}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">#{run?.index ?? '?'} {run?.direction ?? ''}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{FIELD_LABELS[c.fieldStatus] ?? c.fieldStatus}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">
-                    {c.qaStatus && QaIcon ? (
-                      <span className={`inline-flex items-center gap-1 ${QA_COLOR[c.qaStatus]}`}>
-                        <QaIcon className="w-3.5 h-3.5" />
-                        {QA_LABELS[c.qaStatus]}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 mr-1"
-                      onClick={() => setQaDialog({
-                        capture: c,
-                        qa: c.qaStatus ?? 'procesado_ok',
-                        reviewedBy: c.qaReviewedBy ?? '',
-                        notes: c.qaNotes ?? '',
-                      })}
-                    >
-                      <ClipboardCheck className="w-3.5 h-3.5 mr-1" />
-                      QA
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2"
-                      onClick={() => setDelivDialog({
-                        scope: 'capture',
-                        segmentId: c.segmentId,
-                        runId: c.runId,
-                        missionId: c.missionId,
-                        kind: 'nube_puntos',
-                        reference: '',
-                        fileName: '',
-                        notes: '',
-                        uploadedBy: '',
-                      })}
-                    >
-                      <Link2 className="w-3.5 h-3.5 mr-1" />
-                      Entregable
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Tabs defaultValue="por-tramo">
+        <TabsList>
+          <TabsTrigger value="resumen"><LayoutGrid className="w-4 h-4 mr-1" />Resumen</TabsTrigger>
+          <TabsTrigger value="por-tramo"><ListTree className="w-4 h-4 mr-1" />Por tramo</TabsTrigger>
+          <TabsTrigger value="detalle"><FileBox className="w-4 h-4 mr-1" />Capturas y entregables</TabsTrigger>
+        </TabsList>
 
-      {/* Entregables */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold">Entregables vinculados</h3>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            onClick={() => setDelivDialog({
-              scope: 'mission',
-              missionId: missionFilter !== 'all' ? missionFilter : (missions[missions.length - 1]?.id ?? null),
-              kind: 'informe_qa',
-              reference: '',
-              fileName: '',
-              notes: '',
-              uploadedBy: '',
-            })}
-          >
-            <Link2 className="w-3.5 h-3.5 mr-1" />
-            Vincular a misión
-          </Button>
-        </div>
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/40">
-              <tr className="text-left">
-                <th className="px-2 py-2 font-medium">Subido</th>
-                <th className="px-2 py-2 font-medium">Tipo</th>
-                <th className="px-2 py-2 font-medium">Referencia</th>
-                <th className="px-2 py-2 font-medium">Tramo</th>
-                <th className="px-2 py-2 font-medium">Por</th>
-                <th className="px-2 py-2 font-medium text-right"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {trimbleDeliverables.length === 0 && (
-                <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin entregables.</td></tr>
-              )}
-              {trimbleDeliverables.map((d) => (
-                <tr key={d.id} className="border-t border-border">
-                  <td className="px-2 py-2 whitespace-nowrap">{new Date(d.uploadedAt).toLocaleString('es-ES')}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{d.kind}</td>
-                  <td className="px-2 py-2 break-all max-w-[20rem]">{d.reference}</td>
-                  <td className="px-2 py-2">{d.segmentId ? (segById.get(d.segmentId) ?? d.segmentId) : '—'}</td>
-                  <td className="px-2 py-2">{d.uploadedBy ?? '—'}</td>
-                  <td className="px-2 py-2 text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 border-destructive/40 text-destructive hover:bg-destructive/10"
-                      onClick={() => {
-                        if (!confirm('¿Desvincular entregable?')) return;
-                        const r = unlinkTrimbleDeliverable(d.id);
-                        if (r.ok) toast.success('Desvinculado.');
-                        else toast.error(r.reason || 'No se pudo.');
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </td>
-                </tr>
+        {/* RESUMEN */}
+        <TabsContent value="resumen" className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <KpiCard label="Tramos totales" value={kpis.totalSegments} />
+            <KpiCard label="Tramos con captura" value={kpis.captured} />
+            <KpiCard label="Misiones" value={kpis.missions} />
+            <KpiCard label="Pasadas" value={kpis.runs} />
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <h4 className="text-sm font-semibold mb-2">Distribución por estado</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              {(Object.keys(kpis.counts) as TrimbleSegmentStatus[]).map((k) => (
+                <div key={k} className="flex items-center justify-between rounded border border-border/60 px-2 py-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: TRIMBLE_STATUS_COLOR[k] }} />
+                    {STATUS_LABELS[k]}
+                  </span>
+                  <span className="font-medium">{kpis.counts[k]}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* POR TRAMO */}
+        <TabsContent value="por-tramo" className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as TrimbleSegmentStatus | 'all')}>
+              <SelectTrigger className="h-9 text-sm w-64"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {(Object.keys(STATUS_LABELS) as TrimbleSegmentStatus[]).map((k) => (
+                  <SelectItem key={k} value={k}>{STATUS_LABELS[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[11px] text-muted-foreground">
+              {filteredPerSegment.length} de {perSegment.length}
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40">
+                <tr className="text-left">
+                  <th className="px-2 py-2 font-medium">ID empresa</th>
+                  <th className="px-2 py-2 font-medium">Tramo</th>
+                  <th className="px-2 py-2 font-medium">Capa</th>
+                  <th className="px-2 py-2 font-medium">Estado</th>
+                  <th className="px-2 py-2 font-medium text-right">Intentos</th>
+                  <th className="px-2 py-2 font-medium">Última misión</th>
+                  <th className="px-2 py-2 font-medium">Última pasada</th>
+                  <th className="px-2 py-2 font-medium">Última captura</th>
+                  <th className="px-2 py-2 font-medium text-right">Entregables</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPerSegment.length === 0 && (
+                  <tr><td colSpan={9} className="px-2 py-6 text-center text-muted-foreground">Sin tramos para el filtro.</td></tr>
+                )}
+                {filteredPerSegment.map(({ seg, summary, status }) => (
+                  <tr key={seg.id} className="border-t border-border">
+                    <td className="px-2 py-2 whitespace-nowrap font-mono">{seg.companySegmentId ?? '—'}</td>
+                    <td className="px-2 py-2">{seg.name}</td>
+                    <td className="px-2 py-2 whitespace-nowrap text-muted-foreground">{seg.layer ?? '—'}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium border"
+                        style={{
+                          background: `${TRIMBLE_STATUS_COLOR[status]}20`,
+                          borderColor: `${TRIMBLE_STATUS_COLOR[status]}80`,
+                          color: TRIMBLE_STATUS_COLOR[status],
+                        }}
+                      >
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: TRIMBLE_STATUS_COLOR[status] }} />
+                        {STATUS_LABELS[status]}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right">{summary.attempts}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{summary.lastMissionWorkDay !== null ? `Día ${summary.lastMissionWorkDay}` : '—'}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{summary.lastRunIndex !== null ? `#${summary.lastRunIndex}` : '—'}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{fmtDate(summary.lastCaptureAt)}</td>
+                    <td className="px-2 py-2 text-right">{summary.deliverableCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+
+        {/* DETALLE: Capturas + Entregables */}
+        <TabsContent value="detalle" className="space-y-4">
+          {/* Tabla capturas */}
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40">
+                <tr className="text-left">
+                  <th className="px-2 py-2 font-medium">Inicio</th>
+                  <th className="px-2 py-2 font-medium">Tramo</th>
+                  <th className="px-2 py-2 font-medium">Pasada</th>
+                  <th className="px-2 py-2 font-medium">Estado campo</th>
+                  <th className="px-2 py-2 font-medium">QA</th>
+                  <th className="px-2 py-2 font-medium text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {captures.length === 0 && (
+                  <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin capturas para el filtro.</td></tr>
+                )}
+                {captures.map((c) => {
+                  const run = trimbleRuns.find((r) => r.id === c.runId);
+                  const QaIcon = c.qaStatus ? QA_ICON[c.qaStatus] : null;
+                  return (
+                    <tr key={c.id} className="border-t border-border">
+                      <td className="px-2 py-2 whitespace-nowrap">{fmtDate(c.startedAt)}</td>
+                      <td className="px-2 py-2">{segById.get(c.segmentId) ?? c.segmentId}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">#{run?.index ?? '?'} {run?.direction ?? ''}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{FIELD_LABELS[c.fieldStatus] ?? c.fieldStatus}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        {c.qaStatus && QaIcon ? (
+                          <span className={`inline-flex items-center gap-1 ${QA_COLOR[c.qaStatus]}`}>
+                            <QaIcon className="w-3.5 h-3.5" />
+                            {QA_LABELS[c.qaStatus]}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 mr-1"
+                          onClick={() => setQaDialog({
+                            capture: c,
+                            qa: c.qaStatus ?? 'procesado_ok',
+                            reviewedBy: c.qaReviewedBy ?? '',
+                            notes: c.qaNotes ?? '',
+                          })}
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5 mr-1" />
+                          QA
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2"
+                          onClick={() => setDelivDialog({
+                            scope: 'capture',
+                            segmentId: c.segmentId,
+                            runId: c.runId,
+                            missionId: c.missionId,
+                            kind: 'nube_puntos',
+                            reference: '',
+                            fileName: '',
+                            notes: '',
+                            uploadedBy: '',
+                          })}
+                        >
+                          <Link2 className="w-3.5 h-3.5 mr-1" />
+                          Entregable
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Entregables */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Entregables vinculados</h3>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => setDelivDialog({
+                  scope: 'mission',
+                  missionId: missionFilter !== 'all' ? missionFilter : (missions[missions.length - 1]?.id ?? null),
+                  kind: 'informe_qa',
+                  reference: '',
+                  fileName: '',
+                  notes: '',
+                  uploadedBy: '',
+                })}
+              >
+                <Link2 className="w-3.5 h-3.5 mr-1" />
+                Vincular a misión
+              </Button>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40">
+                  <tr className="text-left">
+                    <th className="px-2 py-2 font-medium">Subido</th>
+                    <th className="px-2 py-2 font-medium">Tipo</th>
+                    <th className="px-2 py-2 font-medium">Referencia</th>
+                    <th className="px-2 py-2 font-medium">Tramo</th>
+                    <th className="px-2 py-2 font-medium">Por</th>
+                    <th className="px-2 py-2 font-medium text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trimbleDeliverables.length === 0 && (
+                    <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Sin entregables.</td></tr>
+                  )}
+                  {trimbleDeliverables.map((d) => (
+                    <tr key={d.id} className="border-t border-border">
+                      <td className="px-2 py-2 whitespace-nowrap">{fmtDate(d.uploadedAt)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">{d.kind}</td>
+                      <td className="px-2 py-2 break-all max-w-[20rem]">{d.reference}</td>
+                      <td className="px-2 py-2">{d.segmentId ? (segById.get(d.segmentId) ?? d.segmentId) : '—'}</td>
+                      <td className="px-2 py-2">{d.uploadedBy ?? '—'}</td>
+                      <td className="px-2 py-2 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 border-destructive/40 text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            if (!confirm('¿Desvincular entregable?')) return;
+                            const r = unlinkTrimbleDeliverable(d.id);
+                            if (r.ok) toast.success('Desvinculado.');
+                            else toast.error(r.reason || 'No se pudo.');
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Diálogo QA */}
       <Dialog open={qaDialog !== null} onOpenChange={(o) => { if (!o) setQaDialog(null); }}>
@@ -410,6 +580,15 @@ export function GabineteTrimblePanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function KpiCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-2xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
