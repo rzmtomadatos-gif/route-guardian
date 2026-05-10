@@ -139,9 +139,12 @@ export function TrimbleNavigationPanel({
     try { v = sessionStorage.getItem(storageKey); } catch {}
     setLastSentFp(v);
   }, [storageKey]);
-  const currentFp = useMemo(() => trimbleQueueFingerprint(queue), [queue]);
+  // El fingerprint del conductor se calcula sobre el LOTE enviado (4 tramos),
+  // no sobre la cola completa: así cuando avanza la cola y el lote cambia,
+  // detectamos "Ruta desactualizada" correctamente.
+  const currentFp = useMemo(() => trimbleQueueFingerprint(driverBatch), [driverBatch]);
   const driverInSync = copilotActive && lastSentFp === currentFp && currentFp !== '';
-  const driverStale = copilotActive && !driverInSync && queue.length > 0;
+  const driverStale = copilotActive && !driverInSync && driverBatch.length > 0;
 
   const persistFp = (fp: string) => {
     setLastSentFp(fp);
@@ -159,12 +162,12 @@ export function TrimbleNavigationPanel({
       onSetActiveSegment(intent.prevSegmentId);
       return;
     }
-    // capturado / no_capturable → siguiente de la cola recalculada.
-    const next = queue.find((q) => q.segment.id !== intent.prevSegmentId);
+    // capturado / no_capturable → siguiente de la cola completa recalculada.
+    const next = fullQueue.find((q) => q.segment.id !== intent.prevSegmentId);
     if (next) onSetActiveSegment(next.segment.id);
     else toast.message('Sin tramos pendientes en la cola.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue]);
+  }, [fullQueue]);
 
   // ── Acciones ──────────────────────────────────────────────────────
   const handleOpenMission = () => {
