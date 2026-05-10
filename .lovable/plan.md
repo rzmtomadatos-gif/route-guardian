@@ -1,224 +1,382 @@
+# Plan: Trimble como grabación continua con auto-captura por cobertura GPS
+
 ## Objetivo
 
-Unificar la UI operativa del mapa: un único panel inferior (`MapControlPanel`) que muta según `acquisitionMode`. Eliminar `TrimbleMapPanel` como overlay independiente, mover la configuración fuera del mapa, y añadir sincronización clara de cola Trimble con el conductor.
+Cambiar el modo `TRIMBLE_LIDAR` para que el operador no inicie/cierre tramo a tramo. En su lugar, una grabación continua de la pasada usa el GPS del dispositivo, y al cerrar se generan automáticamente los `SegmentCapture` por análisis de cobertura GPS.
 
----
+## Alcance (15 bloques)
 
-## 1. Reorganización: configuración fuera del mapa
+### 1. Nuevo concepto: `TrimbleRecordingSession`
 
-`**SettingsPage.tsx**` — añadir/consolidar (si no están ya):
+- Tipo en `src/types/trimble.ts`: `{ id, missionId, runId, startedAt, endedAt, startPosition?, endPosition?, notes? }`.
+- `AppState`: `trimbleRecordingSessions: TrimbleRecordingSession[]`, `activeTrimbleRecordingId: string | null`.
+- Defaults `[]` y `null` en `createEmptyCampaignState`.
+- Zod en `campaign-schema.ts` con `.default([])` / `.default(null)` — no romper campañas antiguas.
 
-- Selector `acquisitionMode` (RST / GARMIN / TRIMBLE_LIDAR).
-- Selector de día de trabajo.
-- Tamaño de bloque RST / tramos por track.
-- Sección "Ajustes RST", "Ajustes Garmin", "Ajustes Trimble" (placeholder si vacío).
-- Toggle "Auto-enviar cola al conductor al cambiar" (Trimble).
+### 2. Acciones en `RouteStateContext` / `useRouteState`
 
-`**MapControlPanel.tsx**` y `MapPage.tsx` — eliminar de la UI del mapa:
+- `startTrimbleRecording()` — exige modo Trimble, misión activa, pasada activa, GPS activo. Crea sesión, setea `activeTrimbleRecordingId`. Emite `TRIMBLE_RECORDING_STARTED`.
+- `closeTrimbleRecording()` — cierra sesión, dispara análisis de cobertura, genera `SegmentCapture` automáticas, emite `TRIMBLE_RECORDING_CLOSED`, `TRIMBLE_SEGMENT_AUTO_CAPTURED`, `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`. Devuelve resumen `{ autoCaptured, partial, pointsAnalyzed }`.
 
-- Selector de día de trabajo.
-- Selector de tramos por bloque.
-- Botones de cambio de modo de adquisición.
-- Cualquier configuración persistente.
+### 3. `useTrimbleGpsLog` ajustado
 
-(La lógica/handlers se mantiene en el state; sólo se quita la superficie UI del mapa.)
+- `phase = state.activeTrimbleRecordingId ? 'capture' : 'transport'` — independiente de `findActiveCapture`.
+- Cada punto añade `recordingSessionId` y `matchedSegmentId` (calculado con `findCurrentSegmentFromGps`).
+- Mantener throttling 10 m, `missionId`, `runId`, etc.
 
----
+### 4. Detección de tramo actual por GPS
 
-## 2. `MapControlPanel` acquisition-aware
+- Nuevo `src/utils/trimble/gps-segment-matcher.ts` con `findCurrentSegmentFromGps(position, segments, { maxDistanceMeters = 25 })` → `{ segmentId, distanceMeters, progress }`.
+- Proyección punto-a-polilínea usando `haversineMeters` + interpolación segmentaria.
+- Desempate: priorizar tramo que esté en la cola Trimble actual.
 
-Refactor de `MapControlPanel.tsx` a un router por modo:
+### 5. Motor de cobertura GPS
 
-```tsx
-switch (acquisitionMode) {
-  case 'RST':           return <RstNavigationPanel ... />;
-  case 'GARMIN':        return <GarminNavigationPanel ... />;
-  case 'TRIMBLE_LIDAR': return <TrimbleNavigationPanel ... />;
-}
+- Nuevo `src/utils/trimble/gps-coverage.ts` con `analyzeTrimbleGpsCoverage(points, segments, options)`.
+- Para cada tramo:
+  - proyectar puntos, filtrar por `maxDistanceMeters` (25 m).
+  - convertir a `progress ∈ [0,1]`.
+  - construir intervalos cubiertos con buffer ~12 m, fusionarlos.
+  - `coverageRatio = longitudCubierta / longitudTotal`.
+- Aceptación (todas): `matchedPoints ≥ 3`, `startProgress ≤ 0.15`, `endProgress ≥ 0.85`, `coverageRatio ≥ 0.70`, dirección creciente, sin huecos > 30 %.
+- No tocar estados terminales (`procesado_ok`, `descartado_por_calidad`, `no_capturable`).
+- Devuelve `{ captured: [...], partial: [...] }`.
+
+### 6. `SegmentCapture` extendido
+
+- Campos opcionales: `captureSource?: 'manual' | 'gps_auto'`, `recordingSessionId?`, `coverageRatio?`, `matchedPoints?`.
+- `fieldNotes` por defecto `'Auto-detectado por cobertura GPS Trimble'` para auto.
+
+### 7. Eventos nuevos en `EVENT_TYPES`
+
+- `TRIMBLE_RECORDING_STARTED`, `TRIMBLE_RECORDING_CLOSED`, `TRIMBLE_SEGMENT_AUTO_CAPTURED`, `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`, `TRIMBLE_CURRENT_SEGMENT_DETECTED`.
+- Alinear `eventTypeEnum` Zod (deriva del array).
+
+### 8. UI `TrimbleNavigationPanel`
+
+- Botones principales: **Iniciar grabación** / **Cerrar grabación**.
+- Mostrar:
+  - Grabación activa sí/no.
+  - Puntos GPS capturados de la sesión.
+  - Tramo detectado por GPS + progreso + distancia al eje.
+  - Resumen al cerrar (`auto-capturados`, `parciales`, `puntos analizados`).
+- Mantener acciones manuales (`Repetir`, `No capturable`) como modo emergencia.
+
+### 9. Incidencias asociadas al tramo detectado
+
+- Diálogo de incidencia Trimble: por defecto `segmentId = detectedTrimbleSegmentId` (no `queue[0]`).
+- Si no hay detección → permitir incidencia general de pasada.
+- Mostrar al operador qué tramo se asociará antes de guardar.
+
+### 10. Recalculo de cola tras cerrar
+
+- Tras `closeTrimbleRecording`: tramos auto-capturados salen de `fullQueue`.
+- Parciales y `repetir` permanecen.
+- Si `driverBatch` cambia → autoenvío con `reason = 'auto_captured'` (nuevo) o reusar `order_changed`.
+
+### 11. Excel / gabinete
+
+- En `excel-export-v2.ts` (hoja Trimble) y `gabinete`: añadir columnas `ORIGEN_CAPTURA`, `coverageRatio`, `matchedPoints`, `recordingSessionId`. Nulos para capturas manuales antiguas.
+
+### 12. Tests
+
+- `trimble-gps-coverage.test.ts` — los 7 casos del brief (recto, sólo 0–60, sólo 30–100, hueco grande, inverso, dos consecutivos, fuera de eje).
+- `trimble-recording-session.test.ts` — start/close, validaciones, integración con `useTrimbleGpsLog`.
+- `trimble-current-segment-detection.test.ts` — cerca, lejos, asociación de incidencia.
+- `trimble-auto-capture-integration.test.tsx` — flujo completo con GPS sintético y verificación de cola y autoenvío al conductor.
+
+### 13. Verificación final
+
+- `npx tsc --noEmit`.
+- Tests Trimble + legacy import/export + Excel.
+
+## Detalles técnicos clave
+
+### Algoritmo proyección a polilínea
+
+```text
+para cada subsegmento [A,B] de la polilínea:
+  t = clamp( ((P-A)·(B-A)) / |B-A|² , 0, 1 )
+  Q = A + t·(B-A)
+  d = haversine(P, Q)
+quedarse con la mínima d → Q*, con
+  progress = (longitudAcumuladaHasta(A*) + t*·|A*B*|) / longitudTotal
 ```
 
-Crear subcomponentes en `src/components/map-control/`:
+### Cobertura
 
-- `RstNavigationPanel.tsx` — extrae el flujo RST actual (F5/F7/F9, bloque, etc.).
-- `GarminNavigationPanel.tsx` — extrae el flujo Garmin actual.
-- `TrimbleNavigationPanel.tsx` — nuevo, integra lo que hoy hace `TrimbleMapPanel` + sincronización conductor.
+```text
+matched = puntos con d ≤ maxDistanceMeters (25)
+progresos = ordenados ascendentes
+intervalos = [(p - bufferRel), (p + bufferRel)] con buffer ~12 m → ratio sobre longitud
+fusionar solapados → suma de longitudes / longitudTotal = coverageRatio
+detectar hueco interior: gap > 0.30 entre intervalos consecutivos → reason = 'gap_too_large'
+direccion: regresión simple sobre (timestamp, progress); pendiente <= 0 → 'reverse_direction'
+```
 
-Visualmente sigue siendo el mismo panel inferior con el mismo chrome (cyclic widths 100% / 360 / 260).
+### Migración compatibilidad
+
+- Si campañas antiguas no traen `trimbleRecordingSessions` ni `activeTrimbleRecordingId`, Zod aplica defaults — no se rompe nada.
+- `SegmentCapture` antiguos sin `captureSource` se interpretan como `'manual'` por defecto en lectura.
+
+## Archivos previstos
+
+Nuevos:
+
+- `src/utils/trimble/gps-segment-matcher.ts`
+- `src/utils/trimble/gps-coverage.ts`
+- `src/test/trimble-gps-coverage.test.ts`
+- `src/test/trimble-recording-session.test.ts`
+- `src/test/trimble-current-segment-detection.test.ts`
+- `src/test/trimble-auto-capture-integration.test.tsx`
+
+Editados:
+
+- `src/types/trimble.ts` (TrimbleRecordingSession, SegmentCapture extendido, TrimbleGpsPoint extendido)
+- `src/types/route.ts` (AppState)
+- `src/utils/storage.ts` (defaults)
+- `src/utils/persistence/campaign-schema.ts` (Zod)
+- `src/utils/persistence/types.ts` (EVENT_TYPES)
+- `src/hooks/useRouteState.ts` (start/closeTrimbleRecording)
+- `src/context/RouteStateContext.tsx` (exposición)
+- `src/hooks/useTrimbleGpsLog.ts` (phase + recordingSessionId + matchedSegmentId)
+- `src/components/map-control/TrimbleNavigationPanel.tsx` (botones, panel detección, autoenvío post-cierre)
+- `src/components/IncidentDialog.tsx` o equivalente Trimble (asociación a tramo detectado)
+- `src/utils/excel-export-v2.ts` (columnas nuevas)
+
+## Fuera de alcance (esta iteración)
+
+- Soporte explícito de dirección inversa como captura válida.
+- Reproducción visual de la traza GPS sobre el mapa (puede venir después).
+- Edición manual de cobertura tramo por tramo desde gabinete.
+
+## El plan está bien orientado y ya ataca el problema correcto: **Trimble debe ser grabación continua + auto-captura por cobertura GPS**, no captura manual tramo a tramo.
+
+Yo lo aprobaría **con ajustes obligatorios** antes de que Lovable lo implemente. El punto más importante: ahora `useTrimbleGpsLog` ya guarda GPS cada ≥10 m, pero todavía decide `phase='capture'` según `findActiveCapture` y mete `segmentId` desde la captura activa manual . Eso confirma que el cambio propuesto es necesario.
+
+## Añadir al plan antes de aprobar
+
+### 1. No eliminar todavía la captura manual
+
+No quites del todo `startTrimbleCapture/closeTrimbleCapture`. Déjalo como **modo emergencia / corrección manual**.
+
+Añade:
+
+```text
+La captura manual por tramo no se elimina. Queda disponible como modo emergencia desde vista avanzada o gabinete, pero el flujo principal de campo será `Iniciar grabación` / `Cerrar grabación`.
+
+```
+
+Motivo: si el GPS falla, si hay mala cobertura urbana o si el operador necesita forzar un tramo, no debemos dejarlo sin herramienta.
 
 ---
 
-## 3. `TrimbleNavigationPanel` (sustituye al overlay)
+### 2. La grabación debe ser por `runId`, pero el análisis por `recordingSessionId`
 
-Reglas de render:
+El plan lo dice, pero hay que hacerlo explícito:
 
-- **Cabecera fija**: modo · misión activa · pasada activa · GPS · estado copiloto · estado sincronización cola.
-- **Sin misión**: botón "Abrir misión" + link "Vista avanzada" (`/trimble`).
-- **Misión sin pasada**: selector ida/vuelta/otro + "Abrir pasada" + "Cerrar misión".
-- **Misión + pasada**:
-  - Tramo actual (auto desde cola, no selección manual): nombre, ID empresa, estado, próximos.
-  - Acciones: Iniciar / Cerrar / Repetir / No capturable / Incidencia.
-  - Bloque "Conductor" con estado de sincronización + botón único `Enviar/Actualizar conductor`.
+```text
+`trimbleGpsLogsByRun[runId]` sigue siendo el contenedor físico de puntos GPS.
+`recordingSessionId` se usa para filtrar qué puntos pertenecen a una grabación concreta.
+No crear `trimbleGpsLogsByRecordingSession` en esta fase.
 
-Reusa `buildTrimbleRecordingQueue`, `trimbleQueueToStops`, `buildGoogleMapsBatchUrl`, `copilot.pushQueue` (sin duplicar lógica).
+```
+
+Así evitamos duplicar almacenamiento.
 
 ---
 
-## 4. Sincronización con conductor (fingerprint)
+### 3. Añadir `currentMatchedSegment` como derivado, no necesariamente persistido
 
-Nuevo util `src/utils/trimble/queue-fingerprint.ts`:
+No hace falta guardar en `AppState` cada vez el tramo actual detectado; puede derivarse desde GPS + cola en UI.
+
+Añade:
+
+```text
+`detectedTrimbleSegmentId`, distancia y progreso pueden ser estado local/memoizado en `TrimbleNavigationPanel`, no necesariamente persistidos en `AppState`.
+Solo se persiste en eventos o incidencias cuando el operador registra algo.
+
+```
+
+Esto reduce riesgo de estado ruidoso.
+
+---
+
+### 4. Añadir control de precisión GPS
+
+Muy importante. Si el GPS del dispositivo tiene mala precisión, puede marcar tramos falsos.
+
+Añade:
+
+```text
+No usar puntos GPS con `accuracy > 25 m` para auto-captura, salvo que no haya accuracy disponible. 
+Si accuracy > 25 m, guardar el punto, pero marcarlo como baja precisión y excluirlo del análisis de cobertura.
+
+```
+
+O mejor:
 
 ```ts
-export function trimbleQueueFingerprint(queue: TrimbleQueueItem[]): string {
-  return queue.map(q => `${q.segment.id}:${q.status}`).join('|');
-}
+maxAllowedAccuracyMeters: 25
+
 ```
 
-En `TrimbleNavigationPanel`:
-
-- `lastSentFingerprintRef` guardado en `useRef` + `sessionStorage` (key `trimble.lastQueueFp`).
-- Calcular fingerprint actual cada render.
-- Si `current !== lastSent` y hay `copilot.session` activa → estado "Ruta desactualizada" (botón en `bg-amber-500` destacado).
-- Si igual → "Conductor actualizado" (variante outline).
-- Al pulsar enviar: `pushQueue(...)` y actualizar fingerprint.
-- Si en Settings está activado "auto-enviar": disparar automáticamente vía `useEffect` con debounce 800 ms.
+En `analyzeTrimbleGpsCoverage`.
 
 ---
 
-## 5. `SegmentsPage` — columnas y filtros Trimble
+### 5. No auto-capturar tramos con geometría insuficiente
 
-Cuando `acquisitionMode === 'TRIMBLE_LIDAR'` o existan capturas:
+Añade:
 
-- Nuevas columnas: Estado Trimble (badge con color del esquema), última misión, última pasada, fecha captura, QA, intentos, entregables (count).
-- Nuevos filtros: Pendientes / Capturados pendientes proceso / Repetir / No capturables / QA OK / Descartados.
-- Reusa `deriveTrimbleSegmentStatus` y `STATUS_BADGE_CLASS`.
+```text
+Excluir de análisis automático segmentos con menos de 2 coordenadas o longitud inferior a un umbral mínimo configurable, por ejemplo 20 m.
+Registrar finding parcial `invalid_geometry` o `too_short`.
 
-Helper `src/utils/trimble/segment-summary.ts` para derivar última misión/pasada/fecha por tramo desde `trimbleSegmentCaptures`.
-
----
-
-## 6. `GabineteTrimblePanel` — 3 vistas
-
-Refactor con tabs internos:
-
-- **Resumen** (existente, mantener cards de KPIs).
-- **Por tramo** (nueva, primaria): tabla — ID empresa · nombre · capa · estado campo · estado QA · última misión · última pasada · intentos · incidencia · entregables · acción QA.
-- **Entregables**: tabla — tipo · tramo · misión · pasada · referencia · archivo · subido por · fecha.
-- "Capturas (detalle técnico)" pasa a tab secundario.
+```
 
 ---
 
-## 7. Leyenda Trimble en mapa
+### 6. Direccionalidad: cuidado con ida/vuelta
 
-Pequeño componente `TrimbleLegend.tsx` mostrado en `MapPage` solo si `acquisitionMode === 'TRIMBLE_LIDAR'`. Posición: esquina inferior izquierda, colapsable. Usa `TRIMBLE_STATUS_COLOR` ya existente en `segment-colors.ts` (exportarlo).
+Tu plan dice que recorrido al revés no cuenta. Correcto para primera fase.
 
----
+Pero añade:
 
-## 8. Limpieza
+```text
+Si el tramo tiene `direction` o metadato que permita sentido inverso, en esta fase NO se interpreta automáticamente. Todo recorrido inverso queda como parcial `reverse_direction`.
 
-- Borrar import y render de `TrimbleMapPanel` en `MapPage.tsx`.
-- Mantener el archivo `TrimbleMapPanel.tsx` solo si se reutiliza en `/trimble` como vista avanzada; si no, eliminarlo.
-- En modo RST/Garmin: panel no muestra nada Trimble; en modo Trimble: nada RST/F5/bloque ni Garmin.
+```
 
----
-
-## 9. Tests
-
-Nuevos en `src/test/`:
-
-- `map-control-panel-mode-switch.test.tsx` — render por modo, ausencia de controles ajenos.
-- `trimble-queue-fingerprint.test.ts` — cambia con cierres.
-- `trimble-driver-sync.test.tsx` — fingerprint cambia → botón destacado; click → `pushQueue` llamado.
-- `segments-page-trimble-columns.test.tsx` — columnas y filtros visibles en modo Trimble.
-- `gabinete-trimble-by-segment.test.tsx` — tab "Por tramo" presente.
-
-Mantener tests legacy: `trimble-recording-queue.test.ts`, `trimble-segment-status.test.ts`, `trimble-copilot-batch.test.ts`, suites RST/Garmin/Excel sin cambios.
+Así no se inventa lógica.
 
 ---
 
-## 10. Verificación final
+### 7. No modificar tramos con incidencia no grabable
 
-`tsc --noEmit` (vía build automático del harness) + `bunx vitest run` filtrando por:
+Añade:
 
-- `trimble-`
-- `map-control`
-- `copilot`
-- `excel-export` (aislado)
+```text
+Si un tramo ya fue marcado `no_capturable` o tiene incidencia bloqueante asociada, no debe auto-capturarse aunque el GPS pase por encima.
+
+```
+
+Esto respeta operación real: pasar por un tramo cortado o no grabable no significa que sea válido.
 
 ---
 
-## Archivos afectados (resumen)
+### 8. Guardar parciales de forma consultable
 
-**Crear**:
+El plan menciona evento `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`, pero en gabinete luego será difícil explotar solo eventos.
 
-- `src/components/map-control/RstNavigationPanel.tsx`
-- `src/components/map-control/GarminNavigationPanel.tsx`
-- `src/components/map-control/TrimbleNavigationPanel.tsx`
-- `src/components/map/TrimbleLegend.tsx`
-- `src/utils/trimble/queue-fingerprint.ts`
-- `src/utils/trimble/segment-summary.ts`
-- 5 tests nuevos.
+Añade una de estas dos opciones:
 
-**Editar**:
+Opción ligera:
 
-- `src/components/MapControlPanel.tsx` (router por modo, extraer subpaneles).
-- `src/pages/MapPage.tsx` (quitar `TrimbleMapPanel`, añadir leyenda, quitar selectores de configuración).
-- `src/pages/SettingsPage.tsx` (consolidar selectores movidos).
-- `src/pages/SegmentsPage.tsx` (columnas + filtros Trimble).
-- `src/components/gabinete/GabineteTrimblePanel.tsx` (3 tabs).
-- `src/utils/segment-colors.ts` (exportar `TRIMBLE_STATUS_COLOR`).
+```text
+En fase 1, los parciales se guardan como eventos append-only y se muestran en gabinete desde Event Log.
 
-**Eliminar (si no se reutiliza)**:
+```
 
-- `src/components/trimble/TrimbleMapPanel.tsx`.
+Opción mejor:
 
-## Antes de considerar terminado el refactor, debe existir una checklist de paridad funcional para RST y Garmin.
+```text
+Añadir colección `trimbleCoverageFindings` en AppState para parciales/no contados.
 
-RST debe conservar:
+```
 
-- iniciar/detener navegación;
+Mi recomendación: **opción ligera ahora**, porque ya llevamos muchas migraciones.
 
-- tramo actual / siguiente;
+---
 
-- inicio y finalización de tramo;
+### 9. Autoenvío conductor: añadir reason específico
 
-- incidencias;
+Tu plan dice `auto_captured` nuevo o reusar `order_changed`. Mejor específico.
 
-- repetir/reactivar;
+Añade:
 
-- salto de tramo;
+```text
+Añadir reason `auto_captured` a `TrimbleDriverSendReason`.
+Después de cerrar grabación, si el driverBatch cambia por capturas GPS automáticas, autoenviar con reason `auto_captured`.
 
-- cancelación de inicio si existe;
+```
 
-- copiloto;
+---
 
-- progreso de bloque/track;
+### 10. Hacer primero motor puro, luego UI
 
-- cierre/finalización de track;
+Pediría orden de implementación estricto:
 
-- GPS;
+```text
+Orden obligatorio:
+1. Tipos + Zod + defaults.
+2. Utilidades puras `gps-segment-matcher` y `gps-coverage`.
+3. Tests de cobertura GPS.
+4. Acciones start/close recording.
+5. Ajuste `useTrimbleGpsLog`.
+6. UI.
+7. Excel/gabinete.
 
-- estado de fin de vídeo;
+```
 
-- base;
+No dejaría que empiece por UI, porque aquí el riesgo está en el algoritmo.
 
-- optimización;
+## Texto que añadiría al plan
 
-- anterior/siguiente;
+```text
+Añadidos obligatorios antes de implementar:
 
-- modo colapsado/expandido y cambio de ancho.
+1. Mantener captura manual por tramo como modo emergencia. El flujo principal será grabación continua, pero `startTrimbleCapture/closeTrimbleCapture` no se eliminan.
 
-Garmin debe conservar:
+2. `trimbleGpsLogsByRun[runId]` sigue siendo el almacén físico. `recordingSessionId` solo etiqueta los puntos de una grabación concreta.
 
-- navegación;
+3. El tramo detectado por GPS puede ser derivado en UI; no persistir continuamente en AppState salvo en eventos/incidencias.
 
-- registro operativo;
+4. Añadir control de precisión GPS:
+   - Guardar puntos aunque tengan accuracy alta.
+   - Excluir del análisis automático puntos con `accuracy > 25 m`, salvo `accuracy == null`.
+   - Reportar cuántos puntos fueron descartados por baja precisión.
 
-- copiloto;
+5. Excluir segmentos con geometría insuficiente:
+   - menos de 2 coordenadas;
+   - longitud menor que umbral mínimo, por ejemplo 20 m.
+   - registrar parcial/finding `invalid_geometry` o `too_short`.
 
-- estados visibles;
+6. No auto-capturar tramos ya terminales:
+   - `capturado_pendiente_proceso`;
+   - `procesado_ok`;
+   - `descartado_por_calidad`;
+   - `no_capturable`.
+   Tampoco auto-capturar tramos con incidencia bloqueante/no grabable.
 
-- GPS;
+7. Recorrido inverso no se acepta en esta fase. Debe quedar como parcial con reason `reverse_direction`.
 
-- acciones propias sin mostrar controles RST innecesarios.
+8. Añadir reason específico de autoenvío:
+   - `auto_captured`
+   Después de cerrar grabación, si se generan capturas automáticas y cambia el `driverBatch`, autoenviar lote conductor con reason `auto_captured`.
 
-No se aprueba si RST o Garmin pierden funcionalidad respecto al panel actual.
+9. Parciales:
+   - En esta fase pueden guardarse como eventos `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`.
+   - Deben ser visibles en resumen de cierre y posteriormente en gabinete o Event Log.
+
+10. Orden de implementación obligatorio:
+   - tipos/defaults/Zod;
+   - utilidades puras GPS;
+   - tests de cobertura;
+   - acciones start/close recording;
+   - ajuste de `useTrimbleGpsLog`;
+   - UI;
+   - Excel/gabinete.
+
+11. Añadir tests adicionales:
+   - puntos con accuracy > 25 m no cuentan para cobertura;
+   - tramo con geometría insuficiente no se auto-captura;
+   - tramo con estado `no_capturable` no se auto-captura aunque el GPS lo recorra;
+   - autoenvío post-cierre usa reason `auto_captured`.
+
+```
+
+## Veredicto
+
+**Aprobaría el plan solo con esos añadidos.**  
+La arquitectura es correcta, pero sin control de precisión GPS y sin protección de estados/incidencias, puede marcar falsos “grabados” en ciudad.
