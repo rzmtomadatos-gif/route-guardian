@@ -359,7 +359,7 @@ export function TrimbleNavigationPanel({
                 <div className="space-y-2 max-h-[40vh] overflow-y-auto">
                   {!current ? (
                     <p className="text-xs text-muted-foreground py-2 text-center">
-                      No hay tramos pendientes en este orden / vista.
+                      No hay tramos pendientes/repetir en las capas activas.
                     </p>
                   ) : (
                     <div className="rounded-lg border border-border p-2 bg-background/60 space-y-2">
