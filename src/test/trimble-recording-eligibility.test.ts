@@ -63,15 +63,15 @@ describe('closeTrimbleRecording — filtra terminales / no_capturable / incidenc
 
     // Marcamos seg-terminal como capturado mediante captura manual previa.
     act(() => {
-      result.current.startTrimbleCapture({ segmentId: 'seg-terminal' });
+      result.current.startTrimbleCapture('seg-terminal');
     });
     act(() => {
-      result.current.closeTrimbleCapture({ fieldStatus: 'capturado_pendiente_proceso' });
+      result.current.closeTrimbleCapture('capturado_pendiente_proceso');
     });
 
     // Registramos incidencia bloqueante sobre seg-blocked.
     act(() => {
-      result.current.addTrimbleIncident({
+      result.current.recordTrimbleIncident({
         category: 'fallo_sensor', severity: 'bloqueante',
         segmentId: 'seg-blocked', note: 'sensor caído',
       });
