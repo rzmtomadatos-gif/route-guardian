@@ -112,13 +112,19 @@ export function TrimbleNavigationPanel({
     [state.trimbleSegmentCaptures, state.activeRunId],
   );
 
-  const { items: queue, skippedNoGeometry } = useMemo(
-    () => buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds, SEGMENTS_PER_BATCH),
+  // Cola operativa COMPLETA Trimble (sin límite). El límite SEGMENTS_PER_BATCH
+  // se aplica solo al lote del conductor y a la ventana visible del panel.
+  const { items: fullQueue, skippedNoGeometry } = useMemo(
+    () => buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds),
     [state, visibleSegmentIds, orderIds],
   );
 
-  const current: TrimbleQueueItem | null = queue[0] ?? null;
-  const next = queue.slice(1);
+  // Lote del conductor + ventana del panel: primeros SEGMENTS_PER_BATCH (4).
+  const driverBatch = useMemo(() => fullQueue.slice(0, SEGMENTS_PER_BATCH), [fullQueue]);
+  const remainingAfterBatch = Math.max(0, fullQueue.length - SEGMENTS_PER_BATCH);
+
+  const current: TrimbleQueueItem | null = driverBatch[0] ?? null;
+  const next = driverBatch.slice(1);
 
   // ── Driver sync fingerprint (scoped por route/mission/run) ──────
   const routeId = state.route?.id ?? null;
