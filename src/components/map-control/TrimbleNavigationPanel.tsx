@@ -322,6 +322,8 @@ export function TrimbleNavigationPanel({
 
   // ── Wrappers que marcan motivo de auto-envío ──────────────────────
   const handleCloseWithAutoSend = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+    const ok = handleClose(status);
+    if (!ok) return;
     if (status === 'capturado_pendiente_proceso') {
       completedSinceLastSendRef.current += 1;
       if (completedSinceLastSendRef.current >= 2) {
@@ -330,8 +332,41 @@ export function TrimbleNavigationPanel({
     } else if (status === 'no_capturable') {
       pendingAutoReasonRef.current = 'non_capturable';
     }
-    handleClose(status);
   };
+
+  // ── Detección de cambios en orden/capas para autoenvío ────────────
+  const orderFingerprint = useMemo(() => orderIds.join('|'), [orderIds]);
+  const eligibleFingerprint = useMemo(
+    () => Array.from(trimbleEligibleSegmentIds).sort().join('|'),
+    [trimbleEligibleSegmentIds],
+  );
+  const prevOrderFingerprintRef = useRef<string | null>(null);
+  const prevEligibleFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevOrderFingerprintRef.current === null) {
+      prevOrderFingerprintRef.current = orderFingerprint;
+      return;
+    }
+    if (prevOrderFingerprintRef.current !== orderFingerprint) {
+      prevOrderFingerprintRef.current = orderFingerprint;
+      // No pisar reasons más específicas (optimized, two_completed, etc.)
+      if (!pendingAutoReasonRef.current) {
+        pendingAutoReasonRef.current = 'order_changed';
+      }
+    }
+  }, [orderFingerprint]);
+  useEffect(() => {
+    if (prevEligibleFingerprintRef.current === null) {
+      prevEligibleFingerprintRef.current = eligibleFingerprint;
+      return;
+    }
+    if (prevEligibleFingerprintRef.current !== eligibleFingerprint) {
+      prevEligibleFingerprintRef.current = eligibleFingerprint;
+      if (!pendingAutoReasonRef.current) {
+        pendingAutoReasonRef.current = 'layer_changed';
+      }
+    }
+  }, [eligibleFingerprint]);
 
   const handleIncidentSubmit = (
     segmentId: string,
