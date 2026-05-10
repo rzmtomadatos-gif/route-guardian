@@ -232,43 +232,122 @@ export function TrimbleNavigationPanel({
     }
   };
 
-  const sendToDriver = async () => {
-    if (driverBatch.length === 0) { toast.error('No hay tramos en cola.'); return; }
-    if (!copilotActive || !copilotSession) {
-      toast.error('Activa el modo Copiloto para enviar al conductor.');
-      return;
-    }
-    const stops = trimbleQueueToStops(driverBatch);
-    const url = buildGoogleMapsBatchUrl(stops);
-    const items: QueueItem[] = driverBatch.flatMap((q) => [
-      { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
-      { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
-    ]);
-    const isUpdate = lastSentFp !== null && lastSentFp !== '';
-    const baseEventPayload = {
-      missionId: state.activeMissionId,
-      runId: state.activeRunId,
-      fingerprint: currentFp,
-      segmentIds: driverBatch.map((q) => q.segment.id),
-      stopsCount: items.length,
-      autoSend: false,
+  // ── Auto-envío al conductor ────────────────────────────────────────
+  const completedSinceLastSendRef = useRef(0);
+  const pendingAutoReasonRef = useRef<TrimbleDriverSendReason | null>(null);
+  const autoSendInFlightRef = useRef(false);
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sendDriverBatch = useCallback(
+    async (reason: TrimbleDriverSendReason, mode: 'manual' | 'auto') => {
+      if (driverBatch.length === 0) {
+        if (mode === 'manual') toast.error('No hay tramos en cola.');
+        return;
+      }
+      if (!copilotActive || !copilotSession) {
+        if (mode === 'manual') toast.error('Activa el modo Copiloto para enviar al conductor.');
+        return;
+      }
+      const stops = trimbleQueueToStops(driverBatch);
+      const url = buildGoogleMapsBatchUrl(stops);
+      const items: QueueItem[] = driverBatch.flatMap((q) => [
+        { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
+        { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
+      ]);
+      const isUpdate = lastSentFp !== null && lastSentFp !== '';
+      const baseEventPayload = {
+        reason,
+        missionId: state.activeMissionId,
+        runId: state.activeRunId,
+        fingerprint: currentFp,
+        segmentIds: driverBatch.map((q) => q.segment.id),
+        stopsCount: items.length,
+        autoSend: mode === 'auto',
+      };
+      autoSendInFlightRef.current = true;
+      try {
+        await onCopilotPushQueue(items, 0, url);
+        persistFp(currentFp);
+        completedSinceLastSendRef.current = 0;
+        if (mode === 'manual') {
+          toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
+        } else {
+          toast.message('Conductor actualizado automáticamente.');
+        }
+        void logEvent(
+          mode === 'auto'
+            ? 'TRIMBLE_COPILOT_QUEUE_AUTO_SENT'
+            : (isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT'),
+          { workDay: activeMission?.workDay, payload: baseEventPayload },
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Error enviando al conductor: ${msg}`);
+        void logEvent('TRIMBLE_COPILOT_QUEUE_SEND_FAILED', {
+          workDay: activeMission?.workDay,
+          payload: { ...baseEventPayload, error: msg },
+        });
+      } finally {
+        autoSendInFlightRef.current = false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [driverBatch, copilotActive, copilotSession, currentFp, lastSentFp, onCopilotPushQueue, state.activeMissionId, state.activeRunId, activeMission?.workDay],
+  );
+
+  const handleManualSend = useCallback(() => { void sendDriverBatch('manual', 'manual'); }, [sendDriverBatch]);
+
+  // Disparador de auto-envío: cuando cambia el fingerprint del lote conductor
+  // y hay una razón operativa pendiente (cierre / incidencia / optimización),
+  // enviar automáticamente con debounce anti-spam.
+  useEffect(() => {
+    if (!copilotActive || !copilotSession) return;
+    if (driverBatch.length === 0) return;
+    if (currentFp === lastSentFp) return;
+    const reason = pendingAutoReasonRef.current;
+    if (!reason) return;
+    if (autoSendInFlightRef.current) return;
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
+    autoSendTimerRef.current = setTimeout(() => {
+      const r = pendingAutoReasonRef.current;
+      pendingAutoReasonRef.current = null;
+      if (r) void sendDriverBatch(r, 'auto');
+    }, 1000);
+    return () => {
+      if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
     };
-    try {
-      await onCopilotPushQueue(items, 0, url);
-      persistFp(currentFp);
-      toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
-      void logEvent(
-        isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT',
-        { workDay: activeMission?.workDay, payload: baseEventPayload },
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Error enviando al conductor: ${msg}`);
-      void logEvent('TRIMBLE_COPILOT_QUEUE_SEND_FAILED', {
-        workDay: activeMission?.workDay,
-        payload: { ...baseEventPayload, error: msg },
-      });
+  }, [currentFp, lastSentFp, copilotActive, copilotSession, driverBatch.length, sendDriverBatch]);
+
+  // ── Wrappers que marcan motivo de auto-envío ──────────────────────
+  const handleCloseWithAutoSend = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+    if (status === 'capturado_pendiente_proceso') {
+      completedSinceLastSendRef.current += 1;
+      if (completedSinceLastSendRef.current >= 2) {
+        pendingAutoReasonRef.current = 'two_completed';
+      }
+    } else if (status === 'no_capturable') {
+      pendingAutoReasonRef.current = 'non_capturable';
     }
+    handleClose(status);
+  };
+
+  const handleIncidentSubmit = (
+    segmentId: string,
+    cat: IncidentCategory,
+    impact: IncidentImpact,
+    note?: string,
+    location?: LatLng,
+    nonRec?: boolean,
+  ) => {
+    // Si la incidencia saca el tramo de la cola (no recordable) o cambia el batch,
+    // marcar motivo. El efecto del fingerprint decide si realmente envía.
+    pendingAutoReasonRef.current = 'incident_blocks_route';
+    onAddIncident(segmentId, cat, impact, note, location, nonRec);
+  };
+
+  const handleReoptimizeClick = () => {
+    pendingAutoReasonRef.current = 'optimized';
+    onReoptimize();
   };
 
   // ── Render ────────────────────────────────────────────────────────
