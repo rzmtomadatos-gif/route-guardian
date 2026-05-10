@@ -112,13 +112,19 @@ export function TrimbleNavigationPanel({
     [state.trimbleSegmentCaptures, state.activeRunId],
   );
 
-  const { items: queue, skippedNoGeometry } = useMemo(
-    () => buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds, SEGMENTS_PER_BATCH),
+  // Cola operativa COMPLETA Trimble (sin límite). El límite SEGMENTS_PER_BATCH
+  // se aplica solo al lote del conductor y a la ventana visible del panel.
+  const { items: fullQueue, skippedNoGeometry } = useMemo(
+    () => buildTrimbleRecordingQueue(state, visibleSegmentIds, orderIds),
     [state, visibleSegmentIds, orderIds],
   );
 
-  const current: TrimbleQueueItem | null = queue[0] ?? null;
-  const next = queue.slice(1);
+  // Lote del conductor + ventana del panel: primeros SEGMENTS_PER_BATCH (4).
+  const driverBatch = useMemo(() => fullQueue.slice(0, SEGMENTS_PER_BATCH), [fullQueue]);
+  const remainingAfterBatch = Math.max(0, fullQueue.length - SEGMENTS_PER_BATCH);
+
+  const current: TrimbleQueueItem | null = driverBatch[0] ?? null;
+  const next = driverBatch.slice(1);
 
   // ── Driver sync fingerprint (scoped por route/mission/run) ──────
   const routeId = state.route?.id ?? null;
@@ -133,9 +139,12 @@ export function TrimbleNavigationPanel({
     try { v = sessionStorage.getItem(storageKey); } catch {}
     setLastSentFp(v);
   }, [storageKey]);
-  const currentFp = useMemo(() => trimbleQueueFingerprint(queue), [queue]);
+  // El fingerprint del conductor se calcula sobre el LOTE enviado (4 tramos),
+  // no sobre la cola completa: así cuando avanza la cola y el lote cambia,
+  // detectamos "Ruta desactualizada" correctamente.
+  const currentFp = useMemo(() => trimbleQueueFingerprint(driverBatch), [driverBatch]);
   const driverInSync = copilotActive && lastSentFp === currentFp && currentFp !== '';
-  const driverStale = copilotActive && !driverInSync && queue.length > 0;
+  const driverStale = copilotActive && !driverInSync && driverBatch.length > 0;
 
   const persistFp = (fp: string) => {
     setLastSentFp(fp);
@@ -153,12 +162,12 @@ export function TrimbleNavigationPanel({
       onSetActiveSegment(intent.prevSegmentId);
       return;
     }
-    // capturado / no_capturable → siguiente de la cola recalculada.
-    const next = queue.find((q) => q.segment.id !== intent.prevSegmentId);
+    // capturado / no_capturable → siguiente de la cola completa recalculada.
+    const next = fullQueue.find((q) => q.segment.id !== intent.prevSegmentId);
     if (next) onSetActiveSegment(next.segment.id);
     else toast.message('Sin tramos pendientes en la cola.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue]);
+  }, [fullQueue]);
 
   // ── Acciones ──────────────────────────────────────────────────────
   const handleOpenMission = () => {
@@ -200,14 +209,14 @@ export function TrimbleNavigationPanel({
   };
 
   const sendToDriver = async () => {
-    if (queue.length === 0) { toast.error('No hay tramos en cola.'); return; }
+    if (driverBatch.length === 0) { toast.error('No hay tramos en cola.'); return; }
     if (!copilotActive || !copilotSession) {
       toast.error('Activa el modo Copiloto para enviar al conductor.');
       return;
     }
-    const stops = trimbleQueueToStops(queue);
+    const stops = trimbleQueueToStops(driverBatch);
     const url = buildGoogleMapsBatchUrl(stops);
-    const items: QueueItem[] = queue.flatMap((q) => [
+    const items: QueueItem[] = driverBatch.flatMap((q) => [
       { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
       { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
     ]);
@@ -216,14 +225,14 @@ export function TrimbleNavigationPanel({
       missionId: state.activeMissionId,
       runId: state.activeRunId,
       fingerprint: currentFp,
-      segmentIds: queue.map((q) => q.segment.id),
+      segmentIds: driverBatch.map((q) => q.segment.id),
       stopsCount: items.length,
       autoSend: false,
     };
     try {
       await onCopilotPushQueue(items, 0, url);
       persistFp(currentFp);
-      toast.success(`Enviado al conductor: ${queue.length} tramos / ${items.length} paradas.`);
+      toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
       void logEvent(
         isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT',
         { workDay: activeMission?.workDay, payload: baseEventPayload },
@@ -350,7 +359,7 @@ export function TrimbleNavigationPanel({
                 <div className="space-y-2 max-h-[40vh] overflow-y-auto">
                   {!current ? (
                     <p className="text-xs text-muted-foreground py-2 text-center">
-                      No hay tramos pendientes en este orden / vista.
+                      No hay tramos pendientes/repetir en las capas activas.
                     </p>
                   ) : (
                     <div className="rounded-lg border border-border p-2 bg-background/60 space-y-2">
@@ -395,7 +404,12 @@ export function TrimbleNavigationPanel({
 
                   {next.length > 0 && (
                     <div className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground px-1">Próximos {next.length}</div>
+                      <div className="text-[10px] text-muted-foreground px-1 flex items-center justify-between">
+                        <span>Próximos {next.length}</span>
+                        {remainingAfterBatch > 0 && (
+                          <span>Pendientes después: {remainingAfterBatch}</span>
+                        )}
+                      </div>
                       {next.map((q) => (
                         <button
                           key={q.segment.id}
@@ -413,6 +427,11 @@ export function TrimbleNavigationPanel({
                       ))}
                     </div>
                   )}
+                  {next.length === 0 && remainingAfterBatch > 0 && (
+                    <div className="text-[10px] text-muted-foreground px-1">
+                      Pendientes después: {remainingAfterBatch}
+                    </div>
+                  )}
 
                   {/* Driver sync block */}
                   <div className={`rounded-lg p-2 border ${driverStale ? 'border-amber-500/40 bg-amber-500/5' : 'border-border bg-background/40'}`}>
@@ -423,16 +442,16 @@ export function TrimbleNavigationPanel({
                     <Button
                       onClick={sendToDriver}
                       size="sm"
-                      disabled={queue.length === 0 || !copilotActive}
+                      disabled={driverBatch.length === 0 || !copilotActive}
                       data-testid="trimble-send-driver-btn"
                       className={`w-full ${driverStale ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
                       variant={driverStale ? 'default' : 'outline'}
                     >
                       <Send className="w-4 h-4 mr-2" />
                       {driverStale ? 'Actualizar conductor' : 'Enviar al conductor'}
-                      {queue.length > 0 && (
+                      {driverBatch.length > 0 && (
                         <span className="ml-2 text-[10px] opacity-80">
-                          {queue.length * 2} paradas / {queue.length} tramos
+                          {driverBatch.length * 2} paradas / {driverBatch.length} tramos
                         </span>
                       )}
                     </Button>
