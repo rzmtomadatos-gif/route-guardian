@@ -27,9 +27,10 @@ import {
   trimbleQueueToStops,
   type TrimbleQueueItem,
 } from '@/utils/trimble/recording-queue';
-import { trimbleQueueFingerprint } from '@/utils/trimble/queue-fingerprint';
+import { trimbleQueueFingerprint, trimbleFingerprintStorageKey } from '@/utils/trimble/queue-fingerprint';
 import { buildGoogleMapsBatchUrl, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { findActiveCapture, type TrimbleSegmentStatus } from '@/types/trimble';
+import { logEvent } from '@/utils/persistence/event-log';
 import type { LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
 import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
