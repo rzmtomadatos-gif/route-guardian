@@ -2158,6 +2158,183 @@ export function useRouteState() {
     return outcome;
   }, [setState]);
 
+  /**
+   * Inicia una sesión de grabación continua Trimble. Requiere modo Trimble,
+   * misión y pasada activas. NO valida estado del GPS — eso lo hace la UI
+   * antes de invocar.
+   */
+  const startTrimbleRecording = useCallback(
+    (opts: { startPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string; recordingId?: string } => {
+      let outcome: { ok: boolean; reason?: string; recordingId?: string } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+        if (!s.activeMissionId || !s.activeRunId) { outcome = { ok: false, reason: 'Necesitas misión y pasada abiertas' }; return s; }
+        if (s.activeTrimbleRecordingId) { outcome = { ok: false, reason: 'Ya hay una grabación activa' }; return s; }
+        const id = `tr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const session: TrimbleRecordingSession = {
+          id,
+          missionId: s.activeMissionId,
+          runId: s.activeRunId,
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+          startPosition: opts.startPosition,
+          notes: opts.notes,
+        };
+        outcome = { ok: true, recordingId: id };
+        return {
+          ...s,
+          trimbleRecordingSessions: [...(s.trimbleRecordingSessions ?? []), session],
+          activeTrimbleRecordingId: id,
+        };
+      }, true);
+      if (outcome.ok && outcome.recordingId) {
+        logEvent('TRIMBLE_RECORDING_STARTED', {
+          payload: { recordingSessionId: outcome.recordingId, startPosition: opts.startPosition ?? null },
+        });
+      }
+      return outcome;
+    },
+    [setState],
+  );
+
+  /**
+   * Cierra la grabación activa, analiza cobertura GPS sobre los tramos
+   * candidatos (capas activas, estado pendiente/repetir) y genera capturas
+   * automáticas para los tramos que cumplen las reglas de cobertura.
+   */
+  const closeTrimbleRecording = useCallback(
+    (opts: { endPosition?: LatLng; eligibleSegmentIds?: ReadonlySet<string> } = {}): {
+      ok: boolean;
+      reason?: string;
+      autoCapturedCount?: number;
+      partialCount?: number;
+      pointsAnalyzed?: number;
+    } => {
+      let outcome: ReturnType<typeof closeTrimbleRecording> = { ok: false };
+      let captured: ReturnType<typeof analyzeTrimbleGpsCoverage>['captured'] = [];
+      let partials: ReturnType<typeof analyzeTrimbleGpsCoverage>['partial'] = [];
+      let recordingIdCommitted: string | null = null;
+      let pointsAnalyzed = 0;
+
+      setState((s) => {
+        const recordingId = s.activeTrimbleRecordingId;
+        if (!recordingId) { outcome = { ok: false, reason: 'No hay grabación activa' }; return s; }
+        const session = (s.trimbleRecordingSessions ?? []).find((r) => r.id === recordingId);
+        if (!session) { outcome = { ok: false, reason: 'Sesión no encontrada' }; return s; }
+        if (!s.route) { outcome = { ok: false, reason: 'Sin ruta' }; return s; }
+
+        const now = new Date().toISOString();
+        const allPoints = (s.trimbleGpsLogsByRun?.[session.runId] ?? []).filter(
+          (p) => p.recordingSessionId === recordingId && p.phase === 'capture',
+        );
+        pointsAnalyzed = allPoints.length;
+
+        const elig = opts.eligibleSegmentIds ?? null;
+        const TERMINAL_FIELD: ReadonlySet<TrimbleFieldStatus> = new Set([
+          'capturado_pendiente_proceso', 'no_capturable',
+        ]);
+        const capturesByseg = new Map<string, SegmentCapture[]>();
+        for (const c of (s.trimbleSegmentCaptures ?? [])) {
+          const arr = capturesByseg.get(c.segmentId) ?? [];
+          arr.push(c);
+          capturesByseg.set(c.segmentId, arr);
+        }
+        const isTerminal = (segId: string): boolean => {
+          const arr = capturesByseg.get(segId) ?? [];
+          return arr.some(
+            (c) => TERMINAL_FIELD.has(c.fieldStatus) ||
+                   c.qaStatus === 'procesado_ok' ||
+                   c.qaStatus === 'descartado_por_calidad',
+          );
+        };
+
+        const candidates = s.route.segments.filter((seg) => {
+          if (elig && !elig.has(seg.id)) return false;
+          if (isTerminal(seg.id)) return false;
+          return true;
+        });
+
+        const report = analyzeTrimbleGpsCoverage(allPoints, candidates);
+        captured = report.captured;
+        partials = report.partial;
+        recordingIdCommitted = recordingId;
+
+        const newCaptures: SegmentCapture[] = captured.map((c) => ({
+          id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          segmentId: c.segmentId,
+          runId: session.runId,
+          missionId: session.missionId,
+          startedAt: c.startedAt,
+          endedAt: c.endedAt,
+          startPosition: c.startPosition,
+          endPosition: c.endPosition,
+          fieldStatus: 'capturado_pendiente_proceso',
+          fieldNotes: 'Auto-detectado por cobertura GPS Trimble',
+          qaStatus: null,
+          captureSource: 'gps_auto',
+          recordingSessionId: recordingId,
+          coverageRatio: c.coverageRatio,
+          matchedPoints: c.matchedPoints,
+        }));
+
+        const sessions = (s.trimbleRecordingSessions ?? []).map((r) =>
+          r.id === recordingId
+            ? { ...r, endedAt: now, endPosition: opts.endPosition ?? r.endPosition }
+            : r,
+        );
+
+        outcome = {
+          ok: true,
+          autoCapturedCount: captured.length,
+          partialCount: partials.length,
+          pointsAnalyzed,
+        };
+
+        return {
+          ...s,
+          trimbleRecordingSessions: sessions,
+          activeTrimbleRecordingId: null,
+          trimbleSegmentCaptures: [...(s.trimbleSegmentCaptures ?? []), ...newCaptures],
+        };
+      }, true);
+
+      if (outcome.ok && recordingIdCommitted) {
+        logEvent('TRIMBLE_RECORDING_CLOSED', {
+          payload: {
+            recordingSessionId: recordingIdCommitted,
+            pointsAnalyzed,
+            autoCapturedCount: captured.length,
+            partialCount: partials.length,
+          },
+        });
+        for (const c of captured) {
+          logEvent('TRIMBLE_SEGMENT_AUTO_CAPTURED', {
+            segmentId: c.segmentId,
+            payload: {
+              recordingSessionId: recordingIdCommitted,
+              coverageRatio: c.coverageRatio,
+              startProgress: c.startProgress,
+              endProgress: c.endProgress,
+              matchedPoints: c.matchedPoints,
+            },
+          });
+        }
+        for (const p of partials) {
+          logEvent('TRIMBLE_SEGMENT_PARTIAL_COVERAGE', {
+            segmentId: p.segmentId,
+            payload: {
+              recordingSessionId: recordingIdCommitted,
+              coverageRatio: p.coverageRatio,
+              reason: p.reason,
+            },
+          });
+        }
+      }
+      return outcome;
+    },
+    [setState],
+  );
+
   /** Restore full state from async persistence (IndexedDB) — sanitizes navigation state */
   const restoreState = useCallback((restored: AppState) => {
     // R3: Always start with navigation off — operator must re-enable explicitly
