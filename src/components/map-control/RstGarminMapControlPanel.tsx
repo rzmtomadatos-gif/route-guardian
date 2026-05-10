@@ -94,11 +94,6 @@ interface Props {
   /** Cancel start props */
   canCancelStart?: boolean;
   onCancelStart?: () => void;
-  /** Trimble: cola operativa (modo TRIMBLE_LIDAR) */
-  trimbleVisibleSegmentIds?: Set<string>;
-  trimbleOrderIds?: string[];
-  onCopilotPushQueue?: (items: import('@/hooks/useCopilotSession').QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
-  onOpenAdvancedTrimble?: () => void;
 }
 
 export function MapControlPanel({
