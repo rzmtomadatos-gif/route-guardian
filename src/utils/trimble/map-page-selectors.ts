@@ -28,11 +28,12 @@ export function getTrimbleEligibleSegmentIds(route: Route | null | undefined, hi
 export function getTrimbleOrderIds(route: Route | null | undefined): string[] {
   if (!route) return [];
 
-  const optimized = route.optimizedOrder ?? [];
-  if (optimized.length > 0) {
-    const routeSegmentIds = new Set(route.segments.map((s) => s.id));
-    return optimized.filter((id) => routeSegmentIds.has(id));
-  }
+  const routeIds = route.segments.map((s) => s.id);
+  const routeIdSet = new Set(routeIds);
 
-  return route.segments.map((s) => s.id);
+  const optimizedValid = (route.optimizedOrder ?? []).filter((id) => routeIdSet.has(id));
+  const seen = new Set(optimizedValid);
+  const missing = routeIds.filter((id) => !seen.has(id));
+
+  return [...optimizedValid, ...missing];
 }

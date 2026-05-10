@@ -25,11 +25,22 @@ describe('MapPage Trimble selectors', () => {
     expect(getTrimbleOrderIds(r).length).toBe(500);
   });
 
-  it('filtra sólo por capas ocultas y conserva el optimizedOrder completo válido', () => {
+  it('filtra sólo por capas ocultas y conserva todos los segmentos en orden', () => {
     const segments = [seg('A', 'ok'), seg('B', 'hidden'), seg('C', 'ok')];
-    const r = route(segments, ['C', 'missing', 'A', 'B']);
+    const r = route(segments, ['C', 'missing', 'A']);
 
     expect([...getTrimbleEligibleSegmentIds(r, new Set(['hidden']))]).toEqual(['A', 'C']);
     expect(getTrimbleOrderIds(r)).toEqual(['C', 'A', 'B']);
+  });
+
+  it('500 segmentos con optimizedOrder de sólo 6 → 500 IDs, primeros 6 respetan el orden', () => {
+    const segments = Array.from({ length: 500 }, (_, i) => seg(`S${i}`));
+    const partialOrder = ['S100', 'S50', 'S200', 'S0', 'S300', 'S10'];
+    const r = route(segments, partialOrder);
+
+    const ids = getTrimbleOrderIds(r);
+    expect(ids.length).toBe(500);
+    expect(ids.slice(0, 6)).toEqual(partialOrder);
+    expect(new Set(ids).size).toBe(500);
   });
 });
