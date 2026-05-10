@@ -404,7 +404,12 @@ export function TrimbleNavigationPanel({
 
                   {next.length > 0 && (
                     <div className="space-y-1">
-                      <div className="text-[10px] text-muted-foreground px-1">Próximos {next.length}</div>
+                      <div className="text-[10px] text-muted-foreground px-1 flex items-center justify-between">
+                        <span>Próximos {next.length}</span>
+                        {remainingAfterBatch > 0 && (
+                          <span>Pendientes después: {remainingAfterBatch}</span>
+                        )}
+                      </div>
                       {next.map((q) => (
                         <button
                           key={q.segment.id}
@@ -422,6 +427,11 @@ export function TrimbleNavigationPanel({
                       ))}
                     </div>
                   )}
+                  {next.length === 0 && remainingAfterBatch > 0 && (
+                    <div className="text-[10px] text-muted-foreground px-1">
+                      Pendientes después: {remainingAfterBatch}
+                    </div>
+                  )}
 
                   {/* Driver sync block */}
                   <div className={`rounded-lg p-2 border ${driverStale ? 'border-amber-500/40 bg-amber-500/5' : 'border-border bg-background/40'}`}>
@@ -432,16 +442,16 @@ export function TrimbleNavigationPanel({
                     <Button
                       onClick={sendToDriver}
                       size="sm"
-                      disabled={queue.length === 0 || !copilotActive}
+                      disabled={driverBatch.length === 0 || !copilotActive}
                       data-testid="trimble-send-driver-btn"
                       className={`w-full ${driverStale ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
                       variant={driverStale ? 'default' : 'outline'}
                     >
                       <Send className="w-4 h-4 mr-2" />
                       {driverStale ? 'Actualizar conductor' : 'Enviar al conductor'}
-                      {queue.length > 0 && (
+                      {driverBatch.length > 0 && (
                         <span className="ml-2 text-[10px] opacity-80">
-                          {queue.length * 2} paradas / {queue.length} tramos
+                          {driverBatch.length * 2} paradas / {driverBatch.length} tramos
                         </span>
                       )}
                     </Button>
