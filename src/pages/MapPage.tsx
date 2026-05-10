@@ -1290,10 +1290,6 @@ export default function MapPage({
     return ids;
   }, [route, hiddenLayers]);
 
-  const visibleSegmentIdSet = useMemo(
-    () => new Set(visibleSegments.map((s) => s.id)),
-    [visibleSegments],
-  );
 
   const trimbleStatusBySegment = useMemo(() => {
     if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return null;
