@@ -7,7 +7,8 @@ import { LayerPanel } from '@/components/LayerPanel';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
 import { CampaignSummary } from '@/components/CampaignSummary';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star, FileSpreadsheet } from 'lucide-react';
+import { Download, Search, MapPin, ArrowUpDown, AlertTriangle, Navigation, Crosshair, Star, FileSpreadsheet, Radar, List } from 'lucide-react';
+import { TrimbleSegmentsTable } from '@/components/segments/TrimbleSegmentsTable';
 import { exportRouteToExcel, validateForExport, type ExportValidationError } from '@/utils/excel-export';
 import { exportRouteToExcelV2 } from '@/utils/excel-export-v2';
 import { toast } from 'sonner';
@@ -121,6 +122,10 @@ export default function SegmentsPage({
   const [sortByProximity, setSortByProximity] = useState(false);
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
+  const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
+  const [viewMode, setViewMode] = useState<'layers' | 'trimble'>(
+    isTrimbleMode ? 'trimble' : 'layers',
+  );
 
   // Geolocation for proximity features
   const geo = useGeolocation(true);
@@ -433,25 +438,53 @@ export default function SegmentsPage({
           </Button>
         </div>
 
-        {/* Status filter chips */}
-        <div className="flex gap-0.5 mb-2">
-          {STATUS_OPTIONS.map((opt) => (
+        {/* Status filter chips (solo en vista por capas) */}
+        {viewMode === 'layers' && (
+          <div className="flex gap-0.5 mb-2">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
+                }}
+                className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                  statusFilter === opt.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* View mode toggle: solo si hay misiones Trimble o estamos en modo Trimble */}
+        {(isTrimbleMode || (state.trimbleMissions?.length ?? 0) > 0) && (
+          <div className="flex gap-0.5 mb-2">
             <button
-              key={opt.value}
-              onClick={() => {
-                setStatusFilter(opt.value);
-                try { localStorage.setItem('vialroute_segments_filter', opt.value); } catch {}
-              }}
-              className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-                statusFilter === opt.value
+              onClick={() => setViewMode('layers')}
+              className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
+                viewMode === 'layers'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
             >
-              {opt.label}
+              <List className="w-3 h-3" /> Vista por capas
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => setViewMode('trimble')}
+              className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
+                viewMode === 'trimble'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Radar className="w-3 h-3" /> Vista Trimble
+            </button>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="flex gap-1.5">
@@ -528,37 +561,64 @@ export default function SegmentsPage({
         />
       )}
 
-      {/* Layer panel – main content */}
+      {/* Main content: Trimble flat view o Layer panel */}
       <div className="flex-1 overflow-hidden">
-        <LayerPanel
-          segments={filtered}
-          incidents={incidents}
-          selectedIds={selectedIds}
-          availableLayers={route.availableLayers}
-          hiddenLayers={hiddenLayers}
-          onHiddenLayersChange={onHiddenLayersChange}
-          onToggleSelect={toggleSelect}
-          onSelectMultiple={selectMultiple}
-          onEditSegment={setEditingSeg}
-          onViewOnMap={(segId) => {
-            onSetActiveSegment(segId);
-            navigate('/map');
-          }}
-          onResetSegment={onResetSegment}
-          onDeleteSegment={onDeleteSegment}
-          onRenameLayer={onRenameLayer}
-          onDeleteLayer={onDeleteLayer}
-          onMoveToLayer={onMoveToLayer}
-          onMergeSegments={onMergeSegments}
-          onAddLayer={onAddLayer}
-           vehicleDistanceMap={vehicleDistanceMap}
-           recommendedSegmentId={recommendedSegmentId}
-           displayOrderMap={displayOrderMap}
-           onReorderInRoute={(id, dir) => onReorder(id, dir)}
-           onReverseSegment={onReverseSegment}
-           optimizedOrderLength={route.optimizedOrder.length}
-           onRequestReactivate={(seg) => setReactivateTarget(seg)}
-         />
+        {viewMode === 'trimble' ? (
+          <TrimbleSegmentsTable
+            state={state}
+            segments={(() => {
+              // Aplica visibilidad por capa y búsqueda, pero NO el statusFilter RST
+              let segs = route.segments.filter((s) => !s.layer || !hiddenLayers.has(s.layer));
+              if (search) {
+                const q = search.toLowerCase();
+                segs = segs.filter(
+                  (s) =>
+                    s.name.toLowerCase().includes(q) ||
+                    s.kmlId.toLowerCase().includes(q) ||
+                    String(s.trackNumber).includes(q) ||
+                    (s.layer || '').toLowerCase().includes(q) ||
+                    (s.companySegmentId || '').toLowerCase().includes(q),
+                );
+              }
+              return segs;
+            })()}
+            onEditSegment={setEditingSeg}
+            onViewOnMap={(segId) => {
+              onSetActiveSegment(segId);
+              navigate('/map');
+            }}
+          />
+        ) : (
+          <LayerPanel
+            segments={filtered}
+            incidents={incidents}
+            selectedIds={selectedIds}
+            availableLayers={route.availableLayers}
+            hiddenLayers={hiddenLayers}
+            onHiddenLayersChange={onHiddenLayersChange}
+            onToggleSelect={toggleSelect}
+            onSelectMultiple={selectMultiple}
+            onEditSegment={setEditingSeg}
+            onViewOnMap={(segId) => {
+              onSetActiveSegment(segId);
+              navigate('/map');
+            }}
+            onResetSegment={onResetSegment}
+            onDeleteSegment={onDeleteSegment}
+            onRenameLayer={onRenameLayer}
+            onDeleteLayer={onDeleteLayer}
+            onMoveToLayer={onMoveToLayer}
+            onMergeSegments={onMergeSegments}
+            onAddLayer={onAddLayer}
+            vehicleDistanceMap={vehicleDistanceMap}
+            recommendedSegmentId={recommendedSegmentId}
+            displayOrderMap={displayOrderMap}
+            onReorderInRoute={(id, dir) => onReorder(id, dir)}
+            onReverseSegment={onReverseSegment}
+            optimizedOrderLength={route.optimizedOrder.length}
+            onRequestReactivate={(seg) => setReactivateTarget(seg)}
+          />
+        )}
       </div>
 
       <ReactivateSegmentDialog
