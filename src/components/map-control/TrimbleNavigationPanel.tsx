@@ -506,18 +506,18 @@ export function TrimbleNavigationPanel({
                           </Button>
                         ) : (
                           <>
-                            <Button onClick={() => handleClose('capturado_pendiente_proceso')} size="sm" className="flex-1 bg-success text-success-foreground">
+                            <Button onClick={() => handleCloseWithAutoSend('capturado_pendiente_proceso')} size="sm" className="flex-1 bg-success text-success-foreground">
                               <StopCircle className="w-4 h-4 mr-1" /> Cerrar
                             </Button>
-                            <Button onClick={() => handleClose('repetir')} size="sm" variant="outline" className="border-orange-500/40 text-orange-500">
+                            <Button onClick={() => handleCloseWithAutoSend('repetir')} size="sm" variant="outline" className="border-orange-500/40 text-orange-500">
                               <RotateCcw className="w-3.5 h-3.5 mr-1" /> Repetir
                             </Button>
-                            <Button onClick={() => handleClose('no_capturable')} size="sm" variant="outline" className="border-zinc-500/40 text-zinc-300">
+                            <Button onClick={() => handleCloseWithAutoSend('no_capturable')} size="sm" variant="outline" className="border-zinc-500/40 text-zinc-300">
                               <Ban className="w-3.5 h-3.5 mr-1" /> No cap.
                             </Button>
                           </>
                         )}
-                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
+                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                           <Button size="sm" variant="outline" className="border-destructive/40 text-destructive">
                             <AlertTriangle className="w-4 h-4" />
                           </Button>
