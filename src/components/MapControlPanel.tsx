@@ -66,7 +66,7 @@ interface Props {
   onCancelStart?: () => void;
   /** Trimble: IDs elegibles por capas activas (NO viewport/renderizado). */
   trimbleEligibleSegmentIds: Set<string>;
-  trimbleOrderIds?: string[];
+  trimbleOrderIds: string[];
   onCopilotPushQueue?: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
   onOpenAdvancedTrimble?: () => void;
 }
@@ -76,7 +76,7 @@ export function MapControlPanel(props: Props) {
     return (
       <TrimbleNavigationPanel
         trimbleEligibleSegmentIds={props.trimbleEligibleSegmentIds}
-        orderIds={props.trimbleOrderIds ?? []}
+        orderIds={props.trimbleOrderIds}
         copilotSession={props.copilotSession}
         copilotActive={props.copilotActive}
         onCopilotStart={props.onCopilotStart}
