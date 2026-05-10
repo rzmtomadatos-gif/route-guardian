@@ -2458,5 +2458,7 @@ export function useRouteState() {
     linkTrimbleDeliverable,
     unlinkTrimbleDeliverable,
     appendTrimbleGpsPoint,
+    startTrimbleRecording,
+    closeTrimbleRecording,
   };
 }
