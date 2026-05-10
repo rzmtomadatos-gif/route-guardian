@@ -187,6 +187,10 @@ export interface TrimbleGpsPoint {
   phase: 'transport' | 'capture';
   segmentId?: string | null;
   source: 'gps';
+  /** Sesión de grabación continua a la que pertenece (si aplica). */
+  recordingSessionId?: string | null;
+  /** Tramo más cercano detectado en el momento del registro (si aplica). */
+  matchedSegmentId?: string | null;
 }
 
 /**
