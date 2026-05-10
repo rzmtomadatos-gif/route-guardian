@@ -212,6 +212,8 @@ const appStateSchema = z.object({
   ).default({}),
   activeMissionId: z.string().nullable().default(null),
   activeRunId: z.string().nullable().default(null),
+  trimbleRecordingSessions: z.array(z.lazy(() => trimbleRecordingSessionSchema)).max(50_000).default([]),
+  activeTrimbleRecordingId: z.string().nullable().default(null),
 }).strict();
 
 const trackGpsPointSchema = z.object({
