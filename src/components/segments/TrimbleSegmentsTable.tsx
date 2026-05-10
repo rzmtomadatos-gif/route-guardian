@@ -50,13 +50,27 @@ const ALL_STATUSES: TrimbleSegmentStatus[] = [
   ...TRIMBLE_QA_STATUSES,
 ];
 
-type StatusFilter = TrimbleSegmentStatus | 'todos';
+type StatusFilter = TrimbleSegmentStatus | 'todos' | 'con_incidencia';
 
 interface Props {
   state: AppState;
   segments: Segment[];
+  displayOrderMap?: Map<string, number>;
   onEditSegment: (s: Segment) => void;
   onViewOnMap: (segId: string) => void;
+}
+
+const HIGH_SEVERITIES = new Set(['alta', 'bloqueante']);
+
+function buildIncidentIndex(incidents: ReadonlyArray<TrimbleIncident>) {
+  const counts = new Map<string, number>();
+  const high = new Set<string>();
+  for (const inc of incidents) {
+    if (!inc.segmentId) continue;
+    counts.set(inc.segmentId, (counts.get(inc.segmentId) ?? 0) + 1);
+    if (HIGH_SEVERITIES.has(inc.severity)) high.add(inc.segmentId);
+  }
+  return { counts, high };
 }
 
 function formatDate(iso: string | null): string {
