@@ -13,6 +13,8 @@ const trimbleContext = vi.hoisted(() => ({
   closeTrimbleRun: vi.fn(() => ({ ok: true })),
   startTrimbleCapture: vi.fn(() => ({ ok: true })),
   closeTrimbleCapture: vi.fn(() => ({ ok: true })),
+  startTrimbleRecording: vi.fn(() => ({ ok: true, recordingId: 'rec-1' })),
+  closeTrimbleRecording: vi.fn(() => ({ ok: true, autoCapturedCount: 0, partialCount: 0, pointsAnalyzed: 0 })),
 }));
 
 vi.mock('@/context/RouteStateContext', () => ({

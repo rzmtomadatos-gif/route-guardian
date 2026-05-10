@@ -16,8 +16,9 @@ import { Button } from '@/components/ui/button';
 import {
   Radar, Play, StopCircle, RotateCcw, Ban, Send, AlertTriangle,
   ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, Radio,
-  LocateFixed, LocateOff, Minimize2, Wand2,
+  LocateFixed, LocateOff, Minimize2, Wand2, Disc, Circle,
 } from 'lucide-react';
+import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { CopilotPanel } from '@/components/CopilotPanel';
@@ -110,6 +111,7 @@ export function TrimbleNavigationPanel({
     startTrimbleMission, closeTrimbleMission,
     startTrimbleRun, closeTrimbleRun,
     startTrimbleCapture, closeTrimbleCapture,
+    startTrimbleRecording, closeTrimbleRecording,
   } = useRouteStateContext();
 
   const [expanded, setExpanded] = useState(true);
@@ -123,6 +125,10 @@ export function TrimbleNavigationPanel({
   const activeCapture = useMemo(
     () => findActiveCapture(state.trimbleSegmentCaptures ?? [], state.activeRunId),
     [state.trimbleSegmentCaptures, state.activeRunId],
+  );
+  const activeRecording = useMemo(
+    () => (state.trimbleRecordingSessions ?? []).find((r) => r.id === state.activeTrimbleRecordingId) ?? null,
+    [state.trimbleRecordingSessions, state.activeTrimbleRecordingId],
   );
 
   // Cola operativa COMPLETA Trimble (sin límite). El límite SEGMENTS_PER_BATCH
@@ -232,6 +238,49 @@ export function TrimbleNavigationPanel({
       pendingAdvanceRef.current = { prevSegmentId, closeStatus: status };
     }
     return true;
+  };
+
+  // ── Grabación continua + detección GPS ────────────────────────────
+  const recordingPoints = useMemo(() => {
+    if (!activeRecording) return [];
+    const all = state.trimbleGpsLogsByRun?.[activeRecording.runId] ?? [];
+    return all.filter((p) => p.recordingSessionId === activeRecording.id && p.phase === 'capture');
+  }, [activeRecording, state.trimbleGpsLogsByRun]);
+
+  const preferredQueueIds = useMemo(
+    () => new Set(driverBatch.map((q) => q.segment.id)),
+    [driverBatch],
+  );
+  const detectedSegmentMatch = useMemo(() => {
+    if (!currentPosition || !state.route) return null;
+    return findCurrentSegmentFromGps(currentPosition, state.route.segments, {
+      preferredSegmentIds: preferredQueueIds,
+    });
+  }, [currentPosition, state.route, preferredQueueIds]);
+  const detectedSegment = useMemo(() => {
+    if (!detectedSegmentMatch?.segmentId || !state.route) return null;
+    return state.route.segments.find((s) => s.id === detectedSegmentMatch.segmentId) ?? null;
+  }, [detectedSegmentMatch, state.route]);
+
+  const handleStartRecording = () => {
+    if (!gpsEnabled) { toast.error('Activa el GPS antes de empezar a grabar.'); return; }
+    const r = startTrimbleRecording({ startPosition: currentPosition ?? undefined });
+    if (r.ok) toast.success('Grabación iniciada. La cobertura se detectará automáticamente.');
+    else toast.error(r.reason || 'No se pudo iniciar grabación.');
+  };
+  const handleCloseRecording = () => {
+    const r = closeTrimbleRecording({
+      endPosition: currentPosition ?? undefined,
+      eligibleSegmentIds: trimbleEligibleSegmentIds,
+    });
+    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar grabación.'); return; }
+    const auto = r.autoCapturedCount ?? 0;
+    const partial = r.partialCount ?? 0;
+    if (auto > 0) {
+      toast.success(`Grabación cerrada — ${auto} tramo(s) auto-capturado(s)${partial ? ` · ${partial} parcial(es)` : ''}.`);
+    } else {
+      toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''}.`);
+    }
   };
 
   // ── Auto-envío al conductor ────────────────────────────────────────
@@ -540,6 +589,60 @@ export function TrimbleNavigationPanel({
               {/* --- Misión + pasada --- */}
               {activeMission && activeRun && (
                 <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                  {/* Grabación continua */}
+                  <div
+                    className={`rounded-lg p-2 border ${activeRecording ? 'border-red-500/60 bg-red-500/10' : 'border-border bg-background/40'}`}
+                    data-testid="trimble-recording-block"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-medium flex items-center gap-1">
+                        {activeRecording ? (
+                          <>
+                            <Disc className="w-3 h-3 text-red-500 animate-pulse" />
+                            <span className="text-red-500">Grabando · {recordingPoints.length} pts</span>
+                          </>
+                        ) : (
+                          <>
+                            <Circle className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Sin grabación activa</span>
+                          </>
+                        )}
+                      </span>
+                      {detectedSegment && (
+                        <span className="text-[10px] text-cyan-500 truncate max-w-[60%]" title={detectedSegment.name}>
+                          GPS → {detectedSegment.name}
+                          {detectedSegmentMatch?.progress != null && (
+                            <span className="opacity-70"> · {Math.round(detectedSegmentMatch.progress * 100)}%</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {!activeRecording ? (
+                      <Button
+                        onClick={handleStartRecording}
+                        size="sm"
+                        className="w-full bg-red-500 hover:bg-red-600 text-white"
+                        disabled={!gpsEnabled}
+                        data-testid="trimble-start-recording-btn"
+                      >
+                        <Disc className="w-4 h-4 mr-2" /> Iniciar grabación continua
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleCloseRecording}
+                        size="sm"
+                        variant="outline"
+                        className="w-full border-red-500/60 text-red-500"
+                        data-testid="trimble-close-recording-btn"
+                      >
+                        <StopCircle className="w-4 h-4 mr-2" /> Cerrar grabación · analizar cobertura
+                      </Button>
+                    )}
+                    <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
+                      Las capturas se generan automáticamente al cerrar, en función de la cobertura GPS.
+                    </p>
+                  </div>
+
                   {!current ? (
                     <p className="text-xs text-muted-foreground py-2 text-center">
                       No hay tramos pendientes/repetir en las capas activas.
@@ -576,7 +679,7 @@ export function TrimbleNavigationPanel({
                             </Button>
                           </>
                         )}
-                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
+                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(detectedSegment?.id ?? current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                           <Button size="sm" variant="outline" className="border-destructive/40 text-destructive">
                             <AlertTriangle className="w-4 h-4" />
                           </Button>
