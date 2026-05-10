@@ -303,9 +303,21 @@ export function TrimbleNavigationPanel({
   // y hay una razón operativa pendiente (cierre / incidencia / optimización),
   // enviar automáticamente con debounce anti-spam.
   useEffect(() => {
-    if (!copilotActive || !copilotSession) return;
+    // Si no hay copiloto activo o no hay sesión, no podemos enviar; descartamos
+    // razones pendientes para evitar que un cambio futuro herede un motivo viejo.
+    if (!copilotActive || !copilotSession) {
+      if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+      return;
+    }
     if (driverBatch.length === 0) return;
-    if (currentFp === lastSentFp) return;
+    // Si el lote no ha cambiado respecto al último envío, NO hay nada que enviar.
+    // Limpiamos cualquier razón pendiente para que un cambio posterior real
+    // (order_changed / layer_changed / two_completed) no se envíe con un
+    // motivo obsoleto (p. ej. 'optimized' que no produjo cambio en el lote).
+    if (currentFp === lastSentFp) {
+      if (pendingAutoReasonRef.current) pendingAutoReasonRef.current = null;
+      return;
+    }
     const reason = pendingAutoReasonRef.current;
     if (!reason) return;
     if (autoSendInFlightRef.current) return;
