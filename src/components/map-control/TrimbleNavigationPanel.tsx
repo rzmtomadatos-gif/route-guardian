@@ -625,7 +625,7 @@ export function TrimbleNavigationPanel({
                             </Button>
                           </>
                         )}
-                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
+                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(detectedSegment?.id ?? current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                           <Button size="sm" variant="outline" className="border-destructive/40 text-destructive">
                             <AlertTriangle className="w-4 h-4" />
                           </Button>
