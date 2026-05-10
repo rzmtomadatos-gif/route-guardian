@@ -223,14 +223,15 @@ export function TrimbleNavigationPanel({
       toast.success(`Captura iniciada: ${current.segment.name}`);
     } else toast.error(r.reason || 'No se pudo iniciar.');
   };
-  const handleClose = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+  const handleClose = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable'): boolean => {
     const prevSegmentId = current?.segment.id ?? activeCapture?.segmentId ?? null;
     const r = closeTrimbleCapture(status, { endPosition: currentPosition ?? undefined });
-    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar.'); return; }
+    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar.'); return false; }
     toast.success('Captura cerrada.');
     if (prevSegmentId) {
       pendingAdvanceRef.current = { prevSegmentId, closeStatus: status };
     }
+    return true;
   };
 
   // ── Auto-envío al conductor ────────────────────────────────────────
@@ -321,6 +322,8 @@ export function TrimbleNavigationPanel({
 
   // ── Wrappers que marcan motivo de auto-envío ──────────────────────
   const handleCloseWithAutoSend = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+    const ok = handleClose(status);
+    if (!ok) return;
     if (status === 'capturado_pendiente_proceso') {
       completedSinceLastSendRef.current += 1;
       if (completedSinceLastSendRef.current >= 2) {
@@ -329,8 +332,35 @@ export function TrimbleNavigationPanel({
     } else if (status === 'no_capturable') {
       pendingAutoReasonRef.current = 'non_capturable';
     }
-    handleClose(status);
   };
+
+  // ── Detección de cambios en orden/capas para autoenvío ────────────
+  // Se evalúa de forma síncrona durante el render para que el efecto
+  // de autoenvío vea `pendingAutoReasonRef` ya actualizado al recalcular
+  // `currentFp`. En el primer render solo se inicializan las refs.
+  const orderFingerprint = useMemo(() => orderIds.join('|'), [orderIds]);
+  const eligibleFingerprint = useMemo(
+    () => Array.from(trimbleEligibleSegmentIds).sort().join('|'),
+    [trimbleEligibleSegmentIds],
+  );
+  const prevOrderFingerprintRef = useRef<string | null>(null);
+  const prevEligibleFingerprintRef = useRef<string | null>(null);
+  if (prevOrderFingerprintRef.current === null) {
+    prevOrderFingerprintRef.current = orderFingerprint;
+  } else if (prevOrderFingerprintRef.current !== orderFingerprint) {
+    prevOrderFingerprintRef.current = orderFingerprint;
+    if (!pendingAutoReasonRef.current) {
+      pendingAutoReasonRef.current = 'order_changed';
+    }
+  }
+  if (prevEligibleFingerprintRef.current === null) {
+    prevEligibleFingerprintRef.current = eligibleFingerprint;
+  } else if (prevEligibleFingerprintRef.current !== eligibleFingerprint) {
+    prevEligibleFingerprintRef.current = eligibleFingerprint;
+    if (!pendingAutoReasonRef.current) {
+      pendingAutoReasonRef.current = 'layer_changed';
+    }
+  }
 
   const handleIncidentSubmit = (
     segmentId: string,
