@@ -157,6 +157,17 @@ export function TrimbleSegmentsTable({ state, segments, displayOrderMap, onEditS
               {STATUS_LABEL[s]} ({counts[s] ?? 0})
             </button>
           ))}
+          <button
+            onClick={() => { setStatusFilter('con_incidencia'); setPage(0); }}
+            className={`px-2 py-1 rounded text-[10px] font-medium border ${
+              statusFilter === 'con_incidencia'
+                ? 'bg-destructive/15 text-destructive border-destructive/30 ring-1 ring-current'
+                : 'bg-secondary text-muted-foreground border-transparent hover:text-foreground'
+            }`}
+            title="Tramos con incidencia Trimble"
+          >
+            Con incidencia ({counts.con_incidencia ?? 0})
+          </button>
         </div>
       </div>
 
