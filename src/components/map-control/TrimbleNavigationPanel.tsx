@@ -111,6 +111,7 @@ export function TrimbleNavigationPanel({
     startTrimbleMission, closeTrimbleMission,
     startTrimbleRun, closeTrimbleRun,
     startTrimbleCapture, closeTrimbleCapture,
+    startTrimbleRecording, closeTrimbleRecording,
   } = useRouteStateContext();
 
   const [expanded, setExpanded] = useState(true);
@@ -124,6 +125,10 @@ export function TrimbleNavigationPanel({
   const activeCapture = useMemo(
     () => findActiveCapture(state.trimbleSegmentCaptures ?? [], state.activeRunId),
     [state.trimbleSegmentCaptures, state.activeRunId],
+  );
+  const activeRecording = useMemo(
+    () => (state.trimbleRecordingSessions ?? []).find((r) => r.id === state.activeTrimbleRecordingId) ?? null,
+    [state.trimbleRecordingSessions, state.activeTrimbleRecordingId],
   );
 
   // Cola operativa COMPLETA Trimble (sin límite). El límite SEGMENTS_PER_BATCH
