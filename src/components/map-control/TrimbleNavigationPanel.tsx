@@ -27,13 +27,13 @@ import {
   trimbleQueueToStops,
   type TrimbleQueueItem,
 } from '@/utils/trimble/recording-queue';
-import { trimbleQueueFingerprint } from '@/utils/trimble/queue-fingerprint';
+import { trimbleQueueFingerprint, trimbleFingerprintStorageKey } from '@/utils/trimble/queue-fingerprint';
 import { buildGoogleMapsBatchUrl, SEGMENTS_PER_BATCH } from '@/utils/google-maps-batch';
 import { findActiveCapture, type TrimbleSegmentStatus } from '@/types/trimble';
+import { logEvent } from '@/utils/persistence/event-log';
 import type { LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
 import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
-const SS_FP_KEY = 'vialroute.trimble.lastQueueFp';
 
 const STATUS_LABELS: Record<TrimbleSegmentStatus, string> = {
   pendiente: 'Pendiente',
@@ -120,21 +120,45 @@ export function TrimbleNavigationPanel({
   const current: TrimbleQueueItem | null = queue[0] ?? null;
   const next = queue.slice(1);
 
-  // ── Driver sync fingerprint ───────────────────────────────────────
-  const lastSentFpRef = useRef<string | null>(null);
+  // ── Driver sync fingerprint (scoped por route/mission/run) ──────
+  const routeId = state.route?.id ?? null;
+  const storageKey = useMemo(
+    () => trimbleFingerprintStorageKey(routeId, state.activeMissionId, state.activeRunId),
+    [routeId, state.activeMissionId, state.activeRunId],
+  );
+  const [lastSentFp, setLastSentFp] = useState<string | null>(null);
+  // Cargar/resetear fingerprint cuando cambia el scope (campaña/misión/pasada).
   useEffect(() => {
-    if (lastSentFpRef.current === null) {
-      try { lastSentFpRef.current = sessionStorage.getItem(SS_FP_KEY); } catch {}
-    }
-  }, []);
+    let v: string | null = null;
+    try { v = sessionStorage.getItem(storageKey); } catch {}
+    setLastSentFp(v);
+  }, [storageKey]);
   const currentFp = useMemo(() => trimbleQueueFingerprint(queue), [queue]);
-  const driverInSync = copilotActive && lastSentFpRef.current === currentFp;
+  const driverInSync = copilotActive && lastSentFp === currentFp && currentFp !== '';
   const driverStale = copilotActive && !driverInSync && queue.length > 0;
 
   const persistFp = (fp: string) => {
-    lastSentFpRef.current = fp;
-    try { sessionStorage.setItem(SS_FP_KEY, fp); } catch {}
+    setLastSentFp(fp);
+    try { sessionStorage.setItem(storageKey, fp); } catch {}
   };
+
+  // ── Avance tras cerrar captura: efecto basado en cola recalculada ──
+  const pendingAdvanceRef = useRef<{ prevSegmentId: string; closeStatus: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable' } | null>(null);
+  useEffect(() => {
+    const intent = pendingAdvanceRef.current;
+    if (!intent) return;
+    pendingAdvanceRef.current = null;
+    if (intent.closeStatus === 'repetir') {
+      // Mantener activo el mismo tramo (volverá a aparecer como 'repetir' en cola).
+      onSetActiveSegment(intent.prevSegmentId);
+      return;
+    }
+    // capturado / no_capturable → siguiente de la cola recalculada.
+    const next = queue.find((q) => q.segment.id !== intent.prevSegmentId);
+    if (next) onSetActiveSegment(next.segment.id);
+    else toast.message('Sin tramos pendientes en la cola.');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue]);
 
   // ── Acciones ──────────────────────────────────────────────────────
   const handleOpenMission = () => {
@@ -166,11 +190,13 @@ export function TrimbleNavigationPanel({
     } else toast.error(r.reason || 'No se pudo iniciar.');
   };
   const handleClose = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+    const prevSegmentId = current?.segment.id ?? activeCapture?.segmentId ?? null;
     const r = closeTrimbleCapture(status, { endPosition: currentPosition ?? undefined });
     if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar.'); return; }
     toast.success('Captura cerrada.');
-    const after = queue.find((q) => q.segment.id !== current?.segment.id);
-    if (after) onSetActiveSegment(after.segment.id);
+    if (prevSegmentId) {
+      pendingAdvanceRef.current = { prevSegmentId, closeStatus: status };
+    }
   };
 
   const sendToDriver = async () => {
@@ -185,9 +211,31 @@ export function TrimbleNavigationPanel({
       { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
       { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
     ]);
-    await onCopilotPushQueue(items, 0, url);
-    persistFp(currentFp);
-    toast.success(`Enviado al conductor: ${queue.length} tramos / ${items.length} paradas.`);
+    const isUpdate = lastSentFp !== null && lastSentFp !== '';
+    const baseEventPayload = {
+      missionId: state.activeMissionId,
+      runId: state.activeRunId,
+      fingerprint: currentFp,
+      segmentIds: queue.map((q) => q.segment.id),
+      stopsCount: items.length,
+      autoSend: false,
+    };
+    try {
+      await onCopilotPushQueue(items, 0, url);
+      persistFp(currentFp);
+      toast.success(`Enviado al conductor: ${queue.length} tramos / ${items.length} paradas.`);
+      void logEvent(
+        isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT',
+        { workDay: activeMission?.workDay, payload: baseEventPayload },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Error enviando al conductor: ${msg}`);
+      void logEvent('TRIMBLE_COPILOT_QUEUE_SEND_FAILED', {
+        workDay: activeMission?.workDay,
+        payload: { ...baseEventPayload, error: msg },
+      });
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────
