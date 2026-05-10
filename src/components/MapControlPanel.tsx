@@ -64,9 +64,9 @@ interface Props {
   onReactivateSegment?: (id: string) => void;
   canCancelStart?: boolean;
   onCancelStart?: () => void;
-  /** Trimble: cola operativa (modo TRIMBLE_LIDAR) */
-  trimbleVisibleSegmentIds?: Set<string>;
-  trimbleOrderIds?: string[];
+  /** Trimble: IDs elegibles por capas activas (NO viewport/renderizado). */
+  trimbleEligibleSegmentIds: Set<string>;
+  trimbleOrderIds: string[];
   onCopilotPushQueue?: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
   onOpenAdvancedTrimble?: () => void;
 }
@@ -75,8 +75,8 @@ export function MapControlPanel(props: Props) {
   if (props.acquisitionMode === 'TRIMBLE_LIDAR') {
     return (
       <TrimbleNavigationPanel
-        visibleSegmentIds={props.trimbleVisibleSegmentIds ?? new Set(props.segments.map((s) => s.id))}
-        orderIds={props.trimbleOrderIds ?? props.optimizedOrder}
+        trimbleEligibleSegmentIds={props.trimbleEligibleSegmentIds}
+        orderIds={props.trimbleOrderIds}
         copilotSession={props.copilotSession}
         copilotActive={props.copilotActive}
         onCopilotStart={props.onCopilotStart}

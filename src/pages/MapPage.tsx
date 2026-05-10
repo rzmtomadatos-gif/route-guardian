@@ -30,6 +30,7 @@ import { computeDirectionsRoute, getGoogleMapsApiKey } from '@/utils/google-dire
 import { fetchRoadsInArea, fetchRoadsInCircle, mergeWaysByName, fetchNearestRoad, OverpassError, type RoadCategory, type OverpassWay, type NearestRoadInfo } from '@/utils/overpass-api';
 import { SAFE_LAYER_COLORS } from '@/utils/segment-colors';
 import { getVisibleMapSegments } from '@/utils/map-visible-segments';
+import { getTrimbleEligibleSegmentIds, getTrimbleOrderIds } from '@/utils/trimble/map-page-selectors';
 import { MapSearchBox, type MapSearchPick, type MapSearchBoxHandle } from '@/components/MapSearchBox';
 import { toast } from 'sonner';
 import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, Segment } from '@/types/route';
@@ -1267,14 +1268,10 @@ export default function MapPage({
   }, [route, visibleSegments]);
 
   // ── Trimble: cola operativa + estado por tramo (solo en TRIMBLE_LIDAR) ──
-  // Cola Trimble: usa SIEMPRE el orden global completo (`optimizedOrder` o
-  // segmentos en orden natural). NO se usa `activeRouteBlock` porque limita
-  // a la ventana RST/track y rompe la operación Trimble continua.
   const trimbleOrderIds = useMemo(() => {
-    if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return [];
-    if (route?.optimizedOrder.length) return route.optimizedOrder;
-    return route?.segments.map((s) => s.id) ?? [];
-  }, [state.acquisitionMode, route]);
+    if (!route) return [];
+    return getTrimbleOrderIds(route);
+  }, [route]);
 
   // Trimble: elegibilidad por CAPAS ACTIVAS (NO por viewport del mapa).
   // El viewport solo limita el render visual; la cola operativa Trimble
@@ -1282,12 +1279,7 @@ export default function MapPage({
   // de la pantalla (campañas con cientos/miles de tramos).
   const trimbleEligibleSegmentIds = useMemo(() => {
     if (!route) return new Set<string>();
-    const ids = new Set<string>();
-    for (const seg of route.segments) {
-      if (seg.layer && hiddenLayers.has(seg.layer)) continue;
-      ids.add(seg.id);
-    }
-    return ids;
+    return getTrimbleEligibleSegmentIds(route, hiddenLayers);
   }, [route, hiddenLayers]);
 
 
@@ -1740,7 +1732,7 @@ export default function MapPage({
           if (seg) setReactivateTarget(seg);
         }}
         canNavigate={canNavigate}
-        trimbleVisibleSegmentIds={trimbleEligibleSegmentIds}
+        trimbleEligibleSegmentIds={trimbleEligibleSegmentIds}
         trimbleOrderIds={trimbleOrderIds}
         onCopilotPushQueue={copilot.pushQueue}
         onOpenAdvancedTrimble={() => navigate('/trimble')}

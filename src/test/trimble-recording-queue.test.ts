@@ -85,6 +85,13 @@ describe('buildTrimbleRecordingQueue', () => {
     expect(items.length).toBe(10);
   });
 
+  it('500 segmentos + 500 optimizedOrder + 500 elegibles → cola completa de 500', () => {
+    const segs = Array.from({ length: 500 }, (_, i) => seg(`S${i}`));
+    const ids = segs.map((s) => s.id);
+    const { items } = buildTrimbleRecordingQueue(makeState(segs, [], null, ids), new Set(ids), ids);
+    expect(items.length).toBe(500);
+  });
+
   it('respeta el limit explícito cuando se pasa (lote conductor)', () => {
     const segs = Array.from({ length: 10 }, (_, i) => seg(`S${i}`));
     const ids = segs.map((s) => s.id);
