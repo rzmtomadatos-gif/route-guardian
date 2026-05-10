@@ -73,18 +73,25 @@ export interface TrimbleQueueResult {
 }
 
 /**
- * Construye la cola operativa Trimble.
+ * Construye la cola operativa Trimble COMPLETA.
  *
- * @param state             AppState (lee `route.segments`, capturas, activeRunId).
- * @param visibleSegmentIds IDs de tramos visibles en el mapa (filtro duro).
- * @param orderIds          Orden operativo real (activeRouteBlock || optimizedOrder || segments).
- * @param limit             Máx. tramos en cola. Por defecto SEGMENTS_PER_BATCH (4).
+ * Recorre TODO `orderIds` y devuelve todos los tramos accionables
+ * (pendiente / en_captura / repetir) cuyas capas estén activas.
+ *
+ * IMPORTANTE: el límite del lote del conductor (SEGMENTS_PER_BATCH = 4)
+ * NO se aplica aquí. Se aplica únicamente al construir el `driverBatch`
+ * (ver `TrimbleNavigationPanel.sendToDriver`).
+ *
+ * @param state              AppState (lee `route.segments`, capturas, activeRunId).
+ * @param eligibleSegmentIds IDs de tramos elegibles (capas activas, NO viewport).
+ * @param orderIds           Orden operativo (`route.optimizedOrder` o `segments`).
+ * @param limit              Máx. tramos. Por defecto sin límite (Infinity).
  */
 export function buildTrimbleRecordingQueue(
   state: AppState,
-  visibleSegmentIds: Set<string>,
+  eligibleSegmentIds: Set<string>,
   orderIds: string[],
-  limit: number = SEGMENTS_PER_BATCH,
+  limit: number = Number.POSITIVE_INFINITY,
 ): TrimbleQueueResult {
   const route = state.route;
   if (!route) return { items: [], skippedNoGeometry: [] };
