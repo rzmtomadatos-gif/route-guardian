@@ -209,14 +209,14 @@ export function TrimbleNavigationPanel({
   };
 
   const sendToDriver = async () => {
-    if (queue.length === 0) { toast.error('No hay tramos en cola.'); return; }
+    if (driverBatch.length === 0) { toast.error('No hay tramos en cola.'); return; }
     if (!copilotActive || !copilotSession) {
       toast.error('Activa el modo Copiloto para enviar al conductor.');
       return;
     }
-    const stops = trimbleQueueToStops(queue);
+    const stops = trimbleQueueToStops(driverBatch);
     const url = buildGoogleMapsBatchUrl(stops);
-    const items: QueueItem[] = queue.flatMap((q) => [
+    const items: QueueItem[] = driverBatch.flatMap((q) => [
       { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
       { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
     ]);
@@ -225,14 +225,14 @@ export function TrimbleNavigationPanel({
       missionId: state.activeMissionId,
       runId: state.activeRunId,
       fingerprint: currentFp,
-      segmentIds: queue.map((q) => q.segment.id),
+      segmentIds: driverBatch.map((q) => q.segment.id),
       stopsCount: items.length,
       autoSend: false,
     };
     try {
       await onCopilotPushQueue(items, 0, url);
       persistFp(currentFp);
-      toast.success(`Enviado al conductor: ${queue.length} tramos / ${items.length} paradas.`);
+      toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
       void logEvent(
         isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT',
         { workDay: activeMission?.workDay, payload: baseEventPayload },
