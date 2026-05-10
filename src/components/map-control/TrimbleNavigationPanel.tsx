@@ -223,14 +223,15 @@ export function TrimbleNavigationPanel({
       toast.success(`Captura iniciada: ${current.segment.name}`);
     } else toast.error(r.reason || 'No se pudo iniciar.');
   };
-  const handleClose = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+  const handleClose = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable'): boolean => {
     const prevSegmentId = current?.segment.id ?? activeCapture?.segmentId ?? null;
     const r = closeTrimbleCapture(status, { endPosition: currentPosition ?? undefined });
-    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar.'); return; }
+    if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar.'); return false; }
     toast.success('Captura cerrada.');
     if (prevSegmentId) {
       pendingAdvanceRef.current = { prevSegmentId, closeStatus: status };
     }
+    return true;
   };
 
   // ── Auto-envío al conductor ────────────────────────────────────────
