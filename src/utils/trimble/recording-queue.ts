@@ -101,10 +101,11 @@ export function buildTrimbleRecordingQueue(
   const segById = new Map<string, Segment>();
   for (const s of route.segments) segById.set(s.id, s);
 
-  const items: TrimbleQueueItem[] = [];
+  // 1) Construir lista plana de candidatos accionables, en orden de optimizedOrder.
+  const candidates: TrimbleQueueItem[] = [];
   const skippedNoGeometry: string[] = [];
 
-  for (let i = 0; i < orderIds.length && items.length < limit; i++) {
+  for (let i = 0; i < orderIds.length; i++) {
     const id = orderIds[i];
     if (!eligibleSegmentIds.has(id)) continue;
     const segment = segById.get(id);
@@ -117,7 +118,49 @@ export function buildTrimbleRecordingQueue(
     }
     const start = segment.coordinates[0];
     const end = segment.coordinates[segment.coordinates.length - 1];
-    items.push({ segment, status, start, end, positionInOrder: i });
+    candidates.push({ segment, status, start, end, positionInOrder: i });
+  }
+
+  // 2) Agrupar por corredor preservando el orden de primera aparición
+  //    en optimizedOrder. Esto garantiza que, una vez iniciado un corredor
+  //    compuesto (p.ej. "AVDA ESPAÑA"), todas sus partes accionables se
+  //    consumen antes de saltar a otro corredor — incluso si en
+  //    optimizedOrder estaban intercaladas con otras calles.
+  const groupOrder: string[] = [];
+  const groups = new Map<string, TrimbleQueueItem[]>();
+  for (const c of candidates) {
+    const key = getTrimbleCorridorKey(c.segment);
+    let g = groups.get(key);
+    if (!g) {
+      g = [];
+      groups.set(key, g);
+      groupOrder.push(key);
+    }
+    g.push(c);
+  }
+
+  // 3) Dentro de cada corredor: ordenar por número de parte si se conoce,
+  //    si no, conservar el orden original de optimizedOrder.
+  for (const key of groupOrder) {
+    const arr = groups.get(key)!;
+    arr.sort((a, b) => {
+      const pa = getTrimbleCorridorPart(a.segment);
+      const pb = getTrimbleCorridorPart(b.segment);
+      if (pa !== null && pb !== null && pa !== pb) return pa - pb;
+      if (pa !== null && pb === null) return -1;
+      if (pa === null && pb !== null) return 1;
+      return a.positionInOrder - b.positionInOrder;
+    });
+  }
+
+  // 4) Aplanar respetando el orden de corredores y aplicar `limit`.
+  const items: TrimbleQueueItem[] = [];
+  for (const key of groupOrder) {
+    for (const it of groups.get(key)!) {
+      if (items.length >= limit) break;
+      items.push(it);
+    }
+    if (items.length >= limit) break;
   }
   return { items, skippedNoGeometry };
 }
