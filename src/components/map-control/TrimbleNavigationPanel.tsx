@@ -73,8 +73,18 @@ interface Props {
   gpsSpeed: number | null;
   gpsError: string | null;
   onToggleGps: (enabled: boolean) => void;
+  onReoptimize: () => void;
   onOpenAdvanced: () => void;
 }
+
+export type TrimbleDriverSendReason =
+  | 'manual'
+  | 'two_completed'
+  | 'non_capturable'
+  | 'incident_blocks_route'
+  | 'optimized'
+  | 'order_changed'
+  | 'layer_changed';
 
 export function TrimbleNavigationPanel({
   trimbleEligibleSegmentIds,
