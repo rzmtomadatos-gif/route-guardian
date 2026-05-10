@@ -564,7 +564,7 @@ export function TrimbleNavigationPanel({
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${driverBadge.cls}`}>{driverBadge.label}</span>
                     </div>
                     <Button
-                      onClick={sendToDriver}
+                      onClick={handleManualSend}
                       size="sm"
                       disabled={driverBatch.length === 0 || !copilotActive}
                       data-testid="trimble-send-driver-btn"
