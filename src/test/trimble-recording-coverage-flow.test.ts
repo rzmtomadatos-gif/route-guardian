@@ -56,10 +56,11 @@ describe('Trimble recording — cobertura GPS auto-captura', () => {
     const missionId = result.current.state.activeMissionId!;
     const baseTime = Date.now();
     const points: any[] = [];
-    for (let i = 0; i <= 11; i++) {
+    const N = 60;
+    for (let i = 0; i <= N; i++) {
       points.push({
         timestamp: new Date(baseTime + i * 1000).toISOString(),
-        lat: 40.0000 + (0.005 * i) / 11,
+        lat: 40.0000 + (0.005 * i) / N,
         lng: -3.7000,
         accuracy: 5, speed: 10,
         missionId, runId,
