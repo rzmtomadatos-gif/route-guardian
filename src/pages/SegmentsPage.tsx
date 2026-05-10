@@ -123,7 +123,7 @@ export default function SegmentsPage({
   const [exportErrors, setExportErrors] = useState<ExportValidationError[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const isTrimbleMode = state.acquisitionMode === 'TRIMBLE_LIDAR';
-  const hasTrimbleData = (state.trimbleMissions?.length ?? 0) > 0;
+  
   const [viewMode, setViewModeState] = useState<'layers' | 'trimble'>(() => {
     try {
       const saved = localStorage.getItem('vialroute_segments_view_mode');
