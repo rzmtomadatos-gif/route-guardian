@@ -15,6 +15,7 @@
 import type { AppState, LatLng, Segment } from '@/types/route';
 import type { SegmentCapture, TrimbleSegmentStatus } from '@/types/trimble';
 import { SEGMENTS_PER_BATCH, type BatchStop } from '@/utils/google-maps-batch';
+import { getTrimbleCorridorKey, getTrimbleCorridorPart } from '@/utils/trimble/corridor';
 
 const QUEUE_INCLUDE: ReadonlySet<TrimbleSegmentStatus> = new Set([
   'pendiente',
