@@ -35,6 +35,17 @@ function parseAppStateDefaults(parsed: any): AppState {
   ) {
     parsed.trackGpsLogsByDay = {};
   }
+  // Trimble defaults — campañas antiguas no los traen
+  if (!Array.isArray(parsed.trimbleMissions)) parsed.trimbleMissions = [];
+  if (!Array.isArray(parsed.trimbleRuns)) parsed.trimbleRuns = [];
+  if (!Array.isArray(parsed.trimbleSegmentCaptures)) parsed.trimbleSegmentCaptures = [];
+  if (!Array.isArray(parsed.trimbleIncidents)) parsed.trimbleIncidents = [];
+  if (!Array.isArray(parsed.trimbleDeliverables)) parsed.trimbleDeliverables = [];
+  if (!parsed.trimbleGpsLogsByRun || typeof parsed.trimbleGpsLogsByRun !== 'object') {
+    parsed.trimbleGpsLogsByRun = {};
+  }
+  if (!('activeMissionId' in parsed)) parsed.activeMissionId = null;
+  if (!('activeRunId' in parsed)) parsed.activeRunId = null;
   return parsed as AppState;
 }
 
