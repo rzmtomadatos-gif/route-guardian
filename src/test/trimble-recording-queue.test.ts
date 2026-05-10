@@ -78,10 +78,17 @@ describe('buildTrimbleRecordingQueue', () => {
     expect(items[0].end).toEqual({ lat: 5, lng: 6 });
   });
 
-  it('limit por defecto = SEGMENTS_PER_BATCH', () => {
+  it('por defecto NO aplica límite (cola operativa completa)', () => {
     const segs = Array.from({ length: 10 }, (_, i) => seg(`S${i}`));
     const ids = segs.map((s) => s.id);
     const { items } = buildTrimbleRecordingQueue(makeState(segs), new Set(ids), ids);
+    expect(items.length).toBe(10);
+  });
+
+  it('respeta el limit explícito cuando se pasa (lote conductor)', () => {
+    const segs = Array.from({ length: 10 }, (_, i) => seg(`S${i}`));
+    const ids = segs.map((s) => s.id);
+    const { items } = buildTrimbleRecordingQueue(makeState(segs), new Set(ids), ids, SEGMENTS_PER_BATCH);
     expect(items.length).toBe(SEGMENTS_PER_BATCH);
   });
 
