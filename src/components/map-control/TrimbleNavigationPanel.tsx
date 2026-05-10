@@ -11,12 +11,12 @@
  *   - Si difiere y hay copiloto activo → estado "Ruta desactualizada"
  *     (botón en ámbar). Al pulsar enviar, actualiza el fingerprint.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Radar, Play, StopCircle, RotateCcw, Ban, Send, AlertTriangle,
   ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, Radio,
-  LocateFixed, LocateOff, Minimize2,
+  LocateFixed, LocateOff, Minimize2, Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
