@@ -23,8 +23,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { TrimbleNavigationPanel } from '@/components/map-control/TrimbleNavigationPanel';
-
 const FILTER_KEY = 'vialroute_nav_filter';
 
 type FilterType = 'todos' | 'pendiente' | 'completado' | 'posible_repetir';
