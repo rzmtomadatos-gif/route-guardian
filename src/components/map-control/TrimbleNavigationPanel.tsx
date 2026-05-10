@@ -11,12 +11,12 @@
  *   - Si difiere y hay copiloto activo → estado "Ruta desactualizada"
  *     (botón en ámbar). Al pulsar enviar, actualiza el fingerprint.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Radar, Play, StopCircle, RotateCcw, Ban, Send, AlertTriangle,
   ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, Radio,
-  LocateFixed, LocateOff, Minimize2,
+  LocateFixed, LocateOff, Minimize2, Wand2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
@@ -73,8 +73,18 @@ interface Props {
   gpsSpeed: number | null;
   gpsError: string | null;
   onToggleGps: (enabled: boolean) => void;
+  onReoptimize: () => void;
   onOpenAdvanced: () => void;
 }
+
+export type TrimbleDriverSendReason =
+  | 'manual'
+  | 'two_completed'
+  | 'non_capturable'
+  | 'incident_blocks_route'
+  | 'optimized'
+  | 'order_changed'
+  | 'layer_changed';
 
 export function TrimbleNavigationPanel({
   trimbleEligibleSegmentIds,
@@ -92,6 +102,7 @@ export function TrimbleNavigationPanel({
   gpsSpeed,
   gpsError,
   onToggleGps,
+  onReoptimize,
   onOpenAdvanced,
 }: Props) {
   const {
@@ -221,43 +232,122 @@ export function TrimbleNavigationPanel({
     }
   };
 
-  const sendToDriver = async () => {
-    if (driverBatch.length === 0) { toast.error('No hay tramos en cola.'); return; }
-    if (!copilotActive || !copilotSession) {
-      toast.error('Activa el modo Copiloto para enviar al conductor.');
-      return;
-    }
-    const stops = trimbleQueueToStops(driverBatch);
-    const url = buildGoogleMapsBatchUrl(stops);
-    const items: QueueItem[] = driverBatch.flatMap((q) => [
-      { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
-      { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
-    ]);
-    const isUpdate = lastSentFp !== null && lastSentFp !== '';
-    const baseEventPayload = {
-      missionId: state.activeMissionId,
-      runId: state.activeRunId,
-      fingerprint: currentFp,
-      segmentIds: driverBatch.map((q) => q.segment.id),
-      stopsCount: items.length,
-      autoSend: false,
+  // ── Auto-envío al conductor ────────────────────────────────────────
+  const completedSinceLastSendRef = useRef(0);
+  const pendingAutoReasonRef = useRef<TrimbleDriverSendReason | null>(null);
+  const autoSendInFlightRef = useRef(false);
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sendDriverBatch = useCallback(
+    async (reason: TrimbleDriverSendReason, mode: 'manual' | 'auto') => {
+      if (driverBatch.length === 0) {
+        if (mode === 'manual') toast.error('No hay tramos en cola.');
+        return;
+      }
+      if (!copilotActive || !copilotSession) {
+        if (mode === 'manual') toast.error('Activa el modo Copiloto para enviar al conductor.');
+        return;
+      }
+      const stops = trimbleQueueToStops(driverBatch);
+      const url = buildGoogleMapsBatchUrl(stops);
+      const items: QueueItem[] = driverBatch.flatMap((q) => [
+        { segmentId: q.segment.id, name: `INICIO · ${q.segment.name}`, lat: q.start.lat, lng: q.start.lng },
+        { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
+      ]);
+      const isUpdate = lastSentFp !== null && lastSentFp !== '';
+      const baseEventPayload = {
+        reason,
+        missionId: state.activeMissionId,
+        runId: state.activeRunId,
+        fingerprint: currentFp,
+        segmentIds: driverBatch.map((q) => q.segment.id),
+        stopsCount: items.length,
+        autoSend: mode === 'auto',
+      };
+      autoSendInFlightRef.current = true;
+      try {
+        await onCopilotPushQueue(items, 0, url);
+        persistFp(currentFp);
+        completedSinceLastSendRef.current = 0;
+        if (mode === 'manual') {
+          toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
+        } else {
+          toast.message('Conductor actualizado automáticamente.');
+        }
+        void logEvent(
+          mode === 'auto'
+            ? 'TRIMBLE_COPILOT_QUEUE_AUTO_SENT'
+            : (isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT'),
+          { workDay: activeMission?.workDay, payload: baseEventPayload },
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Error enviando al conductor: ${msg}`);
+        void logEvent('TRIMBLE_COPILOT_QUEUE_SEND_FAILED', {
+          workDay: activeMission?.workDay,
+          payload: { ...baseEventPayload, error: msg },
+        });
+      } finally {
+        autoSendInFlightRef.current = false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [driverBatch, copilotActive, copilotSession, currentFp, lastSentFp, onCopilotPushQueue, state.activeMissionId, state.activeRunId, activeMission?.workDay],
+  );
+
+  const handleManualSend = useCallback(() => { void sendDriverBatch('manual', 'manual'); }, [sendDriverBatch]);
+
+  // Disparador de auto-envío: cuando cambia el fingerprint del lote conductor
+  // y hay una razón operativa pendiente (cierre / incidencia / optimización),
+  // enviar automáticamente con debounce anti-spam.
+  useEffect(() => {
+    if (!copilotActive || !copilotSession) return;
+    if (driverBatch.length === 0) return;
+    if (currentFp === lastSentFp) return;
+    const reason = pendingAutoReasonRef.current;
+    if (!reason) return;
+    if (autoSendInFlightRef.current) return;
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
+    autoSendTimerRef.current = setTimeout(() => {
+      const r = pendingAutoReasonRef.current;
+      pendingAutoReasonRef.current = null;
+      if (r) void sendDriverBatch(r, 'auto');
+    }, 1000);
+    return () => {
+      if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
     };
-    try {
-      await onCopilotPushQueue(items, 0, url);
-      persistFp(currentFp);
-      toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
-      void logEvent(
-        isUpdate ? 'TRIMBLE_COPILOT_QUEUE_UPDATED' : 'TRIMBLE_COPILOT_QUEUE_SENT',
-        { workDay: activeMission?.workDay, payload: baseEventPayload },
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Error enviando al conductor: ${msg}`);
-      void logEvent('TRIMBLE_COPILOT_QUEUE_SEND_FAILED', {
-        workDay: activeMission?.workDay,
-        payload: { ...baseEventPayload, error: msg },
-      });
+  }, [currentFp, lastSentFp, copilotActive, copilotSession, driverBatch.length, sendDriverBatch]);
+
+  // ── Wrappers que marcan motivo de auto-envío ──────────────────────
+  const handleCloseWithAutoSend = (status: 'capturado_pendiente_proceso' | 'repetir' | 'no_capturable') => {
+    if (status === 'capturado_pendiente_proceso') {
+      completedSinceLastSendRef.current += 1;
+      if (completedSinceLastSendRef.current >= 2) {
+        pendingAutoReasonRef.current = 'two_completed';
+      }
+    } else if (status === 'no_capturable') {
+      pendingAutoReasonRef.current = 'non_capturable';
     }
+    handleClose(status);
+  };
+
+  const handleIncidentSubmit = (
+    segmentId: string,
+    cat: IncidentCategory,
+    impact: IncidentImpact,
+    note?: string,
+    location?: LatLng,
+    nonRec?: boolean,
+  ) => {
+    // Si la incidencia saca el tramo de la cola (no recordable) o cambia el batch,
+    // marcar motivo. El efecto del fingerprint decide si realmente envía.
+    pendingAutoReasonRef.current = 'incident_blocks_route';
+    onAddIncident(segmentId, cat, impact, note, location, nonRec);
+  };
+
+  const handleReoptimizeClick = () => {
+    pendingAutoReasonRef.current = 'optimized';
+    onReoptimize();
   };
 
   // ── Render ────────────────────────────────────────────────────────
@@ -334,6 +424,16 @@ export function TrimbleNavigationPanel({
                 <Radio className="w-4 h-4" />
               </Button>
             </CopilotPanel>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={handleReoptimizeClick}
+              title="Optimizar todo el itinerario Trimble"
+              data-testid="trimble-optimize-all-btn"
+            >
+              <Wand2 className="w-4 h-4 mr-1" /> Optimizar todo
+            </Button>
             <Button variant="ghost" size="sm" className="h-9" onClick={onOpenAdvanced} title="Vista avanzada Trimble">
               <ExternalLink className="w-4 h-4 mr-1" /> Avanzado
             </Button>
@@ -406,18 +506,18 @@ export function TrimbleNavigationPanel({
                           </Button>
                         ) : (
                           <>
-                            <Button onClick={() => handleClose('capturado_pendiente_proceso')} size="sm" className="flex-1 bg-success text-success-foreground">
+                            <Button onClick={() => handleCloseWithAutoSend('capturado_pendiente_proceso')} size="sm" className="flex-1 bg-success text-success-foreground">
                               <StopCircle className="w-4 h-4 mr-1" /> Cerrar
                             </Button>
-                            <Button onClick={() => handleClose('repetir')} size="sm" variant="outline" className="border-orange-500/40 text-orange-500">
+                            <Button onClick={() => handleCloseWithAutoSend('repetir')} size="sm" variant="outline" className="border-orange-500/40 text-orange-500">
                               <RotateCcw className="w-3.5 h-3.5 mr-1" /> Repetir
                             </Button>
-                            <Button onClick={() => handleClose('no_capturable')} size="sm" variant="outline" className="border-zinc-500/40 text-zinc-300">
+                            <Button onClick={() => handleCloseWithAutoSend('no_capturable')} size="sm" variant="outline" className="border-zinc-500/40 text-zinc-300">
                               <Ban className="w-3.5 h-3.5 mr-1" /> No cap.
                             </Button>
                           </>
                         )}
-                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => onAddIncident(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
+                        <IncidentDialog onSubmit={(cat, impact, note, nonRec) => handleIncidentSubmit(current.segment.id, cat, impact, note, currentPosition ?? undefined, nonRec)}>
                           <Button size="sm" variant="outline" className="border-destructive/40 text-destructive">
                             <AlertTriangle className="w-4 h-4" />
                           </Button>
@@ -464,7 +564,7 @@ export function TrimbleNavigationPanel({
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${driverBadge.cls}`}>{driverBadge.label}</span>
                     </div>
                     <Button
-                      onClick={sendToDriver}
+                      onClick={handleManualSend}
                       size="sm"
                       disabled={driverBatch.length === 0 || !copilotActive}
                       data-testid="trimble-send-driver-btn"

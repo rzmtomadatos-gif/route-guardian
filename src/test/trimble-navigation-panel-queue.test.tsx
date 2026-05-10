@@ -75,6 +75,7 @@ function renderPanel(segments: Segment[]) {
       gpsSpeed={null}
       gpsError={null}
       onToggleGps={() => {}}
+      onReoptimize={() => {}}
       onOpenAdvanced={() => {}}
     />,
   );
