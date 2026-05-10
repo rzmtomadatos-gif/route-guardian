@@ -16,8 +16,9 @@ import { Button } from '@/components/ui/button';
 import {
   Radar, Play, StopCircle, RotateCcw, Ban, Send, AlertTriangle,
   ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, Radio,
-  LocateFixed, LocateOff, Minimize2, Wand2,
+  LocateFixed, LocateOff, Minimize2, Wand2, Disc, Circle,
 } from 'lucide-react';
+import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { CopilotPanel } from '@/components/CopilotPanel';
