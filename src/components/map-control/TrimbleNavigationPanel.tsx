@@ -72,6 +72,7 @@ interface Props {
   gpsAccuracy: number | null;
   gpsSpeed: number | null;
   gpsError: string | null;
+  onToggleGps: (enabled: boolean) => void;
   onOpenAdvanced: () => void;
 }
 
