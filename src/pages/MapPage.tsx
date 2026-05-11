@@ -1294,6 +1294,33 @@ export default function MapPage({
     return map;
   }, [state.acquisitionMode, visibleSegments, state.trimbleSegmentCaptures, state.activeRunId]);
 
+  // Cobertura GPS provisional EN VIVO: solo durante grabación activa Trimble.
+  // Desaparece automáticamente al limpiar `activeTrimbleRecordingId` (cierre,
+  // invalidación o cambio de modo) — el mapa vuelve al estado persistente.
+  const trimbleLiveCoverageBySegment = useMemo(() => {
+    if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return null;
+    const recId = state.activeTrimbleRecordingId;
+    if (!recId) return null;
+    const session = (state.trimbleRecordingSessions ?? []).find((r) => r.id === recId);
+    if (!session) return null;
+    const points = (state.trimbleGpsLogsByRun?.[session.runId] ?? []).filter(
+      (p) => p.recordingSessionId === recId && p.phase === 'capture',
+    );
+    const currentMatch = geo.position
+      ? findCurrentSegmentFromGps(geo.position, visibleSegments)
+      : null;
+    return buildTrimbleLiveCoverage(points, visibleSegments, {
+      currentSegmentId: currentMatch?.segmentId ?? null,
+    });
+  }, [
+    state.acquisitionMode,
+    state.activeTrimbleRecordingId,
+    state.trimbleRecordingSessions,
+    state.trimbleGpsLogsByRun,
+    visibleSegments,
+    geo.position,
+  ]);
+
   const layerColorMap = useMemo(() => {
     if (!route) return new Map<string, string>();
     // Build layer index map
