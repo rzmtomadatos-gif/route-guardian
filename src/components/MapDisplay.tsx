@@ -4,9 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentDisplayColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
-import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 import {
