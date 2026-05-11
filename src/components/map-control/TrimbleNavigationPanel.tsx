@@ -735,13 +735,24 @@ export function TrimbleNavigationPanel({
                               const seg = state.route?.segments.find((s) => s.id === it.segmentId);
                               if (!seg) return null;
                               const labelByStatus =
-                                it.status === 'live_current' ? 'actual' :
                                 it.status === 'live_covered' ? 'cubierto' :
                                 it.status === 'live_partial' ? 'parcial' : '—';
                               const dot = TRIMBLE_LIVE_STATUS_COLOR[it.status];
                               return (
-                                <div key={it.segmentId} className="flex items-center gap-2">
+                                <div
+                                  key={it.segmentId}
+                                  className={`flex items-center gap-2 ${it.isCurrent ? 'rounded px-1 ring-1 ring-yellow-400/70 bg-yellow-400/10' : ''}`}
+                                  data-current={it.isCurrent ? 'true' : undefined}
+                                >
                                   <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                                  {it.isCurrent && (
+                                    <span
+                                      className="text-[9px] font-semibold px-1 rounded shrink-0"
+                                      style={{ backgroundColor: TRIMBLE_LIVE_CURRENT_OVERLAY_COLOR, color: '#1f2937' }}
+                                    >
+                                      GPS
+                                    </span>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate" title={seg.name}>{seg.name}</div>
                                     {seg.companySegmentId && (
