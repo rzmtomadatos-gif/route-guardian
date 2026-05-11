@@ -343,9 +343,18 @@ export function GoogleMapDisplay({
     return parts.sort().join(',');
   }, [trimbleStatusBySegment]);
 
+  const trimbleLiveFingerprint = useMemo(() => {
+    if (!trimbleLiveCoverageBySegment || trimbleLiveCoverageBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleLiveCoverageBySegment.forEach((it, id) =>
+      parts.push(`${id}:${it.status}:${Math.round(it.coverageRatio * 100)}`),
+    );
+    return parts.sort().join(',');
+  }, [trimbleLiveCoverageBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
