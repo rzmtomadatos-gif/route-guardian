@@ -331,6 +331,14 @@ export function TrimbleNavigationPanel({
   const pendingAutoReasonRef = useRef<TrimbleDriverSendReason | null>(null);
   const autoSendInFlightRef = useRef(false);
   const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Payload extra para reason='auto_captured': se incluye en el evento
+  // TRIMBLE_COPILOT_QUEUE_AUTO_SENT y se limpia tras enviarse.
+  const lastRecordingClosePayloadRef = useRef<{
+    recordingSessionId: string | null;
+    autoCapturedCount: number;
+    partialCount: number;
+    pointsAnalyzed: number;
+  } | null>(null);
 
   const sendDriverBatch = useCallback(
     async (reason: TrimbleDriverSendReason, mode: 'manual' | 'auto') => {
@@ -349,6 +357,7 @@ export function TrimbleNavigationPanel({
         { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
       ]);
       const isUpdate = lastSentFp !== null && lastSentFp !== '';
+      const closeExtra = reason === 'auto_captured' ? lastRecordingClosePayloadRef.current : null;
       const baseEventPayload = {
         reason,
         missionId: state.activeMissionId,
@@ -357,12 +366,19 @@ export function TrimbleNavigationPanel({
         segmentIds: driverBatch.map((q) => q.segment.id),
         stopsCount: items.length,
         autoSend: mode === 'auto',
+        ...(closeExtra ? {
+          recordingSessionId: closeExtra.recordingSessionId,
+          autoCapturedCount: closeExtra.autoCapturedCount,
+          partialCount: closeExtra.partialCount,
+          pointsAnalyzed: closeExtra.pointsAnalyzed,
+        } : {}),
       };
       autoSendInFlightRef.current = true;
       try {
         await onCopilotPushQueue(items, 0, url);
         persistFp(currentFp);
         completedSinceLastSendRef.current = 0;
+        if (reason === 'auto_captured') lastRecordingClosePayloadRef.current = null;
         if (mode === 'manual') {
           toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
         } else {
