@@ -2179,6 +2179,9 @@ export function useRouteState() {
           endedAt: null,
           startPosition: opts.startPosition,
           notes: opts.notes,
+          status: 'active',
+          invalidatedAt: null,
+          invalidatedReason: null,
         };
         outcome = { ok: true, recordingId: id };
         return {
