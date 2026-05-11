@@ -2295,7 +2295,7 @@ export function useRouteState() {
 
         const sessions = (s.trimbleRecordingSessions ?? []).map((r) =>
           r.id === recordingId
-            ? { ...r, endedAt: now, endPosition: opts.endPosition ?? r.endPosition }
+            ? { ...r, endedAt: now, endPosition: opts.endPosition ?? r.endPosition, status: 'closed' as const }
             : r,
         );
 
