@@ -111,12 +111,31 @@ export function buildTrimbleLiveCoverage(
   const result = new Map<string, TrimbleLiveCoverageItem>();
   if (recordingPoints.length === 0 && !opts.currentSegmentId) return result;
 
+  // Conversión grosera metros→grados para el bbox prefilter (válida fuera de
+  // los polos; es una pre-criba, no afecta a la precisión de la proyección).
+  const M_PER_DEG_LAT = 111_320;
+  const toleranceDeg = opts.maxDistanceMeters / M_PER_DEG_LAT;
+
   for (const seg of segments) {
     if (!seg.coordinates || seg.coordinates.length < 2) continue;
+
+    // BBox del tramo + tolerancia, en grados, para descartar puntos baratos.
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    for (const c of seg.coordinates) {
+      if (c.lat < minLat) minLat = c.lat;
+      if (c.lat > maxLat) maxLat = c.lat;
+      if (c.lng < minLng) minLng = c.lng;
+      if (c.lng > maxLng) maxLng = c.lng;
+    }
+    const meanLat = (minLat + maxLat) / 2;
+    const lngTolerance = toleranceDeg / Math.max(0.1, Math.cos(meanLat * Math.PI / 180));
+    minLat -= toleranceDeg; maxLat += toleranceDeg;
+    minLng -= lngTolerance; maxLng += lngTolerance;
 
     const matches: Match[] = [];
     let lastDistance: number | null = null;
     for (const p of recordingPoints) {
+      if (p.lat < minLat || p.lat > maxLat || p.lng < minLng || p.lng > maxLng) continue;
       const proj = projectPointToPolyline({ lat: p.lat, lng: p.lng }, seg.coordinates);
       if (!proj) continue;
       if (proj.distanceMeters > opts.maxDistanceMeters) continue;
