@@ -458,7 +458,7 @@ export function GoogleMapDisplay({
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
         const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
         const baseColor = liveItem
-          ? require('@/utils/trimble/live-coverage').TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
+          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
           : trimbleStatus
             ? resolveTrimbleSegmentColor(trimbleStatus)
             : resolveSegmentColor(seg, activeSegmentId, layerColor);
