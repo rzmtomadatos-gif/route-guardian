@@ -107,6 +107,8 @@ export interface SegmentCapture {
  * El flujo manual (startTrimbleCapture/closeTrimbleCapture) NO se elimina;
  * queda como respaldo desde vista avanzada o gabinete.
  */
+export type TrimbleRecordingStatus = 'active' | 'closed' | 'invalidated';
+
 export interface TrimbleRecordingSession {
   id: string;
   missionId: string;
@@ -116,6 +118,11 @@ export interface TrimbleRecordingSession {
   startPosition?: LatLng;
   endPosition?: LatLng;
   notes?: string;
+  /** Estado del ciclo de vida. Sesiones antiguas sin este campo se interpretan
+   *  como 'active' si endedAt === null, y 'closed' en caso contrario. */
+  status?: TrimbleRecordingStatus;
+  invalidatedAt?: string | null;
+  invalidatedReason?: string | null;
 }
 
 export type TrimbleIncidentCategory =
