@@ -446,9 +446,12 @@ export function MapDisplay({
         const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
         const isActive = seg.id === activeSegmentId;
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const color = trimbleStatus
-          ? resolveTrimbleSegmentColor(trimbleStatus)
-          : resolveSegmentColor(seg, activeSegmentId);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
+        const color = liveItem
+          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
+          : trimbleStatus
+            ? resolveTrimbleSegmentColor(trimbleStatus)
+            : resolveSegmentColor(seg, activeSegmentId);
 
         const polyline = L.polyline(latLngs, {
           color,
