@@ -70,10 +70,15 @@ describe('TrimbleNavigationPanel — autoenvío tras cerrar grabación', () => {
     expect(props.onCopilotPushQueue).toHaveBeenCalledTimes(1);
 
     // Mock de close devolviendo capturas automáticas.
+    // Reemplazar el mock antes de re-renderizar para que el nuevo closure
+    // de handleCloseRecording recoja la versión con autoCapturedCount>0.
     ctx.value.closeTrimbleRecording = vi.fn(() => ({
       ok: true, recordingSessionId: 'rec-1',
       autoCapturedCount: 2, partialCount: 1, pointsAnalyzed: 123,
     }));
+    rerender(<TrimbleNavigationPanel {...(basicProps({
+      onCopilotPushQueue: props.onCopilotPushQueue,
+    }) as any)} />);
     fireEvent.click(screen.getByTestId('trimble-close-recording-btn'));
 
     // Simular consolidación: s0 y s1 ahora capturados, recording cerrada → driverBatch cambia.
