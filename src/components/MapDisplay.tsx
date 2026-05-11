@@ -118,6 +118,7 @@ export function MapDisplay({
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
+  trimbleLiveCoverageBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
