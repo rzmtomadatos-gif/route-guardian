@@ -2506,5 +2506,6 @@ export function useRouteState() {
     appendTrimbleGpsPoint,
     startTrimbleRecording,
     closeTrimbleRecording,
+    invalidateTrimbleRecording,
   };
 }
