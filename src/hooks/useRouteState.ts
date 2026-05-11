@@ -2351,7 +2351,37 @@ export function useRouteState() {
     [setState],
   );
 
-  /** Restore full state from async persistence (IndexedDB) — sanitizes navigation state */
+  /**
+   * Invalida la grabación activa: NO genera SegmentCapture, NO consolida
+   * cobertura. Marca la sesión como 'invalidated' y limpia el id activo.
+   * Los colores live desaparecen automáticamente al perderse la sesión activa.
+   */
+  const invalidateTrimbleRecording = useCallback(
+    (reason: string): { ok: boolean; reason?: string; recordingId?: string } => {
+      let outcome: { ok: boolean; reason?: string; recordingId?: string } = { ok: false };
+      let invalidatedId: string | null = null;
+      setState((s) => {
+        const recordingId = s.activeTrimbleRecordingId;
+        if (!recordingId) { outcome = { ok: false, reason: 'No hay grabación activa' }; return s; }
+        const now = new Date().toISOString();
+        const sessions = (s.trimbleRecordingSessions ?? []).map((r) =>
+          r.id === recordingId
+            ? { ...r, status: 'invalidated' as const, invalidatedAt: now, invalidatedReason: reason, endedAt: r.endedAt ?? now }
+            : r,
+        );
+        invalidatedId = recordingId;
+        outcome = { ok: true, recordingId };
+        return { ...s, trimbleRecordingSessions: sessions, activeTrimbleRecordingId: null };
+      }, true);
+      if (outcome.ok && invalidatedId) {
+        logEvent('TRIMBLE_RECORDING_INVALIDATED', {
+          payload: { recordingSessionId: invalidatedId, reason },
+        });
+      }
+      return outcome;
+    },
+    [setState],
+  );
   const restoreState = useCallback((restored: AppState) => {
     // R3: Always start with navigation off — operator must re-enable explicitly
     const sanitized: AppState = {
