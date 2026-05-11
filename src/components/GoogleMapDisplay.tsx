@@ -5,9 +5,9 @@ import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveSegmentDisplayColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
-import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 
@@ -456,12 +456,10 @@ export function GoogleMapDisplay({
         const isSelected = selectedSegmentIds?.has(seg.id);
         const layerColor = seg.color || layerColorMap?.get(seg.id);
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
-        const baseColor = liveItem
-          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
-          : trimbleStatus
-            ? resolveTrimbleSegmentColor(trimbleStatus)
-            : resolveSegmentColor(seg, activeSegmentId, layerColor);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id) ?? null;
+        const baseColor = resolveSegmentDisplayColor({
+          seg, activeSegmentId, layerColor, trimbleStatus, liveItem,
+        });
         const color = isSelected ? '#8b5cf6' : baseColor;
 
         const polyline = new google.maps.Polyline({

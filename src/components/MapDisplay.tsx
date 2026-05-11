@@ -4,9 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import type { Segment, LatLng } from '@/types/route';
 import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentDisplayColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
-import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 import {
@@ -446,12 +446,10 @@ export function MapDisplay({
         const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
         const isActive = seg.id === activeSegmentId;
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
-        const color = liveItem
-          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
-          : trimbleStatus
-            ? resolveTrimbleSegmentColor(trimbleStatus)
-            : resolveSegmentColor(seg, activeSegmentId);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id) ?? null;
+        const color = resolveSegmentDisplayColor({
+          seg, activeSegmentId, trimbleStatus, liveItem,
+        });
 
         const polyline = L.polyline(latLngs, {
           color,
