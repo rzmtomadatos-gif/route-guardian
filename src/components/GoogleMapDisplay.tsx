@@ -5,9 +5,9 @@ import { getGoogleMapsApiKey } from '@/utils/google-directions';
 import { MapDisplay } from './MapDisplay';
 import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
-import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
+import { resolveSegmentColor, resolveSegmentDisplayColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
-import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 
