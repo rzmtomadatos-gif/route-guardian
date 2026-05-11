@@ -577,7 +577,34 @@ export function TrimbleNavigationPanel({
             </Button>
           </div>
 
-          {expanded && (
+          {/* GPS actual / cobertura sesión — visible SIEMPRE (mini y expandido). */}
+          <div
+            className="rounded-md border border-border bg-background/60 px-2 py-1 text-[11px] flex items-center justify-between gap-2"
+            data-testid="trimble-gps-current-line"
+          >
+            <div className="flex items-center gap-1 min-w-0">
+              <Activity className={`w-3 h-3 shrink-0 ${activeRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+              <span className="text-muted-foreground shrink-0">GPS:</span>
+              {detectedSegment ? (
+                <span className="truncate font-medium" title={detectedSegment.name}>
+                  {detectedSegment.name}
+                </span>
+              ) : (
+                <span className="italic text-muted-foreground">fuera de tramo</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0 text-[10px] tabular-nums">
+              {detectedSegmentMatch?.progress != null && (
+                <span className="text-cyan-500">{Math.round(detectedSegmentMatch.progress * 100)}% prog</span>
+              )}
+              {liveCurrentItem && (
+                <span className="text-emerald-500">{Math.round(liveCurrentItem.coverageRatio * 100)}% cub</span>
+              )}
+              {detectedSegmentMatch?.distanceMeters != null && (
+                <span className="text-muted-foreground">±{Math.round(detectedSegmentMatch.distanceMeters)}m</span>
+              )}
+            </div>
+          </div>
             <>
               {/* --- Sin misión --- */}
               {!activeMission && (
