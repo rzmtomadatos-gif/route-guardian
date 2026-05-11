@@ -84,7 +84,7 @@ interface Props {
   /** Cobertura GPS provisional durante una grabación Trimble activa.
    *  Tiene prioridad visual sobre `trimbleStatusBySegment` y
    *  desaparece automáticamente al perder la sesión activa. */
-  trimbleLiveCoverageBySegment?: Map<string, import('@/utils/trimble/live-coverage').TrimbleLiveCoverageItem> | null;
+  trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
