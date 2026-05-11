@@ -1380,7 +1380,8 @@ export default function MapPage({
           searchTargetBounds={searchTargetBounds}
           searchCenterRequest={searchCenterRequest}
           mapRefreshRequest={mapRefreshRequest}
-          trimbleStatusBySegment={trimbleStatusBySegment} />
+          trimbleStatusBySegment={trimbleStatusBySegment}
+          trimbleLiveCoverageBySegment={trimbleLiveCoverageBySegment} />
 
       </div>
 
