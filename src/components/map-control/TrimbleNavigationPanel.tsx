@@ -683,19 +683,78 @@ export function TrimbleNavigationPanel({
                         <Disc className="w-4 h-4 mr-2" /> Iniciar grabación continua
                       </Button>
                     ) : (
-                      <Button
-                        onClick={handleCloseRecording}
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-red-500/60 text-red-500"
-                        data-testid="trimble-close-recording-btn"
-                      >
-                        <StopCircle className="w-4 h-4 mr-2" /> Cerrar grabación · analizar cobertura
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={handleCloseRecording}
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-red-500/60 text-red-500"
+                          data-testid="trimble-close-recording-btn"
+                        >
+                          <StopCircle className="w-4 h-4 mr-2" /> Cerrar · analizar
+                        </Button>
+                        <Button
+                          onClick={handleInvalidateRecording}
+                          size="sm"
+                          variant="outline"
+                          className="border-zinc-500/40 text-zinc-300"
+                          data-testid="trimble-invalidate-recording-btn"
+                          title="Invalidar grabación: descarta cobertura sin generar capturas."
+                        >
+                          <XOctagon className="w-4 h-4" />
+                        </Button>
+                      </div>
                     )}
                     <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
-                      Las capturas se generan automáticamente al cerrar, en función de la cobertura GPS.
+                      Capturas auto al cerrar. Invalidar descarta la cobertura sin consolidar.
                     </p>
+
+                    {/* Cobertura en vivo — integrada, con scroll, NO overlay. */}
+                    {activeRecording && (
+                      <div className="mt-2 rounded-md border border-border bg-background/60" data-testid="trimble-live-coverage-block">
+                        <div className="flex items-center justify-between px-2 py-1 border-b border-border text-[10px]">
+                          <span className="font-medium flex items-center gap-1">
+                            <Activity className="w-3 h-3 text-emerald-500 animate-pulse" />
+                            Cobertura en vivo
+                          </span>
+                          <span className="text-muted-foreground">
+                            {liveCoveredCount}/{liveSortedItems.length} · {recordingPoints.length} pts
+                          </span>
+                        </div>
+                        <div className="max-h-[140px] overflow-y-auto px-2 py-1 space-y-1 text-[10px]">
+                          {liveSortedItems.length === 0 ? (
+                            <div className="italic text-muted-foreground py-1">Sin tramos detectados todavía.</div>
+                          ) : (
+                            liveSortedItems.slice(0, 30).map((it) => {
+                              const seg = state.route?.segments.find((s) => s.id === it.segmentId);
+                              if (!seg) return null;
+                              const labelByStatus =
+                                it.status === 'live_current' ? 'actual' :
+                                it.status === 'live_covered' ? 'cubierto' :
+                                it.status === 'live_partial' ? 'parcial' : '—';
+                              const dot = TRIMBLE_LIVE_STATUS_COLOR[it.status];
+                              return (
+                                <div key={it.segmentId} className="flex items-center gap-2">
+                                  <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="truncate" title={seg.name}>{seg.name}</div>
+                                    {seg.companySegmentId && (
+                                      <div className="text-[9px] text-muted-foreground truncate">{seg.companySegmentId}</div>
+                                    )}
+                                  </div>
+                                  <span className="tabular-nums text-muted-foreground shrink-0">{it.matchedPoints} pts</span>
+                                  <span className="tabular-nums w-10 text-right">{Math.round(it.coverageRatio * 100)}%</span>
+                                  <span className="w-14 text-right text-muted-foreground">{labelByStatus}</span>
+                                </div>
+                              );
+                            })
+                          )}
+                          {liveSortedItems.length > 30 && (
+                            <div className="italic text-muted-foreground">+{liveSortedItems.length - 30} más…</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {!current ? (
