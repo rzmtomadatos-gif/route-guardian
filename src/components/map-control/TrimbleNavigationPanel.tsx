@@ -304,6 +304,16 @@ export function TrimbleNavigationPanel({
     const points = r.pointsAnalyzed ?? 0;
     if (auto > 0) {
       toast.success(`Grabación cerrada — auto-capturados ${auto}${partial ? ` · parciales ${partial}` : ''} · ${points} pts.`);
+      // Marca auto-envío al conductor: la cola operativa cambia al consolidar
+      // capturas gps_auto. El efecto observará el nuevo fingerprint del lote
+      // y disparará sendDriverBatch('auto_captured','auto') si difiere.
+      lastRecordingClosePayloadRef.current = {
+        recordingSessionId: r.recordingSessionId ?? null,
+        autoCapturedCount: auto,
+        partialCount: partial,
+        pointsAnalyzed: points,
+      };
+      markPendingReason('auto_captured');
     } else {
       toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''} · ${points} pts.`);
     }
