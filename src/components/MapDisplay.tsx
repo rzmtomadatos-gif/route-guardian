@@ -63,6 +63,7 @@ interface Props {
   mapRefreshRequest?: number;
   /** Modo Trimble: si se provee, sobreescribe el color del tramo por estado Trimble. */
   trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
+  trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
