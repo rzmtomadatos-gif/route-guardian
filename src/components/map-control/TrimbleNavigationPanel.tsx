@@ -605,6 +605,7 @@ export function TrimbleNavigationPanel({
               )}
             </div>
           </div>
+          {expanded && (
             <>
               {/* --- Sin misión --- */}
               {!activeMission && (
