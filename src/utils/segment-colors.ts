@@ -101,3 +101,29 @@ export const TRIMBLE_STATUS_COLOR: Record<TrimbleSegmentStatus, string> = {
 export function resolveTrimbleSegmentColor(status: TrimbleSegmentStatus): string {
   return TRIMBLE_STATUS_COLOR[status];
 }
+
+/**
+ * Resolución de color para el render de tramos en mapa.
+ * Prioridad estricta:
+ *   1. Cobertura GPS EN VIVO (sesión Trimble activa) — capa transitoria.
+ *   2. Estado Trimble persistente (capturas consolidadas).
+ *   3. Color base operativo (estado del segmento + color de capa).
+ *
+ * Esta función NO conoce de selección visual (morado) ni de override por
+ * sensor: esos casos los resuelve el llamador después.
+ */
+import type { TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { TRIMBLE_LIVE_STATUS_COLOR } from '@/utils/trimble/live-coverage';
+
+export function resolveSegmentDisplayColor(params: {
+  seg: Segment;
+  activeSegmentId?: string | null;
+  layerColor?: string | null;
+  trimbleStatus?: TrimbleSegmentStatus | null;
+  liveItem?: TrimbleLiveCoverageItem | null;
+}): string {
+  const { seg, activeSegmentId, layerColor, trimbleStatus, liveItem } = params;
+  if (liveItem) return TRIMBLE_LIVE_STATUS_COLOR[liveItem.status];
+  if (trimbleStatus) return resolveTrimbleSegmentColor(trimbleStatus);
+  return resolveSegmentColor(seg, activeSegmentId, layerColor ?? undefined);
+}
