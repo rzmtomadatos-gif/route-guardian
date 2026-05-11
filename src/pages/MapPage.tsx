@@ -1398,8 +1398,7 @@ export default function MapPage({
         </div>
       )}
 
-      {/* === TRIMBLE: overlay de cobertura GPS (en vivo + último cierre) === */}
-      {state.acquisitionMode === 'TRIMBLE_LIDAR' && <TrimbleCoverageOverlay />}
+      {/* Cobertura Trimble en vivo: integrada en TrimbleNavigationPanel — sin overlay flotante. */}
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
