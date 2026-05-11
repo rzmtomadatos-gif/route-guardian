@@ -80,6 +80,10 @@ interface Props {
    * estado Trimble derivado. No afecta cuando es undefined o vacío.
    */
   trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
+  /** Cobertura GPS provisional durante una grabación Trimble activa.
+   *  Tiene prioridad visual sobre `trimbleStatusBySegment` y
+   *  desaparece automáticamente al perder la sesión activa. */
+  trimbleLiveCoverageBySegment?: Map<string, import('@/utils/trimble/live-coverage').TrimbleLiveCoverageItem> | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
