@@ -112,7 +112,7 @@ export function TrimbleNavigationPanel({
     startTrimbleMission, closeTrimbleMission,
     startTrimbleRun, closeTrimbleRun,
     startTrimbleCapture, closeTrimbleCapture,
-    startTrimbleRecording, closeTrimbleRecording,
+    startTrimbleRecording, closeTrimbleRecording, invalidateTrimbleRecording,
   } = useRouteStateContext();
 
   const [expanded, setExpanded] = useState(true);
