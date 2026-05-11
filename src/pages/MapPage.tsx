@@ -37,9 +37,10 @@ import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, 
 import type { ReactivateOptions } from '@/utils/segment-reactivation';
 import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 import { TrimbleLegend } from '@/components/map/TrimbleLegend';
-import { TrimbleCoverageOverlay } from '@/components/map/TrimbleCoverageOverlay';
 import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
+import { buildTrimbleLiveCoverage } from '@/utils/trimble/live-coverage';
+import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
 
 const DEVIATION_THRESHOLD = 100;
 
