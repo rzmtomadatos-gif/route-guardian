@@ -19,7 +19,7 @@ import {
   LocateFixed, LocateOff, Minimize2, Wand2, Disc, Circle, XOctagon, Activity,
 } from 'lucide-react';
 import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
-import { buildTrimbleLiveCoverage, TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
+import { buildTrimbleLiveCoverage, TRIMBLE_LIVE_STATUS_COLOR, TRIMBLE_LIVE_CURRENT_OVERLAY_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { CopilotPanel } from '@/components/CopilotPanel';
@@ -86,7 +86,8 @@ export type TrimbleDriverSendReason =
   | 'incident_blocks_route'
   | 'optimized'
   | 'order_changed'
-  | 'layer_changed';
+  | 'layer_changed'
+  | 'auto_captured';
 
 export function TrimbleNavigationPanel({
   trimbleEligibleSegmentIds,
@@ -275,8 +276,13 @@ export function TrimbleNavigationPanel({
   const liveSortedItems = useMemo(() => {
     const arr = Array.from(liveCoverage.values());
     const orderRank = (s: TrimbleLiveCoverageItem['status']) =>
-      s === 'live_current' ? 0 : s === 'live_covered' ? 1 : s === 'live_partial' ? 2 : 3;
-    arr.sort((a, b) => orderRank(a.status) - orderRank(b.status) || b.coverageRatio - a.coverageRatio);
+      s === 'live_covered' ? 0 : s === 'live_partial' ? 1 : 2;
+    arr.sort((a, b) => {
+      // El tramo actual sube al top como ayuda operativa.
+      if ((a.isCurrent ? 0 : 1) !== (b.isCurrent ? 0 : 1)) return (a.isCurrent ? 0 : 1) - (b.isCurrent ? 0 : 1);
+      const r = orderRank(a.status) - orderRank(b.status);
+      return r !== 0 ? r : b.coverageRatio - a.coverageRatio;
+    });
     return arr;
   }, [liveCoverage]);
   const liveCoveredCount = liveSortedItems.filter((i) => i.status === 'live_covered').length;
@@ -298,6 +304,16 @@ export function TrimbleNavigationPanel({
     const points = r.pointsAnalyzed ?? 0;
     if (auto > 0) {
       toast.success(`Grabación cerrada — auto-capturados ${auto}${partial ? ` · parciales ${partial}` : ''} · ${points} pts.`);
+      // Marca auto-envío al conductor: la cola operativa cambia al consolidar
+      // capturas gps_auto. El efecto observará el nuevo fingerprint del lote
+      // y disparará sendDriverBatch('auto_captured','auto') si difiere.
+      lastRecordingClosePayloadRef.current = {
+        recordingSessionId: r.recordingSessionId ?? null,
+        autoCapturedCount: auto,
+        partialCount: partial,
+        pointsAnalyzed: points,
+      };
+      markPendingReason('auto_captured');
     } else {
       toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''} · ${points} pts.`);
     }
@@ -315,6 +331,14 @@ export function TrimbleNavigationPanel({
   const pendingAutoReasonRef = useRef<TrimbleDriverSendReason | null>(null);
   const autoSendInFlightRef = useRef(false);
   const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Payload extra para reason='auto_captured': se incluye en el evento
+  // TRIMBLE_COPILOT_QUEUE_AUTO_SENT y se limpia tras enviarse.
+  const lastRecordingClosePayloadRef = useRef<{
+    recordingSessionId: string | null;
+    autoCapturedCount: number;
+    partialCount: number;
+    pointsAnalyzed: number;
+  } | null>(null);
 
   const sendDriverBatch = useCallback(
     async (reason: TrimbleDriverSendReason, mode: 'manual' | 'auto') => {
@@ -333,6 +357,7 @@ export function TrimbleNavigationPanel({
         { segmentId: q.segment.id, name: `FIN · ${q.segment.name}`,    lat: q.end.lat,   lng: q.end.lng   },
       ]);
       const isUpdate = lastSentFp !== null && lastSentFp !== '';
+      const closeExtra = reason === 'auto_captured' ? lastRecordingClosePayloadRef.current : null;
       const baseEventPayload = {
         reason,
         missionId: state.activeMissionId,
@@ -341,12 +366,19 @@ export function TrimbleNavigationPanel({
         segmentIds: driverBatch.map((q) => q.segment.id),
         stopsCount: items.length,
         autoSend: mode === 'auto',
+        ...(closeExtra ? {
+          recordingSessionId: closeExtra.recordingSessionId,
+          autoCapturedCount: closeExtra.autoCapturedCount,
+          partialCount: closeExtra.partialCount,
+          pointsAnalyzed: closeExtra.pointsAnalyzed,
+        } : {}),
       };
       autoSendInFlightRef.current = true;
       try {
         await onCopilotPushQueue(items, 0, url);
         persistFp(currentFp);
         completedSinceLastSendRef.current = 0;
+        if (reason === 'auto_captured') lastRecordingClosePayloadRef.current = null;
         if (mode === 'manual') {
           toast.success(`Enviado al conductor: ${driverBatch.length} tramos / ${items.length} paradas.`);
         } else {
@@ -729,13 +761,24 @@ export function TrimbleNavigationPanel({
                               const seg = state.route?.segments.find((s) => s.id === it.segmentId);
                               if (!seg) return null;
                               const labelByStatus =
-                                it.status === 'live_current' ? 'actual' :
                                 it.status === 'live_covered' ? 'cubierto' :
                                 it.status === 'live_partial' ? 'parcial' : '—';
                               const dot = TRIMBLE_LIVE_STATUS_COLOR[it.status];
                               return (
-                                <div key={it.segmentId} className="flex items-center gap-2">
+                                <div
+                                  key={it.segmentId}
+                                  className={`flex items-center gap-2 ${it.isCurrent ? 'rounded px-1 ring-1 ring-yellow-400/70 bg-yellow-400/10' : ''}`}
+                                  data-current={it.isCurrent ? 'true' : undefined}
+                                >
                                   <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                                  {it.isCurrent && (
+                                    <span
+                                      className="text-[9px] font-semibold px-1 rounded shrink-0"
+                                      style={{ backgroundColor: TRIMBLE_LIVE_CURRENT_OVERLAY_COLOR, color: '#1f2937' }}
+                                    >
+                                      GPS
+                                    </span>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate" title={seg.name}>{seg.name}</div>
                                     {seg.companySegmentId && (

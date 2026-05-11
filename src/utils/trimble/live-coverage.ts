@@ -6,16 +6,21 @@
  * una vista provisional por tramo que la UI/mapa usa solo para colorear.
  * Solo `closeTrimbleRecording` puede consolidar `SegmentCapture gps_auto`.
  *
- * Reutiliza la proyección y agregación de `gps-coverage.ts` aplicando
- * tolerancias más relajadas para feedback en vivo: el operador necesita
- * ver el avance mientras conduce, sin esperar al cierre.
+ * Reglas alineadas con `analyzeTrimbleGpsCoverage` (`gps-coverage.ts`):
+ *  - Filtrado de puntos por accuracy (`maxAllowedAccuracyMeters`).
+ *  - Mínimo de matches `minMatchedPoints` para `live_covered`.
+ *  - Dirección creciente en el tiempo (`requireForwardDirection`).
+ *  - Inicio/fin alcanzados, sin hueco interior excesivo, coverage >= min.
+ *
+ * El "tramo actual" se representa como bandera `isCurrent` (overlay visual)
+ * y NO como un estado de color: el color principal del tramo siempre
+ * refleja la cobertura real (covered/partial/not_started).
  */
 import type { Segment } from '@/types/route';
 import type { TrimbleGpsPoint } from '@/types/trimble';
 import { projectPointToPolyline } from '@/utils/trimble/gps-segment-matcher';
 
 export type TrimbleLiveCoverageStatus =
-  | 'live_current'
   | 'live_covered'
   | 'live_partial'
   | 'live_not_started';
@@ -28,10 +33,15 @@ export interface TrimbleLiveCoverageItem {
   endProgress: number | null;
   distanceMeters?: number | null;
   status: TrimbleLiveCoverageStatus;
+  /** El tramo está actualmente bajo el GPS (overlay visual, no color base). */
+  isCurrent?: boolean;
 }
 
 export interface BuildLiveCoverageOptions {
   maxDistanceMeters?: number;
+  maxAllowedAccuracyMeters?: number;
+  minMatchedPoints?: number;
+  requireForwardDirection?: boolean;
   minCoverageRatio?: number;
   maxGapRatio?: number;
   startToleranceRatio?: number;
@@ -39,14 +49,17 @@ export interface BuildLiveCoverageOptions {
   pointBufferMeters?: number;
   /** Tramos preferidos (cola operativa). Solo afectan al desempate de "tramo actual". */
   preferredSegmentIds?: ReadonlySet<string>;
-  /** Punto GPS más reciente: usado para marcar `live_current`. */
+  /** Tramo actualmente bajo el GPS (proviene de findCurrentSegmentFromGps). */
   currentSegmentId?: string | null;
-  /** Distancia máxima al eje del tramo "actual" para marcarlo current. */
+  /** Distancia máxima al eje del tramo "actual" para confirmarlo isCurrent. */
   currentMaxDistanceMeters?: number;
 }
 
 const DEFAULTS: Required<Omit<BuildLiveCoverageOptions, 'preferredSegmentIds' | 'currentSegmentId'>> = {
   maxDistanceMeters: 25,
+  maxAllowedAccuracyMeters: 25,
+  minMatchedPoints: 3,
+  requireForwardDirection: true,
   minCoverageRatio: 0.7,
   maxGapRatio: 0.3,
   startToleranceRatio: 0.15,
@@ -58,6 +71,7 @@ const DEFAULTS: Required<Omit<BuildLiveCoverageOptions, 'preferredSegmentIds' | 
 interface Match {
   progress: number;
   distance: number;
+  timestamp: number;
 }
 
 function computeCoverage(progresses: number[], bufferRatio: number) {
@@ -89,19 +103,26 @@ function computeCoverage(progresses: number[], bufferRatio: number) {
 }
 
 /**
- * Construye el mapa de cobertura provisional por tramo.
- *
- * El llamador decide si invocar (solo si `activeTrimbleRecordingId` !== null)
- * y ya filtra los puntos GPS pertenecientes a la sesión activa
- * (`recordingSessionId === activeId && phase === 'capture'`).
- *
- * Reglas:
- *  - `live_current`: tramo actualmente bajo el GPS (override visual).
- *  - `live_covered`: cumple coverageRatio >= min y inicio/fin alcanzados,
- *    sin hueco interior > maxGapRatio.
- *  - `live_partial`: tiene >=1 punto válido pero no llega a `live_covered`.
- *  - `live_not_started`: el tramo no aparece en el mapa devuelto.
+ * Heurística (regresión simple sobre índice temporal vs progress).
+ * Recorrido inverso ⇒ pendiente <= 0.
  */
+function isForwardDirection(matches: Match[]): boolean {
+  if (matches.length < 2) return true;
+  const sorted = [...matches].sort((a, b) => a.timestamp - b.timestamp);
+  const n = sorted.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += sorted[i].progress;
+    sumXY += i * sorted[i].progress;
+    sumXX += i * i;
+  }
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return true;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  return slope > 0;
+}
+
 export function buildTrimbleLiveCoverage(
   recordingPoints: ReadonlyArray<TrimbleGpsPoint>,
   segments: ReadonlyArray<Segment>,
@@ -111,15 +132,20 @@ export function buildTrimbleLiveCoverage(
   const result = new Map<string, TrimbleLiveCoverageItem>();
   if (recordingPoints.length === 0 && !opts.currentSegmentId) return result;
 
-  // Conversión grosera metros→grados para el bbox prefilter (válida fuera de
-  // los polos; es una pre-criba, no afecta a la precisión de la proyección).
+  // Pre-filtrar puntos por accuracy (regla dura, idéntica a gps-coverage).
+  const validPoints: TrimbleGpsPoint[] = [];
+  for (const p of recordingPoints) {
+    if (p.accuracy != null && p.accuracy > opts.maxAllowedAccuracyMeters) continue;
+    validPoints.push(p);
+  }
+
+  // BBox prefilter (metros→grados grosero, válido fuera de los polos).
   const M_PER_DEG_LAT = 111_320;
   const toleranceDeg = opts.maxDistanceMeters / M_PER_DEG_LAT;
 
   for (const seg of segments) {
     if (!seg.coordinates || seg.coordinates.length < 2) continue;
 
-    // BBox del tramo + tolerancia, en grados, para descartar puntos baratos.
     let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
     for (const c of seg.coordinates) {
       if (c.lat < minLat) minLat = c.lat;
@@ -134,35 +160,36 @@ export function buildTrimbleLiveCoverage(
 
     const matches: Match[] = [];
     let lastDistance: number | null = null;
-    for (const p of recordingPoints) {
+    for (const p of validPoints) {
       if (p.lat < minLat || p.lat > maxLat || p.lng < minLng || p.lng > maxLng) continue;
       const proj = projectPointToPolyline({ lat: p.lat, lng: p.lng }, seg.coordinates);
       if (!proj) continue;
       if (proj.distanceMeters > opts.maxDistanceMeters) continue;
-      matches.push({ progress: proj.progress, distance: proj.distanceMeters });
+      matches.push({
+        progress: proj.progress,
+        distance: proj.distanceMeters,
+        timestamp: Date.parse(p.timestamp),
+      });
       lastDistance = proj.distanceMeters;
     }
 
-    const isCurrent = opts.currentSegmentId === seg.id;
+    const isCurrentCandidate = opts.currentSegmentId === seg.id;
+    // Confirmar isCurrent: el último match real debe estar dentro del umbral
+    // de proximidad. Si no hay matches, no marcamos isCurrent (el GPS está
+    // demasiado lejos del eje aunque el caller crea que es el tramo).
+    const isCurrent = isCurrentCandidate &&
+      lastDistance != null &&
+      lastDistance <= opts.currentMaxDistanceMeters;
 
     if (matches.length === 0) {
-      if (isCurrent) {
-        result.set(seg.id, {
-          segmentId: seg.id,
-          coverageRatio: 0,
-          matchedPoints: 0,
-          startProgress: null,
-          endProgress: null,
-          distanceMeters: null,
-          status: 'live_current',
-        });
-      }
+      // Si el caller insiste con currentSegmentId pero no hay matches válidos,
+      // emitimos un item not_started solo si la distancia real lo permite
+      // (heurística: no podemos verificarla sin matches → omitir para evitar
+      // colorear un tramo que el GPS no está tocando).
       continue;
     }
 
-    // Aproximación de longitud: usa proyección para buffer ratio.
-    // Reutilizamos la longitud almacenada en projectPointToPolyline
-    // recalculándola con un único punto adicional barato:
+    // Longitud para bufferRatio (probe barato).
     const probe = projectPointToPolyline(
       { lat: seg.coordinates[0].lat, lng: seg.coordinates[0].lng },
       seg.coordinates,
@@ -173,14 +200,17 @@ export function buildTrimbleLiveCoverage(
     const { coverageRatio, maxInteriorGap, minProgress, maxProgress } =
       computeCoverage(matches.map((m) => m.progress), bufferRatio);
 
-    let status: TrimbleLiveCoverageStatus = 'live_partial';
+    const enoughPoints = matches.length >= opts.minMatchedPoints;
     const startOk = minProgress <= opts.startToleranceRatio;
     const endOk = maxProgress >= 1 - opts.endToleranceRatio;
     const gapOk = maxInteriorGap <= opts.maxGapRatio;
-    if (startOk && endOk && gapOk && coverageRatio >= opts.minCoverageRatio) {
-      status = 'live_covered';
-    }
-    if (isCurrent) status = 'live_current';
+    const coverageOk = coverageRatio >= opts.minCoverageRatio;
+    const directionOk = !opts.requireForwardDirection || isForwardDirection(matches);
+
+    const status: TrimbleLiveCoverageStatus =
+      enoughPoints && startOk && endOk && gapOk && coverageOk && directionOk
+        ? 'live_covered'
+        : 'live_partial';
 
     result.set(seg.id, {
       segmentId: seg.id,
@@ -190,19 +220,7 @@ export function buildTrimbleLiveCoverage(
       endProgress: maxProgress,
       distanceMeters: lastDistance,
       status,
-    });
-  }
-
-  // Si current existe y no se añadió aún (sin puntos válidos), añadirlo.
-  if (opts.currentSegmentId && !result.has(opts.currentSegmentId)) {
-    result.set(opts.currentSegmentId, {
-      segmentId: opts.currentSegmentId,
-      coverageRatio: 0,
-      matchedPoints: 0,
-      startProgress: null,
-      endProgress: null,
-      distanceMeters: null,
-      status: 'live_current',
+      isCurrent: isCurrent || undefined,
     });
   }
 
@@ -210,13 +228,15 @@ export function buildTrimbleLiveCoverage(
 }
 
 /**
- * Color provisional por estado live. NO se mezcla con
- * `TRIMBLE_STATUS_COLOR` para que sea evidente que es una capa transitoria
- * derivada de la sesión activa, no un estado consolidado.
+ * Color provisional por estado live (color base del tramo durante la sesión).
+ * El "tramo actual" NO ocupa color: se representa como overlay/badge mediante
+ * `TrimbleLiveCoverageItem.isCurrent`.
  */
 export const TRIMBLE_LIVE_STATUS_COLOR: Record<TrimbleLiveCoverageStatus, string> = {
-  live_current: '#facc15',  // amarillo fuerte
-  live_covered: '#10b981',  // verde vivo (provisional, distinto de procesado_ok #22c55e)
-  live_partial: '#fb923c',  // naranja/ámbar
+  live_covered: '#10b981',     // verde vivo (provisional, distinto de procesado_ok #22c55e)
+  live_partial: '#fb923c',     // naranja/ámbar
   live_not_started: '#6b7280',
 };
+
+/** Color de overlay para el "tramo actual" (badge / borde). */
+export const TRIMBLE_LIVE_CURRENT_OVERLAY_COLOR = '#facc15';

@@ -2209,6 +2209,7 @@ export function useRouteState() {
     (opts: { endPosition?: LatLng; eligibleSegmentIds?: ReadonlySet<string> } = {}): {
       ok: boolean;
       reason?: string;
+      recordingSessionId?: string;
       autoCapturedCount?: number;
       partialCount?: number;
       pointsAnalyzed?: number;
@@ -2301,6 +2302,7 @@ export function useRouteState() {
 
         outcome = {
           ok: true,
+          recordingSessionId: recordingId,
           autoCapturedCount: captured.length,
           partialCount: partials.length,
           pointsAnalyzed,
