@@ -7,6 +7,7 @@ import { useSmartFitGoogle, type FitReason } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
+import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 
@@ -80,6 +81,10 @@ interface Props {
    * estado Trimble derivado. No afecta cuando es undefined o vacío.
    */
   trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
+  /** Cobertura GPS provisional durante una grabación Trimble activa.
+   *  Tiene prioridad visual sobre `trimbleStatusBySegment` y
+   *  desaparece automáticamente al perder la sesión activa. */
+  trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -156,6 +161,7 @@ export function GoogleMapDisplay({
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
+  trimbleLiveCoverageBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -338,9 +344,18 @@ export function GoogleMapDisplay({
     return parts.sort().join(',');
   }, [trimbleStatusBySegment]);
 
+  const trimbleLiveFingerprint = useMemo(() => {
+    if (!trimbleLiveCoverageBySegment || trimbleLiveCoverageBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleLiveCoverageBySegment.forEach((it, id) =>
+      parts.push(`${id}:${it.status}:${Math.round(it.coverageRatio * 100)}`),
+    );
+    return parts.sort().join(',');
+  }, [trimbleLiveCoverageBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
@@ -441,9 +456,12 @@ export function GoogleMapDisplay({
         const isSelected = selectedSegmentIds?.has(seg.id);
         const layerColor = seg.color || layerColorMap?.get(seg.id);
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const baseColor = trimbleStatus
-          ? resolveTrimbleSegmentColor(trimbleStatus)
-          : resolveSegmentColor(seg, activeSegmentId, layerColor);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
+        const baseColor = liveItem
+          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
+          : trimbleStatus
+            ? resolveTrimbleSegmentColor(trimbleStatus)
+            : resolveSegmentColor(seg, activeSegmentId, layerColor);
         const color = isSelected ? '#8b5cf6' : baseColor;
 
         const polyline = new google.maps.Polyline({

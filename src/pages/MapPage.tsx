@@ -37,9 +37,10 @@ import type { AppState, IncidentCategory, IncidentImpact, LatLng, BaseLocation, 
 import type { ReactivateOptions } from '@/utils/segment-reactivation';
 import { ReactivateSegmentDialog } from '@/components/ReactivateSegmentDialog';
 import { TrimbleLegend } from '@/components/map/TrimbleLegend';
-import { TrimbleCoverageOverlay } from '@/components/map/TrimbleCoverageOverlay';
 import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
+import { buildTrimbleLiveCoverage } from '@/utils/trimble/live-coverage';
+import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -1293,6 +1294,33 @@ export default function MapPage({
     return map;
   }, [state.acquisitionMode, visibleSegments, state.trimbleSegmentCaptures, state.activeRunId]);
 
+  // Cobertura GPS provisional EN VIVO: solo durante grabación activa Trimble.
+  // Desaparece automáticamente al limpiar `activeTrimbleRecordingId` (cierre,
+  // invalidación o cambio de modo) — el mapa vuelve al estado persistente.
+  const trimbleLiveCoverageBySegment = useMemo(() => {
+    if (state.acquisitionMode !== 'TRIMBLE_LIDAR') return null;
+    const recId = state.activeTrimbleRecordingId;
+    if (!recId) return null;
+    const session = (state.trimbleRecordingSessions ?? []).find((r) => r.id === recId);
+    if (!session) return null;
+    const points = (state.trimbleGpsLogsByRun?.[session.runId] ?? []).filter(
+      (p) => p.recordingSessionId === recId && p.phase === 'capture',
+    );
+    const currentMatch = geo.position
+      ? findCurrentSegmentFromGps(geo.position, visibleSegments)
+      : null;
+    return buildTrimbleLiveCoverage(points, visibleSegments, {
+      currentSegmentId: currentMatch?.segmentId ?? null,
+    });
+  }, [
+    state.acquisitionMode,
+    state.activeTrimbleRecordingId,
+    state.trimbleRecordingSessions,
+    state.trimbleGpsLogsByRun,
+    visibleSegments,
+    geo.position,
+  ]);
+
   const layerColorMap = useMemo(() => {
     if (!route) return new Map<string, string>();
     // Build layer index map
@@ -1352,7 +1380,8 @@ export default function MapPage({
           searchTargetBounds={searchTargetBounds}
           searchCenterRequest={searchCenterRequest}
           mapRefreshRequest={mapRefreshRequest}
-          trimbleStatusBySegment={trimbleStatusBySegment} />
+          trimbleStatusBySegment={trimbleStatusBySegment}
+          trimbleLiveCoverageBySegment={trimbleLiveCoverageBySegment} />
 
       </div>
 
@@ -1397,8 +1426,7 @@ export default function MapPage({
         </div>
       )}
 
-      {/* === TRIMBLE: overlay de cobertura GPS (en vivo + último cierre) === */}
-      {state.acquisitionMode === 'TRIMBLE_LIDAR' && <TrimbleCoverageOverlay />}
+      {/* Cobertura Trimble en vivo: integrada en TrimbleNavigationPanel — sin overlay flotante. */}
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}

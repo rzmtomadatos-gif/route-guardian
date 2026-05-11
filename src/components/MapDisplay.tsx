@@ -6,6 +6,7 @@ import { useSmartFitLeaflet } from '@/hooks/useSmartFit';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { resolveSegmentColor, resolveTrimbleSegmentColor } from '@/utils/segment-colors';
 import type { TrimbleSegmentStatus } from '@/types/trimble';
+import { TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { getSegmentArrows, clearArrowCache } from '@/utils/segment-arrows';
 import { isValidLatLng } from '@/utils/coord-validation';
 import {
@@ -62,6 +63,7 @@ interface Props {
   mapRefreshRequest?: number;
   /** Modo Trimble: si se provee, sobreescribe el color del tramo por estado Trimble. */
   trimbleStatusBySegment?: Map<string, TrimbleSegmentStatus> | null;
+  trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
 }
 
 /** Create an arrow SVG icon for Leaflet — 60% of original size */
@@ -116,6 +118,7 @@ export function MapDisplay({
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
+  trimbleLiveCoverageBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -148,9 +151,18 @@ export function MapDisplay({
     return parts.sort().join(',');
   }, [trimbleStatusBySegment]);
 
+  const trimbleLiveFingerprint = useMemo(() => {
+    if (!trimbleLiveCoverageBySegment || trimbleLiveCoverageBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleLiveCoverageBySegment.forEach((it, id) =>
+      parts.push(`${id}:${it.status}:${Math.round(it.coverageRatio * 100)}`),
+    );
+    return parts.sort().join(',');
+  }, [trimbleLiveCoverageBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
@@ -434,9 +446,12 @@ export function MapDisplay({
         const latLngs = validCoords.map((c) => [c.lat, c.lng] as L.LatLngTuple);
         const isActive = seg.id === activeSegmentId;
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const color = trimbleStatus
-          ? resolveTrimbleSegmentColor(trimbleStatus)
-          : resolveSegmentColor(seg, activeSegmentId);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
+        const color = liveItem
+          ? TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
+          : trimbleStatus
+            ? resolveTrimbleSegmentColor(trimbleStatus)
+            : resolveSegmentColor(seg, activeSegmentId);
 
         const polyline = L.polyline(latLngs, {
           color,
