@@ -160,6 +160,7 @@ export function GoogleMapDisplay({
   searchCenterRequest = 0,
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
+  trimbleLiveCoverageBySegment = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
