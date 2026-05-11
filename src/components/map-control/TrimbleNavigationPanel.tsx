@@ -263,6 +263,24 @@ export function TrimbleNavigationPanel({
     return state.route.segments.find((s) => s.id === detectedSegmentMatch.segmentId) ?? null;
   }, [detectedSegmentMatch, state.route]);
 
+  // Cobertura GPS provisional EN VIVO durante grabación activa.
+  const liveCoverage: Map<string, TrimbleLiveCoverageItem> = useMemo(() => {
+    if (!activeRecording || !state.route) return new Map();
+    return buildTrimbleLiveCoverage(recordingPoints, state.route.segments, {
+      currentSegmentId: detectedSegment?.id ?? null,
+      preferredSegmentIds: preferredQueueIds,
+    });
+  }, [activeRecording, state.route, recordingPoints, detectedSegment, preferredQueueIds]);
+  const liveCurrentItem = detectedSegment ? liveCoverage.get(detectedSegment.id) ?? null : null;
+  const liveSortedItems = useMemo(() => {
+    const arr = Array.from(liveCoverage.values());
+    const orderRank = (s: TrimbleLiveCoverageItem['status']) =>
+      s === 'live_current' ? 0 : s === 'live_covered' ? 1 : s === 'live_partial' ? 2 : 3;
+    arr.sort((a, b) => orderRank(a.status) - orderRank(b.status) || b.coverageRatio - a.coverageRatio);
+    return arr;
+  }, [liveCoverage]);
+  const liveCoveredCount = liveSortedItems.filter((i) => i.status === 'live_covered').length;
+
   const handleStartRecording = () => {
     if (!gpsEnabled) { toast.error('Activa el GPS antes de empezar a grabar.'); return; }
     const r = startTrimbleRecording({ startPosition: currentPosition ?? undefined });
@@ -277,11 +295,19 @@ export function TrimbleNavigationPanel({
     if (!r.ok) { toast.error(r.reason || 'No se pudo cerrar grabación.'); return; }
     const auto = r.autoCapturedCount ?? 0;
     const partial = r.partialCount ?? 0;
+    const points = r.pointsAnalyzed ?? 0;
     if (auto > 0) {
-      toast.success(`Grabación cerrada — ${auto} tramo(s) auto-capturado(s)${partial ? ` · ${partial} parcial(es)` : ''}.`);
+      toast.success(`Grabación cerrada — auto-capturados ${auto}${partial ? ` · parciales ${partial}` : ''} · ${points} pts.`);
     } else {
-      toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''}.`);
+      toast.message(`Grabación cerrada — sin tramos cubiertos${partial ? ` (${partial} parcial(es))` : ''} · ${points} pts.`);
     }
+  };
+  const handleInvalidateRecording = () => {
+    const reason = window.prompt('Motivo para invalidar la grabación:', 'Operador');
+    if (!reason) return;
+    const r = invalidateTrimbleRecording(reason);
+    if (!r.ok) { toast.error(r.reason || 'No se pudo invalidar.'); return; }
+    toast.message('Grabación invalidada — sin capturas. Los colores en vivo desaparecen.');
   };
 
   // ── Auto-envío al conductor ────────────────────────────────────────
