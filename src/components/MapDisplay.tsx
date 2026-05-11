@@ -151,9 +151,18 @@ export function MapDisplay({
     return parts.sort().join(',');
   }, [trimbleStatusBySegment]);
 
+  const trimbleLiveFingerprint = useMemo(() => {
+    if (!trimbleLiveCoverageBySegment || trimbleLiveCoverageBySegment.size === 0) return '';
+    const parts: string[] = [];
+    trimbleLiveCoverageBySegment.forEach((it, id) =>
+      parts.push(`${id}:${it.status}:${Math.round(it.coverageRatio * 100)}`),
+    );
+    return parts.sort().join(',');
+  }, [trimbleLiveCoverageBySegment]);
+
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint],
+    () => `${mapRefreshRequest}|${buildFingerprint(segments, activeSegmentId, optimizedOrder, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
   );
 
   // Tracks only the SET of segment IDs (not status/colors). Used to decide
