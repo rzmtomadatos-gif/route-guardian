@@ -16,9 +16,10 @@ import { Button } from '@/components/ui/button';
 import {
   Radar, Play, StopCircle, RotateCcw, Ban, Send, AlertTriangle,
   ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ExternalLink, Radio,
-  LocateFixed, LocateOff, Minimize2, Wand2, Disc, Circle,
+  LocateFixed, LocateOff, Minimize2, Wand2, Disc, Circle, XOctagon, Activity,
 } from 'lucide-react';
 import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
+import { buildTrimbleLiveCoverage, TRIMBLE_LIVE_STATUS_COLOR, type TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { toast } from 'sonner';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { CopilotPanel } from '@/components/CopilotPanel';
