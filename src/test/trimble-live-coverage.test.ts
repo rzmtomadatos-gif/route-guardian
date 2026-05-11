@@ -36,10 +36,10 @@ describe('buildTrimbleLiveCoverage', () => {
     expect(buildTrimbleLiveCoverage(pts, [seg]).get('s1')?.status).toBe('live_partial');
   });
 
-  it('currentSegmentId fuerza live_current', () => {
+  it('currentSegmentId sin matches válidos no produce item (no marca current)', () => {
     const seg = makeSeg('s1');
     const m = buildTrimbleLiveCoverage([], [seg], { currentSegmentId: 's1' });
-    expect(m.get('s1')?.status).toBe('live_current');
+    expect(m.has('s1')).toBe(false);
   });
 
   it('sin puntos y sin current → mapa vacío', () => {
