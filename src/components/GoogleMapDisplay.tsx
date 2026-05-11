@@ -455,9 +455,12 @@ export function GoogleMapDisplay({
         const isSelected = selectedSegmentIds?.has(seg.id);
         const layerColor = seg.color || layerColorMap?.get(seg.id);
         const trimbleStatus = trimbleStatusBySegment?.get(seg.id);
-        const baseColor = trimbleStatus
-          ? resolveTrimbleSegmentColor(trimbleStatus)
-          : resolveSegmentColor(seg, activeSegmentId, layerColor);
+        const liveItem = trimbleLiveCoverageBySegment?.get(seg.id);
+        const baseColor = liveItem
+          ? require('@/utils/trimble/live-coverage').TRIMBLE_LIVE_STATUS_COLOR[liveItem.status]
+          : trimbleStatus
+            ? resolveTrimbleSegmentColor(trimbleStatus)
+            : resolveSegmentColor(seg, activeSegmentId, layerColor);
         const color = isSelected ? '#8b5cf6' : baseColor;
 
         const polyline = new google.maps.Polyline({
