@@ -294,7 +294,32 @@ const trimbleRecordingSessionSchema = z.object({
   startPosition: latLngSchema.optional(),
   endPosition: latLngSchema.optional(),
   notes: z.string().max(2000).optional(),
+  status: z.enum(['active', 'closed', 'invalidated']).optional(),
+  invalidatedAt: isoDateString.nullable().optional(),
+  invalidatedReason: z.string().max(2000).nullable().optional(),
 }).strict();
+
+/**
+ * Normaliza `progressOnMatchedSegment`. Tolerante con builds intermedios:
+ *  - 0..1 se mantiene
+ *  - 1..100 se interpreta como porcentaje y se divide por 100
+ *  - resto se degrada a null (campo auxiliar, no debe bloquear la carga)
+ */
+const normalizedProgressSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (value >= 0 && value <= 1) return value;
+  if (value > 1 && value <= 100) return value / 100;
+  return null;
+}, z.number().min(0).max(1).nullable().optional());
+
+/** Normaliza distancias auxiliares no negativas; valores inválidos → null. */
+const nonNegativeNullableNumberSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (value < 0) return null;
+  return value;
+}, z.number().min(0).nullable().optional());
 
 const trimbleIncidentCategoryEnum = z.enum([
   'gnss_perdida', 'imu_drift', 'oclusion_severa', 'fallo_sensor',
@@ -348,8 +373,8 @@ const trimbleGpsPointSchema = z.object({
   source: z.literal('gps'),
   recordingSessionId: z.string().min(1).max(100).nullable().optional(),
   matchedSegmentId: z.string().min(1).max(100).nullable().optional(),
-  distanceToMatchedSegmentMeters: z.number().min(0).nullable().optional(),
-  progressOnMatchedSegment: z.number().min(0).max(1).nullable().optional(),
+  distanceToMatchedSegmentMeters: nonNegativeNullableNumberSchema,
+  progressOnMatchedSegment: normalizedProgressSchema,
 }).strict();
 
 // ── Event Log — derivado en runtime de EVENT_TYPES (fuente única). ──
