@@ -127,12 +127,12 @@ describe('campaign schema · Trimble GPS new fields', () => {
     expect(r.success).toBe(true);
   });
 
-  it('valida un run realista con 700+ puntos sin Unrecognized key', () => {
+  it('valida un run realista con 700+ puntos mezclando 0..1 y 0..100', () => {
     const points = Array.from({ length: 750 }, (_, i) =>
       buildPoint({
         timestamp: new Date(Date.UTC(2026, 0, 1, 10, 0, i)).toISOString(),
         distanceToMatchedSegmentMeters: i % 30,
-        progressOnMatchedSegment: (i % 100) / 100,
+        progressOnMatchedSegment: i % 2 === 0 ? (i % 100) / 100 : (i % 100),
       }),
     );
     const result = campaignExportSchema.safeParse(buildExport(points));
