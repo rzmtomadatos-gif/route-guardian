@@ -77,22 +77,54 @@ describe('campaign schema · Trimble GPS new fields', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rechaza progressOnMatchedSegment fuera de [0,1]', () => {
-    const r1 = campaignExportSchema.safeParse(
-      buildExport([buildPoint({ progressOnMatchedSegment: -0.1 })]),
+  it('normaliza progressOnMatchedSegment 0..100 a 0..1', () => {
+    const r = campaignExportSchema.safeParse(
+      buildExport([buildPoint({ progressOnMatchedSegment: 42 })]),
     );
-    const r2 = campaignExportSchema.safeParse(
-      buildExport([buildPoint({ progressOnMatchedSegment: 1.5 })]),
-    );
-    expect(r1.success).toBe(false);
-    expect(r2.success).toBe(false);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      const p = r.data.state.trimbleGpsLogsByRun.run1[0] as { progressOnMatchedSegment: number };
+      expect(p.progressOnMatchedSegment).toBeCloseTo(0.42);
+    }
   });
 
-  it('rechaza distanceToMatchedSegmentMeters negativa', () => {
+  it('degrada progressOnMatchedSegment imposible (>100) a null sin bloquear', () => {
     const r = campaignExportSchema.safeParse(
-      buildExport([buildPoint({ distanceToMatchedSegmentMeters: -1 })]),
+      buildExport([buildPoint({ progressOnMatchedSegment: 120 })]),
     );
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      const p = r.data.state.trimbleGpsLogsByRun.run1[0] as { progressOnMatchedSegment: number | null };
+      expect(p.progressOnMatchedSegment).toBeNull();
+    }
+  });
+
+  it('degrada distanceToMatchedSegmentMeters negativa a null sin bloquear', () => {
+    const r = campaignExportSchema.safeParse(
+      buildExport([buildPoint({ distanceToMatchedSegmentMeters: -5 })]),
+    );
+    expect(r.success).toBe(true);
+    if (r.success) {
+      const p = r.data.state.trimbleGpsLogsByRun.run1[0] as { distanceToMatchedSegmentMeters: number | null };
+      expect(p.distanceToMatchedSegmentMeters).toBeNull();
+    }
+  });
+
+  it('acepta trimbleRecordingSessions con status invalidated y campos asociados', () => {
+    const exp = buildExport([buildPoint()]);
+    (exp.state as any).trimbleRecordingSessions = [{
+      id: 'rec1',
+      missionId: 'm1',
+      runId: 'run1',
+      startedAt: '2026-01-01T09:00:00Z',
+      endedAt: '2026-01-01T10:00:00Z',
+      status: 'invalidated',
+      invalidatedAt: '2026-01-01T10:00:00Z',
+      invalidatedReason: 'fallo sensor',
+    }];
+    const r = campaignExportSchema.safeParse(exp);
+    if (!r.success) throw new Error(r.error.issues[0].message);
+    expect(r.success).toBe(true);
   });
 
   it('valida un run realista con 700+ puntos sin Unrecognized key', () => {
