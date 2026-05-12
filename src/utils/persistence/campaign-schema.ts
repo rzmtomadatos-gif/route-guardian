@@ -348,6 +348,8 @@ const trimbleGpsPointSchema = z.object({
   source: z.literal('gps'),
   recordingSessionId: z.string().min(1).max(100).nullable().optional(),
   matchedSegmentId: z.string().min(1).max(100).nullable().optional(),
+  distanceToMatchedSegmentMeters: z.number().min(0).nullable().optional(),
+  progressOnMatchedSegment: z.number().min(0).max(1).nullable().optional(),
 }).strict();
 
 // ── Event Log — derivado en runtime de EVENT_TYPES (fuente única). ──
