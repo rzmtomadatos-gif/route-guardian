@@ -5,7 +5,7 @@
  * al operador de un posible falso positivo de cobertura cruzada.
  */
 import { haversineMeters } from '@/utils/geo-distance';
-import type { RouteSegment } from '@/types/route';
+import type { Segment as RouteSegment } from '@/types/route';
 
 export interface LiveCoverageItemLike {
   segmentId: string;
