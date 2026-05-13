@@ -41,6 +41,8 @@ import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/
 import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { buildTrimbleLiveCoverage } from '@/utils/trimble/live-coverage';
 import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
+import { useRouteStateContext } from '@/context/RouteStateContext';
+import { TrimbleSelectedSegmentOverlay } from '@/components/trimble/TrimbleSelectedSegmentOverlay';
 
 const DEVIATION_THRESHOLD = 100;
 
