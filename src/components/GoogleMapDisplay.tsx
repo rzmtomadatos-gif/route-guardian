@@ -85,6 +85,9 @@ interface Props {
    *  Tiene prioridad visual sobre `trimbleStatusBySegment` y
    *  desaparece automáticamente al perder la sesión activa. */
   trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
+  /** ID del tramo operativamente seleccionado en modo Trimble. Pinta un
+   *  halo violeta debajo de la polilínea sin alterar el color base. */
+  trimbleOperationalSelectedSegmentId?: string | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
