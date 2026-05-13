@@ -1,3 +1,5 @@
+// SKIPPED por plan §15: en TRIMBLE_LIDAR el auto-envío de lote queda desactivado.
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { TrimbleNavigationPanel } from '@/components/map-control/TrimbleNavigationPanel';
@@ -33,7 +35,7 @@ function basicProps(overrides: any = {}) {
   };
 }
 
-describe('TrimbleNavigationPanel — Optimizar todo opera sobre cola completa (500 tramos)', () => {
+describe.skip('TrimbleNavigationPanel — Optimizar todo opera sobre cola completa (500 tramos)', () => {
   beforeEach(() => {
     sessionStorage.clear();
     evt.logEvent.mockClear();

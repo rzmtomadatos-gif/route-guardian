@@ -1,3 +1,6 @@
+// SKIPPED por plan §15: en TRIMBLE_LIDAR el auto-envío de lote queda desactivado;
+// el flujo principal de copiloto es el envío individual desde el overlay.
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { TrimbleNavigationPanel } from '@/components/map-control/TrimbleNavigationPanel';
@@ -32,7 +35,7 @@ function basicProps(extra: any = {}) {
   };
 }
 
-describe('TrimbleNavigationPanel — autoenvío al conductor', () => {
+describe.skip('TrimbleNavigationPanel — autoenvío al conductor', () => {
   beforeEach(() => {
     sessionStorage.clear();
     evt.logEvent.mockClear();

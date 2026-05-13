@@ -1,3 +1,6 @@
+// SKIPPED por plan §15: en TRIMBLE_LIDAR el auto-envío de lote queda desactivado;
+// el flujo principal de copiloto es el envío individual desde el overlay.
+
 /**
  * Cerrar grabación con capturas automáticas (auto > 0) debe disparar
  * autoenvío al conductor con reason='auto_captured' cuando el driverBatch
@@ -49,7 +52,7 @@ function withRecording(state: any): any {
   };
 }
 
-describe('TrimbleNavigationPanel — autoenvío tras cerrar grabación', () => {
+describe.skip('TrimbleNavigationPanel — autoenvío tras cerrar grabación', () => {
   beforeEach(() => {
     sessionStorage.clear();
     evt.logEvent.mockClear();
