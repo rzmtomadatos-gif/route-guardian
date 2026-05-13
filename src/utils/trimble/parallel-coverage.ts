@@ -26,7 +26,7 @@ function avgMinDistance(a: RouteSegment, b: RouteSegment): number {
     let min = Infinity;
     for (let j = 0; j < cb.length; j += SAMPLE_STEP) {
       const pb = cb[j];
-      const d = haversineMeters(pa.lat, pa.lng, pb.lat, pb.lng);
+      const d = haversineMeters(pa, pb);
       if (d < min) min = d;
     }
     if (Number.isFinite(min)) {
