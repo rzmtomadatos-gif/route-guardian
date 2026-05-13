@@ -474,11 +474,12 @@ export function TrimbleNavigationPanel({
 
   const prevOrderFingerprintRef = useRef<string | null>(null);
   const prevEligibleFingerprintRef = useRef<string | null>(null);
+  const trimbleAutoBatchDisabled = state.acquisitionMode === 'TRIMBLE_LIDAR';
   if (prevOrderFingerprintRef.current === null) {
     prevOrderFingerprintRef.current = orderFingerprint;
   } else if (prevOrderFingerprintRef.current !== orderFingerprint) {
     prevOrderFingerprintRef.current = orderFingerprint;
-    if (!pendingAutoReasonRef.current) {
+    if (!trimbleAutoBatchDisabled && !pendingAutoReasonRef.current) {
       pendingAutoReasonRef.current = 'order_changed';
     }
   }
@@ -486,7 +487,7 @@ export function TrimbleNavigationPanel({
     prevEligibleFingerprintRef.current = eligibleFingerprint;
   } else if (prevEligibleFingerprintRef.current !== eligibleFingerprint) {
     prevEligibleFingerprintRef.current = eligibleFingerprint;
-    if (!pendingAutoReasonRef.current) {
+    if (!trimbleAutoBatchDisabled && !pendingAutoReasonRef.current) {
       pendingAutoReasonRef.current = 'layer_changed';
     }
   }
