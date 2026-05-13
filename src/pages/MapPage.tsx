@@ -581,8 +581,13 @@ export default function MapPage({
       setSelectedSegmentIds(next);
     } else {
       onSetActiveSegment(segId);
+      // En modo Trimble, el click selecciona también operativamente el tramo
+      // para abrir el overlay de acciones (envío único, no_capturable, etc.).
+      if (state.acquisitionMode === 'TRIMBLE_LIDAR') {
+        ctxForTrimble.setTrimbleOperationalSelected(segId);
+      }
     }
-  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds]);
+  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds, state.acquisitionMode]);
 
   // Zone selection for selecting existing segments
   const handleZoneSelectClick = useCallback((latlng: LatLng) => {
