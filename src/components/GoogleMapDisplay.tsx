@@ -165,6 +165,7 @@ export function GoogleMapDisplay({
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
   trimbleLiveCoverageBySegment = null,
+  trimbleOperationalSelectedSegmentId = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
