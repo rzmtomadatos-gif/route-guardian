@@ -99,10 +99,9 @@ describe('Trimble — RST/GARMIN no se ven afectados', () => {
     expect(hook.result.current.state.trimbleOperationalSelectedSegmentId).toBeNull();
   });
 
-  it('setTrimbleRecordingSegmentOverride falla fuera de TRIMBLE_LIDAR', () => {
+  it('setTrimbleRecordingSegmentOverride es no-op fuera de TRIMBLE_LIDAR', () => {
     const hook = renderHook(() => useRouteState());
-    let r: { ok: boolean; reason?: string } = { ok: true };
-    act(() => { r = hook.result.current.setTrimbleRecordingSegmentOverride('seg-Z', 'force_pending'); });
-    expect(r.ok).toBe(false);
+    act(() => { hook.result.current.setTrimbleRecordingSegmentOverride('seg-Z', 'force_pending'); });
+    expect(Object.keys(hook.result.current.state.trimbleRecordingSegmentOverrides)).toEqual([]);
   });
 });
