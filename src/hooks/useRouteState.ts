@@ -2738,5 +2738,10 @@ export function useRouteState() {
     startTrimbleRecording,
     closeTrimbleRecording,
     invalidateTrimbleRecording,
+    setTrimbleOperationalSelected,
+    setTrimbleSegmentDirectionOverride,
+    setTrimbleRecordingSegmentOverride,
+    voidTrimbleCapturesForSegment,
+    markTrimbleSegmentManuallyCaptured,
   };
 }
