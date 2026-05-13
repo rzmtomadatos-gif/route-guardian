@@ -1389,7 +1389,8 @@ export default function MapPage({
           searchCenterRequest={searchCenterRequest}
           mapRefreshRequest={mapRefreshRequest}
           trimbleStatusBySegment={trimbleStatusBySegment}
-          trimbleLiveCoverageBySegment={trimbleLiveCoverageBySegment} />
+          trimbleLiveCoverageBySegment={trimbleLiveCoverageBySegment}
+          trimbleOperationalSelectedSegmentId={state.acquisitionMode === 'TRIMBLE_LIDAR' ? state.trimbleOperationalSelectedSegmentId : null} />
 
       </div>
 
