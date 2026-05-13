@@ -106,6 +106,9 @@ export function createEmptyCampaignState(prefs: CampaignResetPreferences = {}): 
     activeRunId: null,
     trimbleRecordingSessions: [],
     activeTrimbleRecordingId: null,
+    trimbleOperationalSelectedSegmentId: null,
+    trimbleSegmentDirectionOverrides: {},
+    trimbleRecordingSegmentOverrides: {},
   };
 }
 

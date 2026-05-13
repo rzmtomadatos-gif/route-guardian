@@ -42,6 +42,8 @@ export function deriveTrimbleSegmentStatus(
   const closed: SegmentCapture[] = [];
   for (const c of captures) {
     if (c.segmentId !== segmentId) continue;
+    // Capturas voided NO cuentan como estado activo (solo trazabilidad).
+    if (c.voidedAt != null) continue;
     if (c.endedAt === null) {
       if (activeRunId && c.runId === activeRunId) openInRun = c;
       continue;

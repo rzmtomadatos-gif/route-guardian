@@ -132,6 +132,9 @@ function makeAdvancedCampaignState(): AppState {
     activeRunId: null,
     trimbleRecordingSessions: [],
     activeTrimbleRecordingId: null,
+    trimbleOperationalSelectedSegmentId: null,
+    trimbleSegmentDirectionOverrides: {},
+    trimbleRecordingSegmentOverrides: {},
   };
 }
 

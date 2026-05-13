@@ -38,6 +38,8 @@ export function buildTrimbleSegmentSummary(
   let last: SegmentCapture | null = null;
   for (const c of captures) {
     if (c.segmentId !== segmentId) continue;
+    // Capturas voided no cuentan como intento activo ni como "última".
+    if (c.voidedAt != null) continue;
     attempts++;
     const ref = c.endedAt ?? c.startedAt;
     const lastRef = last ? (last.endedAt ?? last.startedAt) : '';

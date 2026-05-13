@@ -242,6 +242,22 @@ export interface AppState {
   trimbleRecordingSessions: import('@/types/trimble').TrimbleRecordingSession[];
   /** Sesión de grabación Trimble activa (null si ninguna). */
   activeTrimbleRecordingId: string | null;
+  /**
+   * Tramo seleccionado operativamente en modo TRIMBLE_LIDAR (overlay arriba‑izq).
+   * Independiente de selectedSegmentIds (edición/multi).
+   */
+  trimbleOperationalSelectedSegmentId: string | null;
+  /**
+   * Override de sentido operativo por tramo (no modifica geometría KML).
+   * Solo afecta a INICIO/FIN del envío al copiloto y a la UI Trimble.
+   */
+  trimbleSegmentDirectionOverrides: Record<string, 'normal' | 'reversed'>;
+  /**
+   * Override por sesión de grabación + tramo. Permite forzar pendiente / capturado /
+   * no_capturable durante grabación activa, antes de que se consoliden capturas.
+   * closeTrimbleRecording respeta estos overrides al generar gps_auto.
+   */
+  trimbleRecordingSegmentOverrides: Record<string, Record<string, 'force_pending' | 'force_captured' | 'force_no_capturable'>>;
 }
 
 /** Punto GPS persistido durante navegación activa con track abierto. */

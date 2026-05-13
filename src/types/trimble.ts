@@ -89,14 +89,36 @@ export interface SegmentCapture {
   qaNotes?: string;
   qaReviewedBy?: string;
   qaReviewedAt?: string;
-  /** Origen de la captura: manual (operador) o gps_auto (motor de cobertura). */
-  captureSource?: 'manual' | 'gps_auto';
+  /**
+   * Origen de la captura:
+   *  - 'manual'           → creada por operador (flujo clásico).
+   *  - 'gps_auto'         → generada por el motor de cobertura al cerrar grabación.
+   *  - 'operator_override'→ corrección operativa desde el overlay Trimble
+   *    (marcado manualmente como capturado / no grabable, etc.).
+   */
+  captureSource?: 'manual' | 'gps_auto' | 'operator_override';
   /** Si captureSource='gps_auto', sesión de grabación que la generó. */
   recordingSessionId?: string | null;
   /** Cobertura GPS [0..1] solo para gps_auto. */
   coverageRatio?: number | null;
   /** Nº de puntos GPS dentro de tolerancia para gps_auto. */
   matchedPoints?: number | null;
+  /**
+   * Trazabilidad de anulación. Una captura voided (voidedAt != null) NO cuenta
+   * como estado activo en lógica derivada (status, cola, gabinete, export),
+   * pero se conserva en detalle técnico para auditoría.
+   * Reglas:
+   *  - QA (qaStatus != null) NO se voidea desde campo, solo desde gabinete.
+   *  - voidTrimbleCapturesForSegment solo anula capturas del run/sesión activos.
+   */
+  voidedAt?: string | null;
+  voidedReason?: string | null;
+  voidedBy?: 'operator' | 'gabinete' | null;
+}
+
+/** ¿La captura cuenta como activa para lógica derivada? Voided → false. */
+export function isCaptureActive(c: SegmentCapture): boolean {
+  return c.voidedAt == null;
 }
 
 /**
@@ -209,12 +231,20 @@ export interface TrimbleGpsPoint {
  * Como máximo una captura abierta por run; si hubiera varias por bug, devuelve
  * la primera (los hooks deben impedir esa situación).
  */
+/**
+ * Única fuente de verdad para "captura activa".
+ * Como máximo una captura abierta por run; si hubiera varias por bug, devuelve
+ * la primera (los hooks deben impedir esa situación).
+ * Las capturas voided (voidedAt != null) NO se consideran activas.
+ */
 export function findActiveCapture(
   captures: SegmentCapture[],
   activeRunId: string | null,
 ): SegmentCapture | null {
   if (!activeRunId) return null;
-  return captures.find((c) => c.runId === activeRunId && c.endedAt === null) ?? null;
+  return captures.find(
+    (c) => c.runId === activeRunId && c.endedAt === null && c.voidedAt == null,
+  ) ?? null;
 }
 
 /** Helper: ¿el status pertenece al campo (no QA)? */
