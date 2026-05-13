@@ -286,10 +286,14 @@ const trimbleCaptureSchema = z.object({
   qaNotes: z.string().max(2000).optional(),
   qaReviewedBy: z.string().max(200).optional(),
   qaReviewedAt: isoDateString.optional(),
-  captureSource: z.enum(['manual', 'gps_auto']).optional(),
+  captureSource: z.enum(['manual', 'gps_auto', 'operator_override']).optional(),
   recordingSessionId: z.string().min(1).max(100).nullable().optional(),
   coverageRatio: z.number().min(0).max(1).nullable().optional(),
   matchedPoints: z.number().int().min(0).nullable().optional(),
+  // Trazabilidad de anulación (voided). Activo == voidedAt == null.
+  voidedAt: isoDateString.nullable().optional(),
+  voidedReason: z.string().max(2000).nullable().optional(),
+  voidedBy: z.enum(['operator', 'gabinete']).nullable().optional(),
 }).strict();
 
 const trimbleRecordingSessionSchema = z.object({
