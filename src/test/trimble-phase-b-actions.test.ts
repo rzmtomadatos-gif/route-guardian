@@ -63,9 +63,8 @@ describe('Trimble — recording override force_pending durante grabación activa
     void recId; void runId; void missionId;
 
     // Aplicar force_pending: debe voidear capturas activas de este run/sesión
-    let r: { ok: boolean } = { ok: false };
-    act(() => { r = result.current.setTrimbleRecordingSegmentOverride('seg-PARA', 'force_pending'); });
-    expect(r.ok).toBe(true);
+    act(() => { result.current.setTrimbleRecordingSegmentOverride('seg-PARA', 'force_pending'); });
+    expect(result.current.state.trimbleRecordingSegmentOverrides[recId]?.['seg-PARA']).toBe('force_pending');
     const caps = result.current.state.trimbleSegmentCaptures.filter((c) => c.segmentId === 'seg-PARA');
     expect(caps.length).toBe(1);
     expect(caps[0].voidedAt).not.toBeNull();
