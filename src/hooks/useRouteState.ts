@@ -2276,7 +2276,22 @@ export function useRouteState() {
         partials = report.partial;
         recordingIdCommitted = recordingId;
 
-        const newCaptures: SegmentCapture[] = captured.map((c) => ({
+        // Aplicar overrides de la sesión: force_pending y force_no_capturable
+        // EXCLUYEN al tramo de gps_auto. force_no_capturable además crea una
+        // captura operator_override con estado 'no_capturable'.
+        const sessionOverrides = (s.trimbleRecordingSegmentOverrides ?? {})[recordingId] ?? {};
+        const filteredCaptured = captured.filter((c) => {
+          const ov = sessionOverrides[c.segmentId];
+          return ov !== 'force_pending' && ov !== 'force_no_capturable';
+        });
+        // partials: respetar mismo criterio para el log
+        partials = partials.filter((p) => {
+          const ov = sessionOverrides[p.segmentId];
+          return ov !== 'force_pending' && ov !== 'force_no_capturable';
+        });
+        captured = filteredCaptured;
+
+        const newCaptures: SegmentCapture[] = filteredCaptured.map((c) => ({
           id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           segmentId: c.segmentId,
           runId: session.runId,
@@ -2294,16 +2309,39 @@ export function useRouteState() {
           matchedPoints: c.matchedPoints,
         }));
 
+        // Crear capturas operator_override no_capturable para los segmentos
+        // marcados explícitamente durante esta grabación.
+        for (const [segId, ov] of Object.entries(sessionOverrides)) {
+          if (ov !== 'force_no_capturable') continue;
+          newCaptures.push({
+            id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            segmentId: segId,
+            runId: session.runId,
+            missionId: session.missionId,
+            startedAt: session.startedAt,
+            endedAt: now,
+            fieldStatus: 'no_capturable',
+            fieldNotes: 'Marcado no grabable por operador durante grabación',
+            qaStatus: null,
+            captureSource: 'operator_override',
+            recordingSessionId: recordingId,
+          });
+        }
+
         const sessions = (s.trimbleRecordingSessions ?? []).map((r) =>
           r.id === recordingId
             ? { ...r, endedAt: now, endPosition: opts.endPosition ?? r.endPosition, status: 'closed' as const }
             : r,
         );
 
+        // Limpiar overrides de la sesión cerrada
+        const newRecOverrides = { ...(s.trimbleRecordingSegmentOverrides ?? {}) };
+        delete newRecOverrides[recordingId];
+
         outcome = {
           ok: true,
           recordingSessionId: recordingId,
-          autoCapturedCount: captured.length,
+          autoCapturedCount: filteredCaptured.length,
           partialCount: partials.length,
           pointsAnalyzed,
         };
@@ -2313,6 +2351,7 @@ export function useRouteState() {
           trimbleRecordingSessions: sessions,
           activeTrimbleRecordingId: null,
           trimbleSegmentCaptures: [...(s.trimbleSegmentCaptures ?? []), ...newCaptures],
+          trimbleRecordingSegmentOverrides: newRecOverrides,
         };
       }, true);
 
