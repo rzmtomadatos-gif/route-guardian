@@ -491,11 +491,15 @@ export function TrimbleNavigationPanel({
     }
   }
 
-  // Helper: sólo dejamos razones pendientes si hay copiloto activo. Si no,
-  // se descartarían igualmente en la limpieza síncrona del próximo render,
-  // pero hay una ventana entre el click y ese render en la que un cambio de
-  // estado externo podría disparar el efecto con un motivo no querido.
+  // Plan §15: en TRIMBLE_LIDAR el flujo principal de copiloto es por tramo
+  // seleccionado desde el overlay. Se desactiva todo auto-envío de lote por
+  // las reasons: two_completed, auto_captured, order_changed, layer_changed,
+  // optimized, non_capturable, incident_blocks_route. El envío manual sigue
+  // disponible mediante el botón "Enviar al conductor" del propio panel
+  // (modo avanzado opcional).
+  const TRIMBLE_DISABLE_AUTO_BATCH = state.acquisitionMode === 'TRIMBLE_LIDAR';
   const markPendingReason = (reason: TrimbleDriverSendReason) => {
+    if (TRIMBLE_DISABLE_AUTO_BATCH) return;
     if (!copilotActive || !copilotSession) return;
     pendingAutoReasonRef.current = reason;
   };
