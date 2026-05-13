@@ -126,6 +126,7 @@ export default function MapPage({
   visible = true,
 }: Props) {
   const navigate = useNavigate();
+  const ctxForTrimble = useRouteStateContext();
   const { canNavigate } = useUserRole();
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
