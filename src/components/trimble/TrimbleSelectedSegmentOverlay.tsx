@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { buildSingleSegmentSendPayload } from '@/utils/trimble/single-segment-send';
 import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
+import { hasNearbyParallelCoverage } from '@/utils/trimble/parallel-coverage';
 import { logEvent } from '@/utils/persistence/event-log';
 import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
