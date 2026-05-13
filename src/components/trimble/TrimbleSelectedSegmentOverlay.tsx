@@ -179,6 +179,11 @@ export function TrimbleSelectedSegmentOverlay({
           <AlertTriangle className="h-3 w-3" /> Copiloto inactivo
         </div>
       )}
+      {hasParallel && (
+        <div className="mt-2 flex items-center gap-1 text-xs text-amber-600" data-testid="trimble-parallel-warning">
+          <AlertTriangle className="h-3 w-3" /> Paralelo cercano detectado
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button size="sm" onClick={handleSend} className="col-span-2">
