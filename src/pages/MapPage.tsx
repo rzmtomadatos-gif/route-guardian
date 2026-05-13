@@ -1437,14 +1437,20 @@ export default function MapPage({
 
       {/* Cobertura Trimble en vivo: integrada en TrimbleNavigationPanel — sin overlay flotante. */}
 
-      {/* === TRIMBLE: overlay del tramo operativamente seleccionado === */}
-      {state.acquisitionMode === 'TRIMBLE_LIDAR' && state.trimbleOperationalSelectedSegmentId && (
-        <TrimbleSelectedSegmentOverlay
-          copilotActive={copilot.active}
-          copilotSession={copilot.session}
-          onCopilotPushQueue={copilot.pushQueue}
-        />
-      )}
+      {/* === TRIMBLE: overlay del tramo operativamente seleccionado ===
+          Hidden in edit/merge/manual-creation/multi-selection modes per plan §8. */}
+      {state.acquisitionMode === 'TRIMBLE_LIDAR' &&
+        state.trimbleOperationalSelectedSegmentId &&
+        !creationMode &&
+        !selectionMode &&
+        areaMode === 'none' &&
+        zoneSelectMode === 'none' && (
+          <TrimbleSelectedSegmentOverlay
+            copilotActive={copilot.active}
+            copilotSession={copilot.session}
+            onCopilotPushQueue={copilot.pushQueue}
+          />
+        )}
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
