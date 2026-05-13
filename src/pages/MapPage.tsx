@@ -41,6 +41,8 @@ import { buildTrimbleRecordingQueue, deriveTrimbleSegmentStatus } from '@/utils/
 import type { TrimbleSegmentStatus } from '@/types/trimble';
 import { buildTrimbleLiveCoverage } from '@/utils/trimble/live-coverage';
 import { findCurrentSegmentFromGps } from '@/utils/trimble/gps-segment-matcher';
+import { useRouteStateContext } from '@/context/RouteStateContext';
+import { TrimbleSelectedSegmentOverlay } from '@/components/trimble/TrimbleSelectedSegmentOverlay';
 
 const DEVIATION_THRESHOLD = 100;
 
@@ -124,6 +126,7 @@ export default function MapPage({
   visible = true,
 }: Props) {
   const navigate = useNavigate();
+  const ctxForTrimble = useRouteStateContext();
   const { canNavigate } = useUserRole();
   const [searchParams] = useSearchParams();
   // gpsEnabled and setGpsEnabled received as props (persisted in AppRoutes)
@@ -581,8 +584,13 @@ export default function MapPage({
       setSelectedSegmentIds(next);
     } else {
       onSetActiveSegment(segId);
+      // En modo Trimble, el click selecciona también operativamente el tramo
+      // para abrir el overlay de acciones (envío único, no_capturable, etc.).
+      if (state.acquisitionMode === 'TRIMBLE_LIDAR') {
+        ctxForTrimble.setTrimbleOperationalSelected(segId);
+      }
     }
-  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds]);
+  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds, state.acquisitionMode, ctxForTrimble]);
 
   // Zone selection for selecting existing segments
   const handleZoneSelectClick = useCallback((latlng: LatLng) => {
@@ -1427,6 +1435,15 @@ export default function MapPage({
       )}
 
       {/* Cobertura Trimble en vivo: integrada en TrimbleNavigationPanel — sin overlay flotante. */}
+
+      {/* === TRIMBLE: overlay del tramo operativamente seleccionado === */}
+      {state.acquisitionMode === 'TRIMBLE_LIDAR' && state.trimbleOperationalSelectedSegmentId && (
+        <TrimbleSelectedSegmentOverlay
+          copilotActive={copilot.active}
+          copilotSession={copilot.session}
+          onCopilotPushQueue={copilot.pushQueue}
+        />
+      )}
 
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}

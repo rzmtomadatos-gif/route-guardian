@@ -2512,7 +2512,9 @@ export function useRouteState() {
       override: 'force_pending' | 'force_captured' | 'force_no_capturable' | null,
     ): { ok: boolean; reason?: string } => {
       let outcome: { ok: boolean; reason?: string } = { ok: false };
-      let recId: string | null = null;
+      let recIdForLog: string | null = null;
+      let voidedCount = 0;
+      const now = new Date().toISOString();
       setState((s) => {
         if (s.acquisitionMode !== 'TRIMBLE_LIDAR') {
           outcome = { ok: false, reason: 'Modo Trimble inactivo' };
@@ -2523,7 +2525,7 @@ export function useRouteState() {
           outcome = { ok: false, reason: 'No hay grabación activa' };
           return s;
         }
-        recId = recordingId;
+        recIdForLog = recordingId;
         const all = { ...(s.trimbleRecordingSegmentOverrides ?? {}) };
         const inner = { ...(all[recordingId] ?? {}) };
         if (override === null) {
@@ -2537,34 +2539,53 @@ export function useRouteState() {
         }
         if (Object.keys(inner).length === 0) delete all[recordingId];
         else all[recordingId] = inner;
-        outcome = { ok: true };
-        return { ...s, trimbleRecordingSegmentOverrides: all };
-      }, true);
-      if (outcome.ok && recId) {
-        const eventType =
-          override === 'force_pending'
-            ? 'TRIMBLE_SEGMENT_RESET_TO_PENDING'
-            : override === 'force_no_capturable'
-            ? 'TRIMBLE_SEGMENT_MANUAL_NO_CAPTURABLE'
-            : override === 'force_captured'
-            ? 'TRIMBLE_SEGMENT_MANUAL_CAPTURED'
-            : 'TRIMBLE_SEGMENT_RESET_TO_PENDING';
-        logEvent(eventType, {
-          segmentId,
-          payload: { recordingSessionId: recId, override },
-        });
-        // Si descartamos del flujo capturado, anula capturas gps_auto de esta sesión
+
+        // Si descartamos del flujo capturado, anula in-line capturas activas
+        // de este run/sesión. (No se delega a voidTrimbleCapturesForSegment
+        // porque su outcome es diferido y aquí necesitamos atomicidad.)
+        let captures = s.trimbleSegmentCaptures ?? [];
         if (override === 'force_pending' || override === 'force_no_capturable') {
-          voidTrimbleCapturesForSegment(
-            segmentId,
-            override === 'force_pending' ? 'reset_to_pending_during_recording' : 'no_capturable_during_recording',
-            'operator',
-          );
+          const activeRun = s.activeRunId;
+          captures = captures.map((c) => {
+            if (c.segmentId !== segmentId) return c;
+            if (c.voidedAt) return c;
+            if (c.qaStatus) return c;
+            if (c.runId !== activeRun) return c;
+            if (c.recordingSessionId && c.recordingSessionId !== recordingId) return c;
+            voidedCount++;
+            return {
+              ...c,
+              voidedAt: now,
+              voidedReason: override === 'force_pending'
+                ? 'reset_to_pending_during_recording'
+                : 'no_capturable_during_recording',
+              voidedBy: 'operator' as const,
+            };
+          });
         }
-      }
+
+        outcome = { ok: true };
+        return {
+          ...s,
+          trimbleRecordingSegmentOverrides: all,
+          trimbleSegmentCaptures: captures,
+        };
+      }, true);
+      const eventType =
+        override === 'force_pending'
+          ? 'TRIMBLE_SEGMENT_RESET_TO_PENDING'
+          : override === 'force_no_capturable'
+          ? 'TRIMBLE_SEGMENT_MANUAL_NO_CAPTURABLE'
+          : override === 'force_captured'
+          ? 'TRIMBLE_SEGMENT_MANUAL_CAPTURED'
+          : 'TRIMBLE_SEGMENT_RESET_TO_PENDING';
+      logEvent(eventType, {
+        segmentId,
+        payload: { recordingSessionId: recIdForLog, override, voidedCount },
+      });
       return outcome;
     },
-    [setState, voidTrimbleCapturesForSegment],
+    [setState],
   );
 
   /**
