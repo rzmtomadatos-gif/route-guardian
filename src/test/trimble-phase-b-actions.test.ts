@@ -27,13 +27,12 @@ describe('Trimble — manual capture (operator_override)', () => {
     const { result } = setupTrimble();
     act(() => { result.current.startTrimbleMission({}); });
     act(() => { result.current.startTrimbleRun({}); });
-    let outcome: { ok: boolean; captureId?: string } = { ok: false };
-    act(() => { outcome = result.current.markTrimbleSegmentManuallyCaptured('seg-X', 'manual ok'); });
-    expect(outcome.ok).toBe(true);
-    const cap = result.current.state.trimbleSegmentCaptures.find((c) => c.id === outcome.captureId)!;
-    expect(cap.captureSource).toBe('operator_override');
-    expect(cap.fieldStatus).toBe('capturado_pendiente_proceso');
-    expect(isCaptureActive(cap)).toBe(true);
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('seg-X', 'manual ok'); });
+    const caps = result.current.state.trimbleSegmentCaptures.filter((c) => c.segmentId === 'seg-X');
+    expect(caps.length).toBe(1);
+    expect(caps[0].captureSource).toBe('operator_override');
+    expect(caps[0].fieldStatus).toBe('capturado_pendiente_proceso');
+    expect(isCaptureActive(caps[0])).toBe(true);
   });
 
   it('falla sin misión/pasada activas', () => {
