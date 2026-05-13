@@ -358,8 +358,8 @@ export function GoogleMapDisplay({
   }, [trimbleLiveCoverageBySegment]);
 
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}|OS:${trimbleOperationalSelectedSegmentId ?? ''}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint, trimbleOperationalSelectedSegmentId],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
