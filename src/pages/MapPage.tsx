@@ -590,7 +590,7 @@ export default function MapPage({
         ctxForTrimble.setTrimbleOperationalSelected(segId);
       }
     }
-  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds, state.acquisitionMode]);
+  }, [selectionMode, selectedSegmentIds, onSetActiveSegment, setSelectedSegmentIds, state.acquisitionMode, ctxForTrimble]);
 
   // Zone selection for selecting existing segments
   const handleZoneSelectClick = useCallback((latlng: LatLng) => {
