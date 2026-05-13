@@ -1436,6 +1436,15 @@ export default function MapPage({
 
       {/* Cobertura Trimble en vivo: integrada en TrimbleNavigationPanel — sin overlay flotante. */}
 
+      {/* === TRIMBLE: overlay del tramo operativamente seleccionado === */}
+      {state.acquisitionMode === 'TRIMBLE_LIDAR' && state.trimbleOperationalSelectedSegmentId && (
+        <TrimbleSelectedSegmentOverlay
+          copilotActive={copilot.active}
+          copilotSession={copilot.session}
+          onCopilotPushQueue={copilot.pushQueue}
+        />
+      )}
+
 
       {/* === NAVIGATION OVERLAY (operational HUD) === */}
       {canNavigate && state.navigationActive && activeSegment && navTracker.operationalState !== 'idle' &&
