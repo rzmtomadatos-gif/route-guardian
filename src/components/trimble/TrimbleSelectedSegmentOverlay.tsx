@@ -67,6 +67,16 @@ export function TrimbleSelectedSegmentOverlay({
     ? state.trimbleRecordingSegmentOverrides?.[state.activeTrimbleRecordingId!]?.[segId]
     : undefined;
 
+  const liveItems = useMemo(
+    () => Array.from((state.trimbleLiveCoverageBySegment as Map<string, { state: string }> | null | undefined)?.entries?.() ?? [])
+      .map(([id, v]) => ({ segmentId: id, state: v.state })),
+    [state.trimbleLiveCoverageBySegment],
+  );
+  const hasParallel = useMemo(
+    () => recordingActive && state.route ? hasNearbyParallelCoverage(segId, state.route.segments, liveItems) : false,
+    [recordingActive, state.route, segId, liveItems],
+  );
+
   const handleSend = async () => {
     if (!copilotActive || !copilotSession) {
       if (onActivateCopilotCta) onActivateCopilotCta();
