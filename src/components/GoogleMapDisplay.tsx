@@ -466,12 +466,28 @@ export function GoogleMapDisplay({
         });
         const color = isSelected ? '#8b5cf6' : baseColor;
 
+        // Halo violeta para el tramo operativamente seleccionado en Trimble
+        // (se dibuja primero, debajo de la polilínea principal). No altera
+        // el color base ni el grosor de la principal.
+        if (trimbleOperationalSelectedSegmentId === seg.id) {
+          const halo = new google.maps.Polyline({
+            path,
+            strokeColor: '#a855f7',
+            strokeOpacity: 0.55,
+            strokeWeight: (isActive ? 6 : isSelected ? 5 : 3) + 6,
+            map,
+            zIndex: 1,
+          });
+          polylinesRef.current.push(halo);
+        }
+
         const polyline = new google.maps.Polyline({
           path,
           strokeColor: color,
           strokeWeight: isActive ? 6 : isSelected ? 5 : 3,
           strokeOpacity: isActive ? 1 : isSelected ? 0.95 : 0.7,
           map,
+          zIndex: 2,
         });
 
         if (onSegmentClick) {
