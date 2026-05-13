@@ -214,6 +214,13 @@ const appStateSchema = z.object({
   activeRunId: z.string().nullable().default(null),
   trimbleRecordingSessions: z.array(z.lazy(() => trimbleRecordingSessionSchema)).max(50_000).default([]),
   activeTrimbleRecordingId: z.string().nullable().default(null),
+  // ── Selección operativa Trimble + overrides (defaults compatibles con campañas antiguas) ──
+  trimbleOperationalSelectedSegmentId: z.string().nullable().default(null),
+  trimbleSegmentDirectionOverrides: z.record(z.string(), z.enum(['normal', 'reversed'])).default({}),
+  trimbleRecordingSegmentOverrides: z.record(
+    z.string(),
+    z.record(z.string(), z.enum(['force_pending', 'force_captured', 'force_no_capturable'])),
+  ).default({}),
 }).strict();
 
 const trackGpsPointSchema = z.object({
