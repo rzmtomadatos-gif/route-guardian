@@ -1,382 +1,298 @@
-# Plan: Trimble como grabación continua con auto-captura por cobertura GPS
+# Plan: Selección operativa Trimble + overlay con acciones manuales (entrega completa)
 
 ## Objetivo
 
-Cambiar el modo `TRIMBLE_LIDAR` para que el operador no inicie/cierre tramo a tramo. En su lugar, una grabación continua de la pasada usa el GPS del dispositivo, y al cerrar se generan automáticamente los `SegmentCapture` por análisis de cobertura GPS.
+En modo `TRIMBLE_LIDAR`, el operador selecciona cualquier tramo cargado en el mapa, ve un overlay arriba‑izquierda con info y acciones, y manda al conductor solo ese tramo (INICIO/FIN). Se desactiva de verdad el autoenvío de lotes de 4 en Trimble. RST/Garmin no cambian.
 
-## Alcance (15 bloques)
+Entrega única funcional. Internamente puede dividirse en commits, pero no se cierra hasta que todos los criterios de aceptación pasan.
 
-### 1. Nuevo concepto: `TrimbleRecordingSession`
+## Definiciones base
 
-- Tipo en `src/types/trimble.ts`: `{ id, missionId, runId, startedAt, endedAt, startPosition?, endPosition?, notes? }`.
-- `AppState`: `trimbleRecordingSessions: TrimbleRecordingSession[]`, `activeTrimbleRecordingId: string | null`.
-- Defaults `[]` y `null` en `createEmptyCampaignState`.
-- Zod en `campaign-schema.ts` con `.default([])` / `.default(null)` — no romper campañas antiguas.
+- **Captura activa** = `SegmentCapture` con `voidedAt == null`. Toda lógica de estado, resumen, cola, gabinete y exportación ignora capturas voided salvo en detalle técnico/trazabilidad.
+- **QA** (`qaStatus != null`) **nunca** se sobreescribe ni se voidea desde campo.
 
-### 2. Acciones en `RouteStateContext` / `useRouteState`
+## 1. Estado nuevo (AppState / useRouteState)
 
-- `startTrimbleRecording()` — exige modo Trimble, misión activa, pasada activa, GPS activo. Crea sesión, setea `activeTrimbleRecordingId`. Emite `TRIMBLE_RECORDING_STARTED`.
-- `closeTrimbleRecording()` — cierra sesión, dispara análisis de cobertura, genera `SegmentCapture` automáticas, emite `TRIMBLE_RECORDING_CLOSED`, `TRIMBLE_SEGMENT_AUTO_CAPTURED`, `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`. Devuelve resumen `{ autoCaptured, partial, pointsAnalyzed }`.
+- `trimbleOperationalSelectedSegmentId: string | null`
+- `trimbleSegmentDirectionOverrides: Record<segmentId, 'normal' | 'reversed'>`
+- `trimbleRecordingSegmentOverrides: Record<recordingSessionId, Record<segmentId, 'force_pending' | 'force_captured' | 'force_no_capturable'>>`
 
-### 3. `useTrimbleGpsLog` ajustado
+Acciones:
 
-- `phase = state.activeTrimbleRecordingId ? 'capture' : 'transport'` — independiente de `findActiveCapture`.
-- Cada punto añade `recordingSessionId` y `matchedSegmentId` (calculado con `findCurrentSegmentFromGps`).
-- Mantener throttling 10 m, `missionId`, `runId`, etc.
+- `setTrimbleOperationalSelected(id|null)`
+- `toggleTrimbleSegmentDirection(segmentId)`
+- `setTrimbleRecordingSegmentOverride(recordingSessionId, segmentId, override|null)`
+- `voidTrimbleCapturesForSegment(segmentId, reason)` — **scope estricto**: solo anula capturas cuyo `runId === activeRunId` y, si `activeTrimbleRecordingId != null`, también `recordingSessionId === activeTrimbleRecordingId`. Nunca toca capturas de runs anteriores ni capturas con `qaStatus`.
+- `markTrimbleSegmentNoCapturable(segmentId)` — funciona con o sin grabación activa, siempre que haya misión y pasada activas. Si no hay misión/pasada → error claro al usuario.
+- `markTrimbleSegmentManuallyCaptured(segmentId)` — misma regla de prerequisitos.
 
-### 4. Detección de tramo actual por GPS
+## 2. "Volver a pendiente" (incluye grabación activa)
 
-- Nuevo `src/utils/trimble/gps-segment-matcher.ts` con `findCurrentSegmentFromGps(position, segments, { maxDistanceMeters = 25 })` → `{ segmentId, distanceMeters, progress }`.
-- Proyección punto-a-polilínea usando `haversineMeters` + interpolación segmentaria.
-- Desempate: priorizar tramo que esté en la cola Trimble actual.
+- Aplica `trimbleRecordingSegmentOverrides[sessionId][segmentId] = 'force_pending'` si hay sesión activa.
+- Si existe captura `gps_auto` ya generada (caso intermedio), voidea esa captura **además** de aplicar el override.
+- Sin grabación activa: voidea capturas activas del tramo en el run actual (regla §1).
+- Efecto inmediato: el tramo deja de verse como `live_covered`/`live_partial`/`live_current`. La capa live consulta los overrides en cada render.
+- Evento: `TRIMBLE_SEGMENT_RESET_TO_PENDING` con `voidedCaptureIds`, `recordingSessionId` si aplica.
 
-### 5. Motor de cobertura GPS
+## 3. "No grabable" durante grabación activa
 
-- Nuevo `src/utils/trimble/gps-coverage.ts` con `analyzeTrimbleGpsCoverage(points, segments, options)`.
-- Para cada tramo:
-  - proyectar puntos, filtrar por `maxDistanceMeters` (25 m).
-  - convertir a `progress ∈ [0,1]`.
-  - construir intervalos cubiertos con buffer ~12 m, fusionarlos.
-  - `coverageRatio = longitudCubierta / longitudTotal`.
-- Aceptación (todas): `matchedPoints ≥ 3`, `startProgress ≤ 0.15`, `endProgress ≥ 0.85`, `coverageRatio ≥ 0.70`, dirección creciente, sin huecos > 30 %.
-- No tocar estados terminales (`procesado_ok`, `descartado_por_calidad`, `no_capturable`).
-- Devuelve `{ captured: [...], partial: [...] }`.
+- Aplica `force_no_capturable`. Visualmente el tramo pasa a `no_capturable` de inmediato.
+- Voidea capturas activas del tramo en la run actual (regla §1).
+- Crea/actualiza `SegmentCapture` `no_capturable` (`captureSource='operator_override'`, fallback `'manual'` con `fieldNotes` explícito — ver §6).
+- `closeTrimbleRecording` no creará `gps_auto` para él (ver §4).
 
-### 6. `SegmentCapture` extendido
+## 4. `closeTrimbleRecording()` respeta overrides
 
-- Campos opcionales: `captureSource?: 'manual' | 'gps_auto'`, `recordingSessionId?`, `coverageRatio?`, `matchedPoints?`.
-- `fieldNotes` por defecto `'Auto-detectado por cobertura GPS Trimble'` para auto.
+Antes de generar `gps_auto`, filtra `coverage.captured` por overrides de la sesión:
 
-### 7. Eventos nuevos en `EVENT_TYPES`
+- `force_pending` → no crear gps_auto.
+- `force_no_capturable` → no crear gps_auto; asegurar captura `no_capturable` activa (si no existe).
+- `force_captured` → forzar captura `capturado_pendiente_proceso` aunque la cobertura no llegue al umbral.
+Antes de cualquier creación, voidear las `gps_auto` activas previas del mismo `(segmentId, runId, recordingSessionId)` para evitar duplicados (ver §11).
 
-- `TRIMBLE_RECORDING_STARTED`, `TRIMBLE_RECORDING_CLOSED`, `TRIMBLE_SEGMENT_AUTO_CAPTURED`, `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`, `TRIMBLE_CURRENT_SEGMENT_DETECTED`.
-- Alinear `eventTypeEnum` Zod (deriva del array).
+## 5. Prioridad de decisión (`deriveTrimbleSegmentStatus`)
 
-### 8. UI `TrimbleNavigationPanel`
+Estricta de mayor a menor:
 
-- Botones principales: **Iniciar grabación** / **Cerrar grabación**.
-- Mostrar:
-  - Grabación activa sí/no.
-  - Puntos GPS capturados de la sesión.
-  - Tramo detectado por GPS + progreso + distancia al eje.
-  - Resumen al cerrar (`auto-capturados`, `parciales`, `puntos analizados`).
-- Mantener acciones manuales (`Repetir`, `No capturable`) como modo emergencia.
-
-### 9. Incidencias asociadas al tramo detectado
-
-- Diálogo de incidencia Trimble: por defecto `segmentId = detectedTrimbleSegmentId` (no `queue[0]`).
-- Si no hay detección → permitir incidencia general de pasada.
-- Mostrar al operador qué tramo se asociará antes de guardar.
-
-### 10. Recalculo de cola tras cerrar
-
-- Tras `closeTrimbleRecording`: tramos auto-capturados salen de `fullQueue`.
-- Parciales y `repetir` permanecen.
-- Si `driverBatch` cambia → autoenvío con `reason = 'auto_captured'` (nuevo) o reusar `order_changed`.
-
-### 11. Excel / gabinete
-
-- En `excel-export-v2.ts` (hoja Trimble) y `gabinete`: añadir columnas `ORIGEN_CAPTURA`, `coverageRatio`, `matchedPoints`, `recordingSessionId`. Nulos para capturas manuales antiguas.
-
-### 12. Tests
-
-- `trimble-gps-coverage.test.ts` — los 7 casos del brief (recto, sólo 0–60, sólo 30–100, hueco grande, inverso, dos consecutivos, fuera de eje).
-- `trimble-recording-session.test.ts` — start/close, validaciones, integración con `useTrimbleGpsLog`.
-- `trimble-current-segment-detection.test.ts` — cerca, lejos, asociación de incidencia.
-- `trimble-auto-capture-integration.test.tsx` — flujo completo con GPS sintético y verificación de cola y autoenvío al conductor.
-
-### 13. Verificación final
-
-- `npx tsc --noEmit`.
-- Tests Trimble + legacy import/export + Excel.
-
-## Detalles técnicos clave
-
-### Algoritmo proyección a polilínea
-
-```text
-para cada subsegmento [A,B] de la polilínea:
-  t = clamp( ((P-A)·(B-A)) / |B-A|² , 0, 1 )
-  Q = A + t·(B-A)
-  d = haversine(P, Q)
-quedarse con la mínima d → Q*, con
-  progress = (longitudAcumuladaHasta(A*) + t*·|A*B*|) / longitudTotal
+```
+1. QA gabinete (qaStatus != null en última cerrada NO voided)
+2. no_capturable manual activo (no voided)
+3. force_pending (override sesión activa)
+4. force_captured (override sesión activa)
+5. gps_auto activa (no voided)
+6. Otras capturas de campo activas (no voided)
+7. pendiente
 ```
 
-### Cobertura
+## 6. Tipo `SegmentCapture` (`src/types/trimble.ts`)
 
-```text
-matched = puntos con d ≤ maxDistanceMeters (25)
-progresos = ordenados ascendentes
-intervalos = [(p - bufferRel), (p + bufferRel)] con buffer ~12 m → ratio sobre longitud
-fusionar solapados → suma de longitudes / longitudTotal = coverageRatio
-detectar hueco interior: gap > 0.30 entre intervalos consecutivos → reason = 'gap_too_large'
-direccion: regresión simple sobre (timestamp, progress); pendiente <= 0 → 'reverse_direction'
-```
+Añadir:
 
-### Migración compatibilidad
+- `voidedAt?: string | null`
+- `voidedReason?: string | null`
+- `voidedBy?: 'operator' | 'gabinete' | null`
+- Ampliar `captureSource` a `'manual' | 'gps_auto' | 'operator_override'`. Si introducir el nuevo literal complica ramas downstream (Excel, gabinete, schema), fallback: usar `'manual'` con `fieldNotes` exactamente "Marcado manualmente por operador desde overlay Trimble". El plan privilegia `'operator_override'` cuando viable.
 
-- Si campañas antiguas no traen `trimbleRecordingSessions` ni `activeTrimbleRecordingId`, Zod aplica defaults — no se rompe nada.
-- `SegmentCapture` antiguos sin `captureSource` se interpretan como `'manual'` por defecto en lectura.
+## 7. Schema Zod (`campaign-schema.ts`)
 
-## Archivos previstos
+- `trimbleCaptureSchema`: añadir `voidedAt/voidedReason/voidedBy` opcionales y ampliar `captureSource` enum si se adopta `'operator_override'`.
+- `appStateSchema` con `.default()` para no romper campañas previas:
+  - `trimbleOperationalSelectedSegmentId` (default `null`)
+  - `trimbleSegmentDirectionOverrides` (default `{}`)
+  - `trimbleRecordingSegmentOverrides` (default `{}`)
+
+## 8. Componente nuevo: `TrimbleSelectedSegmentOverlay.tsx`
+
+- Posición: `absolute top-2 left-2 z-30`, ancho compacto, scroll interno.
+- Visible si:
+  - `acquisitionMode === 'TRIMBLE_LIDAR'`
+  - `trimbleOperationalSelectedSegmentId !== null`
+  - **NO** modos: edición / merge / creación manual / multiselección (guard explícito).
+- Funciona para **cualquier tramo cargado/visible** en modo Trimble, no solo los de la cola.
+- Contenido: nombre, companySegmentId, estado derivado, % cobertura live, puntos GPS, distancia/progreso, badge gps_auto/manual/operator_override, aviso paralelo cercano, sentido operativo actual.
+- Botones: **Mandar a conductor**, **No grabable**, **Volver a pendiente**, **Capturado pdte. proceso**, **Invertir sentido**, **Deseleccionar**. Si no hay copiloto activo, "Mandar a conductor" muestra CTA de activación (no falla en silencio).
+
+## 9. MapPage / GoogleMapDisplay / MapDisplay
+
+- Click en polilínea en modo Trimble → `setTrimbleOperationalSelected(id)`. **No** pisa selección de edición/multi.
+- Halo/borde para el seleccionado (segunda polilínea o `strokeWeight` extra). **El color base no cambia**: sigue siendo live/status/base. Halo = solo marcador de selección operativa.
+
+## 10. Detección de "paralelo cercano"
+
+Helper en `parallel-coverage.ts` (o `live-coverage.ts`): para el seleccionado, marca `hasNearbyParallelCoverage` si otro tramo con `live_covered`/`live_partial` tiene geometría a ≲ ~30 m promedio. Consumido por el overlay.
+
+## 11. Anti‑duplicados
+
+Para `(segmentId, runId, recordingSessionId)` no más de **una** captura activa (no voided). Helpers de creación/actualización:
+
+- Si el operador corrige una `gps_auto`, primero **voidear** la `gps_auto` y después crear/actualizar la manual/operator_override.
+- Tests cubren la unicidad.
+
+## 12. Filtrado de voided en lógica derivada
+
+Filtrar `voidedAt != null` en:
+
+- `deriveTrimbleSegmentStatus`
+- `buildTrimbleSegmentSummary`
+- `buildTrimbleRecordingQueue`
+- consumidores de `analyzeTrimbleGpsCoverage`
+- `closeTrimbleRecording`
+- contadores y vistas de **gabinete** (estado activo).
+- exportadores Excel/KML (estado activo).
+
+En **detalle técnico/export** (Excel hoja de capturas, ficha gabinete del tramo) las voided sí aparecen con columnas/campos `VOIDED_AT`, `VOIDED_REASON`, `VOIDED_BY` para trazabilidad.
+
+## 13. Copiloto: envío individual + sentido + activación + fallo
+
+- `sendSingleSegmentToCopilot(segment)`:
+  - Calcula `effectiveStart`/`effectiveEnd` según `trimbleSegmentDirectionOverrides[segmentId]`. Si `reversed`: INICIO = último punto geométrico, FIN = primer punto. **Nunca** modifica `coordinates` ni KML.
+  - Construye queue de **2 puntos** (`INICIO · {name}`, `FIN · {name}`) y `batchUrl` Google Maps con esos dos puntos.
+  - Llama `onCopilotPushQueue`. Si éxito → evento `TRIMBLE_COPILOT_SINGLE_SEGMENT_SENT`.
+  - Si error/red caída/sin sesión copiloto activa → **no** marcar como enviado, evento `TRIMBLE_COPILOT_SINGLE_SEGMENT_SEND_FAILED` con `error`, mostrar toast con CTA reintentar.
+- Sin sesión de copiloto activa: el botón ofrece activarla (patrón existente). Tras activar, reintenta.
+
+## 14. Override de sentido (no destructivo)
+
+- `toggleTrimbleSegmentDirection(segmentId)` alterna `'normal'`/`'reversed'`.
+- No modifica `segment.coordinates` ni geometría KML.
+- Afecta sólo a: orden INICIO/FIN al copiloto, etiqueta INICIO/FIN del overlay, navegación operativa Trimble. Reversible.
+
+## 15. Desactivar autoenvío de lote en Trimble (de verdad)
+
+En `TrimbleNavigationPanel` y todo punto de auto‑push:
+
+- Si `acquisitionMode === 'TRIMBLE_LIDAR'`:
+  - **No ejecutar** auto‑push para reasons: `two_completed`, `auto_captured`, `order_changed`, `layer_changed`, `optimized`.
+  - **No mostrar** CTA principal "Actualizar conductor · 4 tramos".
+  - Único flujo principal de copiloto = "Mandar a conductor" del overlay.
+  - Envío de lote queda como modo avanzado opcional (manual), nunca automático.
+- RST/Garmin: comportamiento intacto.
+
+## 16. Event Log (`persistence/types.ts` `EVENT_TYPES` + Zod enum)
 
 Nuevos:
 
-- `src/utils/trimble/gps-segment-matcher.ts`
-- `src/utils/trimble/gps-coverage.ts`
-- `src/test/trimble-gps-coverage.test.ts`
-- `src/test/trimble-recording-session.test.ts`
-- `src/test/trimble-current-segment-detection.test.ts`
-- `src/test/trimble-auto-capture-integration.test.tsx`
+- `TRIMBLE_COPILOT_SINGLE_SEGMENT_SENT`
+- `TRIMBLE_COPILOT_SINGLE_SEGMENT_SEND_FAILED`
+- `TRIMBLE_SEGMENT_MANUAL_NO_CAPTURABLE`
+- `TRIMBLE_SEGMENT_RESET_TO_PENDING`
+- `TRIMBLE_SEGMENT_MANUAL_CAPTURED`
+- `TRIMBLE_SEGMENT_DIRECTION_OVERRIDE_SET`
+- `TRIMBLE_SEGMENT_OPERATIONAL_SELECTED`
+- `TRIMBLE_SEGMENT_OPERATIONAL_DESELECTED`
+- `TRIMBLE_SEGMENT_CAPTURE_VOIDED`
 
-Editados:
+## 17. Tests
 
-- `src/types/trimble.ts` (TrimbleRecordingSession, SegmentCapture extendido, TrimbleGpsPoint extendido)
-- `src/types/route.ts` (AppState)
-- `src/utils/storage.ts` (defaults)
-- `src/utils/persistence/campaign-schema.ts` (Zod)
-- `src/utils/persistence/types.ts` (EVENT_TYPES)
-- `src/hooks/useRouteState.ts` (start/closeTrimbleRecording)
-- `src/context/RouteStateContext.tsx` (exposición)
-- `src/hooks/useTrimbleGpsLog.ts` (phase + recordingSessionId + matchedSegmentId)
-- `src/components/map-control/TrimbleNavigationPanel.tsx` (botones, panel detección, autoenvío post-cierre)
-- `src/components/IncidentDialog.tsx` o equivalente Trimble (asociación a tramo detectado)
-- `src/utils/excel-export-v2.ts` (columnas nuevas)
+Mantener:
 
-## Fuera de alcance (esta iteración)
+- `trimble-selected-segment-overlay.test.tsx`
+- `trimble-copilot-single-segment.test.tsx`
+- `trimble-manual-status-actions.test.ts`
+- `trimble-parallel-false-positive.test.ts`
+- `trimble-direction-override.test.ts`
+- `trimble-rst-garmin-regression.test.tsx`
 
-- Soporte explícito de dirección inversa como captura válida.
-- Reproducción visual de la traza GPS sobre el mapa (puede venir después).
-- Edición manual de cobertura tramo por tramo desde gabinete.
+Añadir:
 
-## El plan está bien orientado y ya ataca el problema correcto: **Trimble debe ser grabación continua + auto-captura por cobertura GPS**, no captura manual tramo a tramo.
+- `trimble-active-recording-overrides.test.ts` — overrides aplican durante grabación; `closeTrimbleRecording` los respeta; prioridad QA > no_capturable > force_pending > force_captured > gps_auto.
+- `trimble-disable-driver-batch-in-trimble.test.tsx` — en Trimble no se ejecuta auto‑push por las 5 reasons; RST/Garmin sí.
+- `trimble-selected-overlay-edit-mode-guard.test.tsx` — overlay no aparece en edición/merge/creación manual/multiselección.
+- `trimble-force-pending-clears-live.test.ts` — `force_pending` durante grabación activa quita color live (`live_covered`/`live_partial`/`live_current`) en el render inmediato.
+- `trimble-force-no-capturable-blocks-gps-auto.test.ts` — `force_no_capturable` se ve inmediatamente como no_capturable y al cerrar no se crea gps_auto; capturas previas quedan voided.
+- `trimble-single-segment-reversed-effective-endpoints.test.ts` — envío individual con `reversed` usa final→inicio geométrico y no modifica `coordinates`.
+- `trimble-overlay-opens-for-any-loaded-segment.test.tsx` — overlay se abre para un tramo visible aunque no esté en `fullQueue`.
+- `trimble-voided-captures-traceability.test.ts` — voided no cuentan como estado activo en gabinete/export, pero aparecen en detalle técnico con `VOIDED_AT`/`VOIDED_REASON`/`VOIDED_BY`.
+- `trimble-single-segment-send-failure.test.tsx` — fallo de envío registra `TRIMBLE_COPILOT_SINGLE_SEGMENT_SEND_FAILED`, no marca como enviado, permite reintento.
 
-Yo lo aprobaría **con ajustes obligatorios** antes de que Lovable lo implemente. El punto más importante: ahora `useTrimbleGpsLog` ya guarda GPS cada ≥10 m, pero todavía decide `phase='capture'` según `findActiveCapture` y mete `segmentId` desde la captura activa manual . Eso confirma que el cambio propuesto es necesario.
+## 18. Compatibilidad import/export
 
-## Añadir al plan antes de aprobar
+- Schema con `.default()` para los tres campos nuevos en `AppState`.
+- Capturas antiguas sin `voidedAt` → activas por defecto.
+- Campañas RST/Garmin antiguas cargan sin tocar Trimble.
 
-### 1. No eliminar todavía la captura manual
+## No se toca
 
-No quites del todo `startTrimbleCapture/closeTrimbleCapture`. Déjalo como **modo emergencia / corrección manual**.
+RST/Garmin, selección de edición/multi, gabinete (solo se añade visualización de voided en detalle), geometría KML original, motor de cobertura GPS (solo añade filtro voided + helper paralelo + respeto de overrides), capturas `gps_auto` históricas, reglas QA.
 
-Añade:
+## Criterios de aceptación
 
-```text
-La captura manual por tramo no se elimina. Queda disponible como modo emergencia desde vista avanzada o gabinete, pero el flujo principal de campo será `Iniciar grabación` / `Cerrar grabación`.
+1. En Trimble el operador puede seleccionar cualquier tramo visible/cargado en el mapa.
+2. Aparece overlay arriba‑izquierda con info y acciones.
+3. "Mandar a conductor" envía solo INICIO/FIN del seleccionado (2 puntos), no lote de 4.
+4. Si no hay copiloto activo, el botón ofrece activarlo en lugar de fallar.
+5. Si el envío individual falla, queda registrado `TRIMBLE_COPILOT_SINGLE_SEGMENT_SEND_FAILED`, no se marca como enviado y el operador puede reintentar.
+6. En Trimble no se ejecuta ningún auto‑push de lote por las reasons listadas.
+7. "Volver a pendiente" durante grabación activa: aplica `force_pending`; el color live desaparece de inmediato; al cerrar no se crea `gps_auto` para ese tramo aunque la cobertura supere umbral.
+8. "Volver a pendiente" sobre un tramo con `gps_auto` ya creada voidea esa captura sin tocar QA.
+9. "No grabable" durante grabación activa: el tramo se ve inmediatamente como no_capturable y al cerrar no se crea `gps_auto`.
+10. "No grabable" y "Capturado pdte. proceso" funcionan con o sin grabación activa siempre que haya misión y pasada activas; sin ellas, error claro.
+11. `voidTrimbleCapturesForSegment` solo anula capturas del run/sesión activos; nunca runs anteriores ni QA.
+12. Sin duplicados activos para `(segmentId, runId, recordingSessionId)`.
+13. "Invertir sentido" cambia el orden enviado al conductor (INICIO=fin geométrico) y la visualización INICIO/FIN; **no** modifica geometría KML; reversible.
+14. Halo de selección visible; color de cobertura/estado/base intacto.
+15. Overlay nunca aparece en modos edición/merge/creación manual/multiselección.
+16. Capturas voided no cuentan como estado activo en gabinete/export, pero aparecen en detalle técnico con `VOIDED_AT`/`VOIDED_REASON`/`VOIDED_BY`.
+17. Eventos quedan en Event Log.
+18. Campañas antiguas siguen cargando.
+19. RST y Garmin no cambian.
+20. Caso clave de paralelos: durante grabación activa, motor marca tramo paralelo cubierto, operador pulsa "Volver a pendiente"; al cerrar la grabación ese tramo sigue pendiente y no se crea `gps_auto` para él.
+21. `bun test` (Trimble + import/export + RST/Garmin) y `tsc --noEmit` limpios.
 
-```
+## Ejecuta este plan. No quiero otro plan ni una reformulación. Quiero implementación completa sobre el código.
 
-Motivo: si el GPS falla, si hay mala cobertura urbana o si el operador necesita forzar un tramo, no debemos dejarlo sin herramienta.
+Condiciones obligatorias:
 
----
+1. Implementa todos los puntos del plan en una sola entrega funcional.
 
-### 2. La grabación debe ser por `runId`, pero el análisis por `recordingSessionId`
+2. Si detectas que algún nombre exacto de archivo, tipo, función o prop no coincide con el código real, adapta la implementación al código existente manteniendo el objetivo funcional.
 
-El plan lo dice, pero hay que hacerlo explícito:
+3. No rompas RST ni Garmin. Todo lo nuevo debe estar protegido por `acquisitionMode === 'TRIMBLE_LIDAR'`.
 
-```text
-`trimbleGpsLogsByRun[runId]` sigue siendo el contenedor físico de puntos GPS.
-`recordingSessionId` se usa para filtrar qué puntos pertenecen a una grabación concreta.
-No crear `trimbleGpsLogsByRecordingSession` en esta fase.
+4. No cambies geometría KML ni `segment.coordinates` al invertir sentido. El override solo afecta al envío operativo INICIO/FIN al conductor y a la UI Trimble.
 
-```
+5. No vuelvas a implementar autoenvío de lotes de 4 en Trimble. En modo Trimble el flujo principal de copiloto es exclusivamente por tramo seleccionado desde el overlay.
 
-Así evitamos duplicar almacenamiento.
+6. El overlay operativo Trimble debe ser selección operativa independiente de edición/multiselección. No debe pisar `selectedSegmentIds` ni lógica de edición existente.
 
----
+7. El overlay debe abrirse al hacer click en cualquier tramo visible/cargado del mapa en modo Trimble, aunque ese tramo no esté en la cola pendiente.
 
-### 3. Añadir `currentMatchedSegment` como derivado, no necesariamente persistido
+8. El botón “Mandar a conductor” debe enviar solo dos paradas: INICIO y FIN del tramo seleccionado. Si el sentido está invertido, INICIO debe ser el final geométrico y FIN el inicio geométrico.
 
-No hace falta guardar en `AppState` cada vez el tramo actual detectado; puede derivarse desde GPS + cola en UI.
+9. Si no hay sesión copiloto activa, el botón debe ofrecer activar copiloto y después enviar el tramo; no debe fallar en silencio.
 
-Añade:
+10. Las capturas `voidedAt != null` no cuentan como estado activo en ningún cálculo, pero sí deben conservarse para trazabilidad.
 
-```text
-`detectedTrimbleSegmentId`, distancia y progreso pueden ser estado local/memoizado en `TrimbleNavigationPanel`, no necesariamente persistidos en `AppState`.
-Solo se persiste en eventos o incidencias cuando el operador registra algo.
+11. QA de gabinete nunca se modifica ni se voidea desde campo.
 
-```
+12. “Volver a pendiente” durante grabación activa debe tener efecto visual inmediato: el tramo no puede seguir pintándose como cubierto en vivo.
 
-Esto reduce riesgo de estado ruidoso.
+13. “No grabable” durante grabación activa debe tener efecto visual inmediato y bloquear la creación de `gps_auto` al cerrar.
 
----
+14. “Capturado pdte. proceso” debe permitir corrección manual/operator override sin duplicar capturas activas.
 
-### 4. Añadir control de precisión GPS
+15. Debe existir como máximo una captura activa no voided por `(segmentId, runId, recordingSessionId)`.
 
-Muy importante. Si el GPS del dispositivo tiene mala precisión, puede marcar tramos falsos.
+16. Las campañas antiguas deben seguir cargando: añade defaults Zod y defaults de estado para todos los campos nuevos.
 
-Añade:
+17. Añade los eventos nuevos al `EVENT_TYPES` y asegúrate de que el enum Zod queda alineado.
 
-```text
-No usar puntos GPS con `accuracy > 25 m` para auto-captura, salvo que no haya accuracy disponible. 
-Si accuracy > 25 m, guardar el punto, pero marcarlo como baja precisión y excluirlo del análisis de cobertura.
+18. Añade todos los tests indicados en el plan, incluidos los de guard de edición, envío individual, sentido invertido, force_pending, force_no_capturable, voided y no regresión RST/Garmin.
 
-```
+19. Ejecuta verificación final:
 
-O mejor:
+   - `npx tsc --noEmit`
 
-```ts
-maxAllowedAccuracyMeters: 25
+   - tests Trimble
 
-```
+   - tests import/export legacy
 
-En `analyzeTrimbleGpsCoverage`.
+   - tests Excel en aislamiento
 
----
+   - tests RST/Garmin afectados
 
-### 5. No auto-capturar tramos con geometría insuficiente
+20. Si aparece un fallo por timeout flaky conocido de Excel, vuelve a ejecutar ese test en aislamiento y repórtalo claramente. No lo confundas con fallo funcional de Trimble.
 
-Añade:
+Entrega esperada:
 
-```text
-Excluir de análisis automático segmentos con menos de 2 coordenadas o longitud inferior a un umbral mínimo configurable, por ejemplo 20 m.
-Registrar finding parcial `invalid_geometry` o `too_short`.
+- Lista de archivos creados/editados.
 
-```
+- Resumen corto de comportamiento implementado.
 
----
+- Resultado de typecheck.
 
-### 6. Direccionalidad: cuidado con ida/vuelta
+- Resultado de tests.
 
-Tu plan dice que recorrido al revés no cuenta. Correcto para primera fase.
+- Confirmación explícita de que:
 
-Pero añade:
+  - RST/Garmin no cambian.
 
-```text
-Si el tramo tiene `direction` o metadato que permita sentido inverso, en esta fase NO se interpreta automáticamente. Todo recorrido inverso queda como parcial `reverse_direction`.
+  - Trimble ya no autoenvía lotes de 4.
 
-```
+  - El overlay manda solo el tramo seleccionado.
 
-Así no se inventa lógica.
+  - “Volver a pendiente” bloquea gps_auto al cerrar grabación.
 
----
+  - Invertir sentido no modifica la geometría.
 
-### 7. No modificar tramos con incidencia no grabable
-
-Añade:
-
-```text
-Si un tramo ya fue marcado `no_capturable` o tiene incidencia bloqueante asociada, no debe auto-capturarse aunque el GPS pase por encima.
-
-```
-
-Esto respeta operación real: pasar por un tramo cortado o no grabable no significa que sea válido.
-
----
-
-### 8. Guardar parciales de forma consultable
-
-El plan menciona evento `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`, pero en gabinete luego será difícil explotar solo eventos.
-
-Añade una de estas dos opciones:
-
-Opción ligera:
-
-```text
-En fase 1, los parciales se guardan como eventos append-only y se muestran en gabinete desde Event Log.
-
-```
-
-Opción mejor:
-
-```text
-Añadir colección `trimbleCoverageFindings` en AppState para parciales/no contados.
-
-```
-
-Mi recomendación: **opción ligera ahora**, porque ya llevamos muchas migraciones.
-
----
-
-### 9. Autoenvío conductor: añadir reason específico
-
-Tu plan dice `auto_captured` nuevo o reusar `order_changed`. Mejor específico.
-
-Añade:
-
-```text
-Añadir reason `auto_captured` a `TrimbleDriverSendReason`.
-Después de cerrar grabación, si el driverBatch cambia por capturas GPS automáticas, autoenviar con reason `auto_captured`.
-
-```
-
----
-
-### 10. Hacer primero motor puro, luego UI
-
-Pediría orden de implementación estricto:
-
-```text
-Orden obligatorio:
-1. Tipos + Zod + defaults.
-2. Utilidades puras `gps-segment-matcher` y `gps-coverage`.
-3. Tests de cobertura GPS.
-4. Acciones start/close recording.
-5. Ajuste `useTrimbleGpsLog`.
-6. UI.
-7. Excel/gabinete.
-
-```
-
-No dejaría que empiece por UI, porque aquí el riesgo está en el algoritmo.
-
-## Texto que añadiría al plan
-
-```text
-Añadidos obligatorios antes de implementar:
-
-1. Mantener captura manual por tramo como modo emergencia. El flujo principal será grabación continua, pero `startTrimbleCapture/closeTrimbleCapture` no se eliminan.
-
-2. `trimbleGpsLogsByRun[runId]` sigue siendo el almacén físico. `recordingSessionId` solo etiqueta los puntos de una grabación concreta.
-
-3. El tramo detectado por GPS puede ser derivado en UI; no persistir continuamente en AppState salvo en eventos/incidencias.
-
-4. Añadir control de precisión GPS:
-   - Guardar puntos aunque tengan accuracy alta.
-   - Excluir del análisis automático puntos con `accuracy > 25 m`, salvo `accuracy == null`.
-   - Reportar cuántos puntos fueron descartados por baja precisión.
-
-5. Excluir segmentos con geometría insuficiente:
-   - menos de 2 coordenadas;
-   - longitud menor que umbral mínimo, por ejemplo 20 m.
-   - registrar parcial/finding `invalid_geometry` o `too_short`.
-
-6. No auto-capturar tramos ya terminales:
-   - `capturado_pendiente_proceso`;
-   - `procesado_ok`;
-   - `descartado_por_calidad`;
-   - `no_capturable`.
-   Tampoco auto-capturar tramos con incidencia bloqueante/no grabable.
-
-7. Recorrido inverso no se acepta en esta fase. Debe quedar como parcial con reason `reverse_direction`.
-
-8. Añadir reason específico de autoenvío:
-   - `auto_captured`
-   Después de cerrar grabación, si se generan capturas automáticas y cambia el `driverBatch`, autoenviar lote conductor con reason `auto_captured`.
-
-9. Parciales:
-   - En esta fase pueden guardarse como eventos `TRIMBLE_SEGMENT_PARTIAL_COVERAGE`.
-   - Deben ser visibles en resumen de cierre y posteriormente en gabinete o Event Log.
-
-10. Orden de implementación obligatorio:
-   - tipos/defaults/Zod;
-   - utilidades puras GPS;
-   - tests de cobertura;
-   - acciones start/close recording;
-   - ajuste de `useTrimbleGpsLog`;
-   - UI;
-   - Excel/gabinete.
-
-11. Añadir tests adicionales:
-   - puntos con accuracy > 25 m no cuentan para cobertura;
-   - tramo con geometría insuficiente no se auto-captura;
-   - tramo con estado `no_capturable` no se auto-captura aunque el GPS lo recorra;
-   - autoenvío post-cierre usa reason `auto_captured`.
-
-```
-
-## Veredicto
-
-**Aprobaría el plan solo con esos añadidos.**  
-La arquitectura es correcta, pero sin control de precisión GPS y sin protección de estados/incidencias, puede marcar falsos “grabados” en ciudad.
+  - Campañas antiguas siguen cargando.
