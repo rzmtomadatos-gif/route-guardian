@@ -1268,14 +1268,18 @@ async function buildWorkbook(ctx: ExportContext, rstMode: boolean) {
 
     // 14_TRIMBLE_CAPTURAS
     const tc = wb.addWorksheet('14_TRIMBLE_CAPTURAS', { views: [{ showGridLines: false }] });
-    setHeaders(tc, ['ID', 'TRAMO', 'PASADA', 'MISION', 'INICIO', 'FIN', 'ESTADO_CAMPO', 'QA', 'QA_REVISADO_POR', 'QA_FECHA', 'NOTAS_CAMPO', 'NOTAS_QA'],
-      [22, 28, 22, 22, 18, 18, 22, 22, 18, 18, 30, 30]);
+    setHeaders(tc, ['ID', 'TRAMO', 'PASADA', 'MISION', 'INICIO', 'FIN', 'ESTADO_CAMPO', 'QA', 'QA_REVISADO_POR', 'QA_FECHA', 'NOTAS_CAMPO', 'NOTAS_QA', 'CAPTURE_SOURCE', 'VOIDED_AT', 'VOIDED_REASON', 'VOIDED_BY'],
+      [22, 28, 22, 22, 18, 18, 22, 22, 18, 18, 30, 30, 18, 18, 26, 14]);
     tr.captures.forEach((c, i) => {
       tc.getRow(i + 2).values = [
         c.id, segNameById.get(c.segmentId) ?? c.segmentId, c.runId, c.missionId,
         fmtDate(c.startedAt), fmtDate(c.endedAt),
         c.fieldStatus, safe(c.qaStatus), safe(c.qaReviewedBy), fmtDate(c.qaReviewedAt),
         safe(c.fieldNotes), safe(c.qaNotes),
+        safe((c as { captureSource?: string }).captureSource),
+        fmtDate((c as { voidedAt?: string | null }).voidedAt ?? null),
+        safe((c as { voidedReason?: string | null }).voidedReason),
+        safe((c as { voidedBy?: string | null }).voidedBy),
       ];
     });
 
