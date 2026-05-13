@@ -75,6 +75,9 @@ const DEFAULT_STATE: AppState = {
   activeRunId: null,
   trimbleRecordingSessions: [],
   activeTrimbleRecordingId: null,
+    trimbleOperationalSelectedSegmentId: null,
+    trimbleSegmentDirectionOverrides: {},
+    trimbleRecordingSegmentOverrides: {},
 };
 
 /** Whether the persistence layer started in degraded (offline) mode */
