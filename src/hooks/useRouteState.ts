@@ -2423,6 +2423,196 @@ export function useRouteState() {
     },
     [setState],
   );
+  // ── Trimble Phase B: selección operativa, overrides y acciones manuales ──
+
+  /** Selecciona/deselecciona el tramo operativo Trimble (overlay arriba‑izq). */
+  const setTrimbleOperationalSelected = useCallback((segmentId: string | null) => {
+    let prevId: string | null = null;
+    setState((s) => {
+      if (s.acquisitionMode !== 'TRIMBLE_LIDAR') return s;
+      if (s.trimbleOperationalSelectedSegmentId === segmentId) return s;
+      prevId = s.trimbleOperationalSelectedSegmentId;
+      return { ...s, trimbleOperationalSelectedSegmentId: segmentId };
+    }, true);
+    if (segmentId) {
+      logEvent('TRIMBLE_SEGMENT_OPERATIONAL_SELECTED', { segmentId, payload: { previousSegmentId: prevId } });
+    } else if (prevId) {
+      logEvent('TRIMBLE_SEGMENT_OPERATIONAL_DESELECTED', { segmentId: prevId });
+    }
+  }, [setState]);
+
+  /** Override de sentido operativo (no toca geometría). null limpia el override. */
+  const setTrimbleSegmentDirectionOverride = useCallback(
+    (segmentId: string, direction: 'normal' | 'reversed' | null) => {
+      let applied: 'normal' | 'reversed' | null = null;
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') return s;
+        const cur = { ...(s.trimbleSegmentDirectionOverrides ?? {}) };
+        if (direction === null) {
+          if (!(segmentId in cur)) return s;
+          delete cur[segmentId];
+        } else {
+          if (cur[segmentId] === direction) return s;
+          cur[segmentId] = direction;
+        }
+        applied = direction;
+        return { ...s, trimbleSegmentDirectionOverrides: cur };
+      }, true);
+      logEvent('TRIMBLE_SEGMENT_DIRECTION_OVERRIDE_SET', {
+        segmentId,
+        payload: { direction: applied },
+      });
+    },
+    [setState],
+  );
+
+  /**
+   * Anula capturas de un segmento creadas en el run/sesión activos. Nunca
+   * toca capturas QA ni de pasadas anteriores. Devuelve cuántas anuló.
+   */
+  const voidTrimbleCapturesForSegment = useCallback(
+    (segmentId: string, reason: string, by: 'operator' | 'gabinete' = 'operator'): number => {
+      let count = 0;
+      const now = new Date().toISOString();
+      setState((s) => {
+        const activeRun = s.activeRunId;
+        const activeRec = s.activeTrimbleRecordingId;
+        if (!activeRun) return s;
+        const captures = (s.trimbleSegmentCaptures ?? []).map((c) => {
+          if (c.segmentId !== segmentId) return c;
+          if (c.voidedAt) return c;
+          if (c.qaStatus) return c; // QA solo desde gabinete vía otro flujo
+          if (c.runId !== activeRun) return c;
+          if (activeRec && c.recordingSessionId && c.recordingSessionId !== activeRec) return c;
+          count++;
+          return { ...c, voidedAt: now, voidedReason: reason, voidedBy: by };
+        });
+        if (count === 0) return s;
+        return { ...s, trimbleSegmentCaptures: captures };
+      }, true);
+      if (count > 0) {
+        logEvent('TRIMBLE_SEGMENT_CAPTURE_VOIDED', {
+          segmentId,
+          payload: { reason, voidedCount: count, by },
+        });
+      }
+      return count;
+    },
+    [setState],
+  );
+
+  /**
+   * Aplica un override de grabación a un tramo (force_pending / force_captured /
+   * force_no_capturable). Pasa null para limpiar. Si hay sesión activa y el
+   * override descarta gps_auto, anula también capturas existentes de esa sesión.
+   */
+  const setTrimbleRecordingSegmentOverride = useCallback(
+    (
+      segmentId: string,
+      override: 'force_pending' | 'force_captured' | 'force_no_capturable' | null,
+    ): { ok: boolean; reason?: string } => {
+      let outcome: { ok: boolean; reason?: string } = { ok: false };
+      let recId: string | null = null;
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') {
+          outcome = { ok: false, reason: 'Modo Trimble inactivo' };
+          return s;
+        }
+        const recordingId = s.activeTrimbleRecordingId;
+        if (!recordingId) {
+          outcome = { ok: false, reason: 'No hay grabación activa' };
+          return s;
+        }
+        recId = recordingId;
+        const all = { ...(s.trimbleRecordingSegmentOverrides ?? {}) };
+        const inner = { ...(all[recordingId] ?? {}) };
+        if (override === null) {
+          if (!(segmentId in inner)) {
+            outcome = { ok: true };
+            return s;
+          }
+          delete inner[segmentId];
+        } else {
+          inner[segmentId] = override;
+        }
+        if (Object.keys(inner).length === 0) delete all[recordingId];
+        else all[recordingId] = inner;
+        outcome = { ok: true };
+        return { ...s, trimbleRecordingSegmentOverrides: all };
+      }, true);
+      if (outcome.ok && recId) {
+        const eventType =
+          override === 'force_pending'
+            ? 'TRIMBLE_SEGMENT_RESET_TO_PENDING'
+            : override === 'force_no_capturable'
+            ? 'TRIMBLE_SEGMENT_MANUAL_NO_CAPTURABLE'
+            : override === 'force_captured'
+            ? 'TRIMBLE_SEGMENT_MANUAL_CAPTURED'
+            : 'TRIMBLE_SEGMENT_RESET_TO_PENDING';
+        logEvent(eventType, {
+          segmentId,
+          payload: { recordingSessionId: recId, override },
+        });
+        // Si descartamos del flujo capturado, anula capturas gps_auto de esta sesión
+        if (override === 'force_pending' || override === 'force_no_capturable') {
+          voidTrimbleCapturesForSegment(
+            segmentId,
+            override === 'force_pending' ? 'reset_to_pending_during_recording' : 'no_capturable_during_recording',
+            'operator',
+          );
+        }
+      }
+      return outcome;
+    },
+    [setState, voidTrimbleCapturesForSegment],
+  );
+
+  /**
+   * Marca un tramo como capturado manualmente (operator_override). Si no hay
+   * grabación activa, crea la captura asociada al run activo. Si hay grabación
+   * activa, además fija override force_captured para trazabilidad.
+   */
+  const markTrimbleSegmentManuallyCaptured = useCallback(
+    (segmentId: string, notes?: string): { ok: boolean; reason?: string; captureId?: string } => {
+      let outcome: { ok: boolean; reason?: string; captureId?: string } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') {
+          outcome = { ok: false, reason: 'Modo Trimble inactivo' };
+          return s;
+        }
+        if (!s.activeMissionId || !s.activeRunId) {
+          outcome = { ok: false, reason: 'Necesitas misión y pasada abiertas' };
+          return s;
+        }
+        const id = `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        const cap: SegmentCapture = {
+          id,
+          segmentId,
+          runId: s.activeRunId,
+          missionId: s.activeMissionId,
+          startedAt: now,
+          endedAt: now,
+          fieldStatus: 'capturado_pendiente_proceso',
+          fieldNotes: notes ?? 'Marcado manualmente como capturado por operador',
+          qaStatus: null,
+          captureSource: 'operator_override',
+          recordingSessionId: s.activeTrimbleRecordingId ?? null,
+        };
+        outcome = { ok: true, captureId: id };
+        return { ...s, trimbleSegmentCaptures: [...(s.trimbleSegmentCaptures ?? []), cap] };
+      }, true);
+      if (outcome.ok) {
+        logEvent('TRIMBLE_SEGMENT_MANUAL_CAPTURED', {
+          segmentId,
+          payload: { captureId: outcome.captureId, notes: notes ?? null },
+        });
+      }
+      return outcome;
+    },
+    [setState],
+  );
+
   const restoreState = useCallback((restored: AppState) => {
     // R3: Always start with navigation off — operator must re-enable explicitly
     const sanitized: AppState = {
