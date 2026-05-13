@@ -37,9 +37,8 @@ describe('Trimble — manual capture (operator_override)', () => {
 
   it('falla sin misión/pasada activas', () => {
     const { result } = setupTrimble();
-    let outcome: { ok: boolean } = { ok: true };
-    act(() => { outcome = result.current.markTrimbleSegmentManuallyCaptured('seg-X'); });
-    expect(outcome.ok).toBe(false);
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('seg-X'); });
+    expect(result.current.state.trimbleSegmentCaptures.length).toBe(0);
   });
 });
 
