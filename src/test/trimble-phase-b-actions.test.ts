@@ -66,10 +66,8 @@ describe('Trimble — recording override force_pending durante grabación activa
     act(() => { result.current.setTrimbleRecordingSegmentOverride('seg-PARA', 'force_pending'); });
     expect(result.current.state.trimbleRecordingSegmentOverrides[recId]?.['seg-PARA']).toBe('force_pending');
     const caps = result.current.state.trimbleSegmentCaptures.filter((c) => c.segmentId === 'seg-PARA');
-    // eslint-disable-next-line no-console
-    console.log('DEBUG caps', JSON.stringify(caps), 'activeRun=', result.current.state.activeRunId, 'activeRec=', result.current.state.activeTrimbleRecordingId);
     expect(caps.length).toBe(1);
-    expect(caps[0].voidedAt).not.toBeNull();
+    expect(caps[0].voidedAt).toBeTruthy();
     expect(isCaptureActive(caps[0])).toBe(false);
 
     // Cerrar grabación: no debe crear nueva captura para seg-PARA por gps_auto
