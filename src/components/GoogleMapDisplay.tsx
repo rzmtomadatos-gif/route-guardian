@@ -85,6 +85,9 @@ interface Props {
    *  Tiene prioridad visual sobre `trimbleStatusBySegment` y
    *  desaparece automáticamente al perder la sesión activa. */
   trimbleLiveCoverageBySegment?: Map<string, TrimbleLiveCoverageItem> | null;
+  /** ID del tramo operativamente seleccionado en modo Trimble. Pinta un
+   *  halo violeta debajo de la polilínea sin alterar el color base. */
+  trimbleOperationalSelectedSegmentId?: string | null;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -162,6 +165,7 @@ export function GoogleMapDisplay({
   mapRefreshRequest = 0,
   trimbleStatusBySegment = null,
   trimbleLiveCoverageBySegment = null,
+  trimbleOperationalSelectedSegmentId = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -354,8 +358,8 @@ export function GoogleMapDisplay({
   }, [trimbleLiveCoverageBySegment]);
 
   const segmentFingerprint = useMemo(
-    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}`,
-    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint],
+    () => `${mapRefreshRequest}|${buildSegmentFingerprint(segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds)}|T:${trimbleStatusFingerprint}|L:${trimbleLiveFingerprint}|OS:${trimbleOperationalSelectedSegmentId ?? ''}`,
+    [mapRefreshRequest, segments, activeSegmentId, optimizedOrder, selectedSegmentIds, arrowSegmentIds, trimbleStatusFingerprint, trimbleLiveFingerprint, trimbleOperationalSelectedSegmentId],
   );
 
   // Fingerprint that ONLY tracks the set of segment IDs (not status/colors).
@@ -462,12 +466,28 @@ export function GoogleMapDisplay({
         });
         const color = isSelected ? '#8b5cf6' : baseColor;
 
+        // Halo violeta para el tramo operativamente seleccionado en Trimble
+        // (se dibuja primero, debajo de la polilínea principal). No altera
+        // el color base ni el grosor de la principal.
+        if (trimbleOperationalSelectedSegmentId === seg.id) {
+          const halo = new google.maps.Polyline({
+            path,
+            strokeColor: '#a855f7',
+            strokeOpacity: 0.55,
+            strokeWeight: (isActive ? 6 : isSelected ? 5 : 3) + 6,
+            map,
+            zIndex: 1,
+          });
+          polylinesRef.current.push(halo);
+        }
+
         const polyline = new google.maps.Polyline({
           path,
           strokeColor: color,
           strokeWeight: isActive ? 6 : isSelected ? 5 : 3,
           strokeOpacity: isActive ? 1 : isSelected ? 0.95 : 0.7,
           map,
+          zIndex: 2,
         });
 
         if (onSegmentClick) {

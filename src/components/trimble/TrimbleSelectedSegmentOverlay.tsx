@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { useRouteStateContext } from '@/context/RouteStateContext';
 import { buildSingleSegmentSendPayload } from '@/utils/trimble/single-segment-send';
 import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
+import { hasNearbyParallelCoverage } from '@/utils/trimble/parallel-coverage';
 import { logEvent } from '@/utils/persistence/event-log';
 import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
@@ -65,6 +66,19 @@ export function TrimbleSelectedSegmentOverlay({
   const recOverride = recordingActive
     ? state.trimbleRecordingSegmentOverrides?.[state.activeTrimbleRecordingId!]?.[segId]
     : undefined;
+
+  const liveItems = useMemo(() => {
+    const captures = state.trimbleSegmentCaptures ?? [];
+    const runId = state.activeRunId;
+    if (!runId) return [] as Array<{ segmentId: string; state: string }>;
+    return captures
+      .filter((c) => c.runId === runId && c.voidedAt == null)
+      .map((c) => ({ segmentId: c.segmentId, state: 'live_covered' as const }));
+  }, [state.trimbleSegmentCaptures, state.activeRunId]);
+  const hasParallel = useMemo(
+    () => recordingActive && state.route ? hasNearbyParallelCoverage(segId, state.route.segments, liveItems) : false,
+    [recordingActive, state.route, segId, liveItems],
+  );
 
   const handleSend = async () => {
     if (!copilotActive || !copilotSession) {
@@ -163,6 +177,11 @@ export function TrimbleSelectedSegmentOverlay({
       {!copilotActive && (
         <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
           <AlertTriangle className="h-3 w-3" /> Copiloto inactivo
+        </div>
+      )}
+      {hasParallel && (
+        <div className="mt-2 flex items-center gap-1 text-xs text-amber-600" data-testid="trimble-parallel-warning">
+          <AlertTriangle className="h-3 w-3" /> Paralelo cercano detectado
         </div>
       )}
 
