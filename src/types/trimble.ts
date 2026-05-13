@@ -231,12 +231,20 @@ export interface TrimbleGpsPoint {
  * Como máximo una captura abierta por run; si hubiera varias por bug, devuelve
  * la primera (los hooks deben impedir esa situación).
  */
+/**
+ * Única fuente de verdad para "captura activa".
+ * Como máximo una captura abierta por run; si hubiera varias por bug, devuelve
+ * la primera (los hooks deben impedir esa situación).
+ * Las capturas voided (voidedAt != null) NO se consideran activas.
+ */
 export function findActiveCapture(
   captures: SegmentCapture[],
   activeRunId: string | null,
 ): SegmentCapture | null {
   if (!activeRunId) return null;
-  return captures.find((c) => c.runId === activeRunId && c.endedAt === null) ?? null;
+  return captures.find(
+    (c) => c.runId === activeRunId && c.endedAt === null && c.voidedAt == null,
+  ) ?? null;
 }
 
 /** Helper: ¿el status pertenece al campo (no QA)? */
