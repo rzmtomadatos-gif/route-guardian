@@ -2691,6 +2691,340 @@ export function useRouteState() {
     }, 0);
   }, [setState]);
 
+  // ── Trimble checkpoints / metadata (fase 2) ──────────────────────────
+  type CheckpointSource = 'field' | 'gabinete' | 'system';
+  type CheckpointResult = { ok: boolean; reason?: string };
+
+  const _patchActiveMission = useCallback(
+    (
+      patcher: (m: CaptureMission) => Partial<CaptureMission>,
+      opts?: { requireRun?: boolean },
+    ): { ok: boolean; reason?: string; missionId?: string; runId?: string } => {
+      let outcome: { ok: boolean; reason?: string; missionId?: string; runId?: string } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+        const missionId = s.activeMissionId;
+        if (!missionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
+        if (opts?.requireRun && !s.activeRunId) { outcome = { ok: false, reason: 'No hay pasada abierta' }; return s; }
+        const missions = (s.trimbleMissions ?? []).map((m) =>
+          m.id === missionId ? { ...m, ...patcher(m) } : m,
+        );
+        outcome = { ok: true, missionId, runId: s.activeRunId ?? undefined };
+        return { ...s, trimbleMissions: missions };
+      }, true);
+      return outcome;
+    },
+    [setState],
+  );
+
+  const completeTrimblePrecheck = useCallback(
+    (payload: { source?: CheckpointSource; notes?: string } = {}): CheckpointResult => {
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({ precheckCompletedAt: now }));
+      if (res.ok) {
+        logEvent('TRIMBLE_PRECHECK_COMPLETED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId: res.missionId, timestamp: now, source: payload.source ?? 'field', notes: payload.notes },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const confirmTrimbleSystemReady = useCallback(
+    (payload: { source?: CheckpointSource; notes?: string } = {}): CheckpointResult => {
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({ systemReadyAt: now }));
+      if (res.ok) {
+        logEvent('TRIMBLE_SYSTEM_READY_CONFIRMED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId: res.missionId, timestamp: now, source: payload.source ?? 'field', notes: payload.notes },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const confirmTrimbleGpsTimeValid = useCallback(
+    (payload: { source?: CheckpointSource; notes?: string } = {}): CheckpointResult => {
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({ gpsTimeValidAt: now }));
+      if (res.ok) {
+        logEvent('TRIMBLE_GPS_TIME_VALID_CONFIRMED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId: res.missionId, timestamp: now, source: payload.source ?? 'field', notes: payload.notes },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const confirmTrimbleStaticTail = useCallback(
+    (payload: { seconds: number; source?: CheckpointSource; notes?: string }): CheckpointResult => {
+      if (!Number.isFinite(payload?.seconds) || payload.seconds < 0) {
+        return { ok: false, reason: 'Segundos de cola estática inválidos' };
+      }
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({
+        staticTailSeconds: payload.seconds,
+        staticTailCompletedAt: now,
+        staticTailOverrideReason: null,
+      }));
+      if (res.ok) {
+        logEvent('TRIMBLE_STATIC_TAIL_CONFIRMED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId: res.missionId, timestamp: now, source: payload.source ?? 'field', seconds: payload.seconds, notes: payload.notes },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const overrideTrimbleStaticTail = useCallback(
+    (reason: string, payload: { source?: CheckpointSource } = {}): CheckpointResult => {
+      const r = (reason ?? '').trim();
+      if (!r) return { ok: false, reason: 'Motivo de override obligatorio' };
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({
+        staticTailOverrideReason: r,
+        staticTailCompletedAt: now,
+      }));
+      if (res.ok) {
+        logEvent('TRIMBLE_STATIC_TAIL_OVERRIDDEN', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId: res.missionId, timestamp: now, source: payload.source ?? 'field', reason: r },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const markTrimbleDataOffloaded = useCallback(
+    (payload: {
+      offloadRef?: string;
+      ssdIds?: string[];
+      safeEjectConfirmed?: boolean | null;
+      posFolderStatus?: CaptureMission['posFolderStatus'];
+      selectedRawFolder?: CaptureMission['selectedRawFolder'];
+      downloadIntegrityWarning30700?: boolean | null;
+      source?: CheckpointSource;
+      notes?: string;
+    } = {}): CheckpointResult => {
+      const now = new Date().toISOString();
+      const res = _patchActiveMission(() => ({
+        dataOffloadedAt: now,
+        offloadRef: payload.offloadRef,
+        ssdIds: payload.ssdIds,
+        safeEjectConfirmed: payload.safeEjectConfirmed ?? null,
+        posFolderStatus: payload.posFolderStatus,
+        selectedRawFolder: payload.selectedRawFolder,
+        downloadIntegrityWarning30700: payload.downloadIntegrityWarning30700 ?? null,
+      }));
+      if (res.ok) {
+        logEvent('TRIMBLE_DATA_OFFLOADED', {
+          payload: {
+            acquisitionMode: 'TRIMBLE_LIDAR',
+            missionId: res.missionId,
+            timestamp: now,
+            source: payload.source ?? 'field',
+            offloadRef: payload.offloadRef,
+            notes: payload.notes,
+          },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const updateTrimbleMissionMetadata = useCallback(
+    (patch: Partial<Omit<CaptureMission, 'id' | 'startedAt' | 'endedAt' | 'workDay'>>): CheckpointResult => {
+      const res = _patchActiveMission(() => ({ ...patch }));
+      if (res.ok) {
+        logEvent('TRIMBLE_MISSION_METADATA_UPDATED', {
+          payload: {
+            acquisitionMode: 'TRIMBLE_LIDAR',
+            missionId: res.missionId,
+            timestamp: new Date().toISOString(),
+            source: 'field',
+            fields: Object.keys(patch),
+          },
+        });
+      }
+      return res;
+    },
+    [_patchActiveMission],
+  );
+
+  const updateTrimbleRunMetadata = useCallback(
+    (
+      runId: string,
+      patch: Partial<Omit<CaptureRun, 'id' | 'missionId' | 'startedAt' | 'endedAt' | 'index'>>,
+    ): CheckpointResult => {
+      let outcome: CheckpointResult & { missionId?: string } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+        const run = (s.trimbleRuns ?? []).find((r) => r.id === runId);
+        if (!run) { outcome = { ok: false, reason: 'Pasada no encontrada' }; return s; }
+        const runs = (s.trimbleRuns ?? []).map((r) => (r.id === runId ? { ...r, ...patch } : r));
+        outcome = { ok: true, missionId: run.missionId };
+        return { ...s, trimbleRuns: runs };
+      }, true);
+      if (outcome.ok) {
+        logEvent('TRIMBLE_RUN_METADATA_UPDATED', {
+          payload: {
+            acquisitionMode: 'TRIMBLE_LIDAR',
+            missionId: outcome.missionId,
+            runId,
+            timestamp: new Date().toISOString(),
+            source: 'field',
+            fields: Object.keys(patch),
+          },
+        });
+      }
+      return { ok: outcome.ok, reason: outcome.reason };
+    },
+    [setState],
+  );
+
+  const linkTrimbleTrajectoryDeliverable = useCallback(
+    (payload: {
+      missionId?: string;
+      reference: string;
+      trajectoryMethod?: import('@/types/trimble').TrimbleTrajectoryMethod;
+      datumCrs?: string;
+      geoidModel?: string;
+      version?: string;
+      processedBy?: string;
+      processedAt?: string;
+      storageType?: import('@/types/trimble').TrimbleDeliverableStorageType;
+      notes?: string;
+      source?: CheckpointSource;
+    }): { ok: boolean; reason?: string; deliverableId?: string } => {
+      const ref = (payload?.reference ?? '').trim();
+      if (!ref) return { ok: false, reason: 'Referencia externa obligatoria' };
+      let outcome: { ok: boolean; reason?: string; deliverableId?: string; missionId?: string } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+        const missionId = payload.missionId ?? s.activeMissionId;
+        if (!missionId) { outcome = { ok: false, reason: 'No hay misión Trimble' }; return s; }
+        const mission = (s.trimbleMissions ?? []).find((m) => m.id === missionId);
+        if (!mission) { outcome = { ok: false, reason: 'Misión no encontrada' }; return s; }
+        const id = `td_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        const deliverable: TrimbleDeliverable = {
+          id,
+          kind: 'trayectoria',
+          missionId,
+          reference: ref,
+          uploadedAt: now,
+          storageType: payload.storageType,
+          version: payload.version,
+          processedBy: payload.processedBy,
+          processedAt: payload.processedAt,
+          trajectoryMethod: payload.trajectoryMethod,
+          datumCrs: payload.datumCrs,
+          geoidModel: payload.geoidModel,
+          processingStage: 'trajectory_processed',
+          trajectoryAccepted: null,
+          notes: payload.notes,
+        };
+        const missions = (s.trimbleMissions ?? []).map((m) =>
+          m.id === missionId
+            ? {
+                ...m,
+                trajectoryDeliverableId: id,
+                trajectorySource: 'processed' as const,
+                trajectoryMethod: payload.trajectoryMethod ?? m.trajectoryMethod,
+                datumCrs: payload.datumCrs ?? m.datumCrs,
+                geoidModel: payload.geoidModel ?? m.geoidModel,
+                trajectoryAccepted: null,
+              }
+            : m,
+        );
+        outcome = { ok: true, deliverableId: id, missionId };
+        return {
+          ...s,
+          trimbleDeliverables: [...(s.trimbleDeliverables ?? []), deliverable],
+          trimbleMissions: missions,
+        };
+      }, true);
+      if (outcome.ok && outcome.deliverableId) {
+        logEvent('TRIMBLE_TRAJECTORY_DELIVERABLE_LINKED', {
+          payload: {
+            acquisitionMode: 'TRIMBLE_LIDAR',
+            missionId: outcome.missionId,
+            deliverableId: outcome.deliverableId,
+            timestamp: new Date().toISOString(),
+            source: payload.source ?? 'gabinete',
+            trajectoryMethod: payload.trajectoryMethod,
+            notes: payload.notes,
+          },
+        });
+      }
+      return { ok: outcome.ok, reason: outcome.reason, deliverableId: outcome.deliverableId };
+    },
+    [setState],
+  );
+
+  const _setTrajectoryAccepted = useCallback(
+    (missionId: string, accepted: boolean, opts: { processedBy?: string; notes?: string } = {}): CheckpointResult => {
+      let outcome: CheckpointResult & { deliverableId?: string | null } = { ok: false };
+      setState((s) => {
+        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
+        const mission = (s.trimbleMissions ?? []).find((m) => m.id === missionId);
+        if (!mission) { outcome = { ok: false, reason: 'Misión no encontrada' }; return s; }
+        if (!mission.trajectoryDeliverableId) { outcome = { ok: false, reason: 'Sin trayectoria procesada vinculada' }; return s; }
+        const now = new Date().toISOString();
+        const missions = (s.trimbleMissions ?? []).map((m) =>
+          m.id === missionId
+            ? {
+                ...m,
+                trajectoryAccepted: accepted,
+                trajectoryProcessedAt: now,
+                trajectoryProcessedBy: opts.processedBy ?? m.trajectoryProcessedBy,
+              }
+            : m,
+        );
+        const deliverables = (s.trimbleDeliverables ?? []).map((d) =>
+          d.id === mission.trajectoryDeliverableId
+            ? { ...d, trajectoryAccepted: accepted, processedAt: now, processedBy: opts.processedBy ?? d.processedBy }
+            : d,
+        );
+        outcome = { ok: true, deliverableId: mission.trajectoryDeliverableId };
+        return { ...s, trimbleMissions: missions, trimbleDeliverables: deliverables };
+      }, true);
+      return { ok: outcome.ok, reason: outcome.reason };
+    },
+    [setState],
+  );
+
+  const acceptTrimbleTrajectory = useCallback(
+    (missionId: string, opts: { processedBy?: string; notes?: string } = {}): CheckpointResult => {
+      const res = _setTrajectoryAccepted(missionId, true, opts);
+      if (res.ok) {
+        logEvent('TRIMBLE_TRAJECTORY_ACCEPTED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId, timestamp: new Date().toISOString(), source: 'gabinete', processedBy: opts.processedBy, notes: opts.notes },
+        });
+      }
+      return res;
+    },
+    [_setTrajectoryAccepted],
+  );
+
+  const rejectTrimbleTrajectory = useCallback(
+    (missionId: string, opts: { processedBy?: string; notes?: string } = {}): CheckpointResult => {
+      const res = _setTrajectoryAccepted(missionId, false, opts);
+      if (res.ok) {
+        logEvent('TRIMBLE_TRAJECTORY_REJECTED', {
+          payload: { acquisitionMode: 'TRIMBLE_LIDAR', missionId, timestamp: new Date().toISOString(), source: 'gabinete', processedBy: opts.processedBy, notes: opts.notes },
+        });
+      }
+      return res;
+    },
+    [_setTrajectoryAccepted],
+  );
+
   return {
     state,
     isDirty,
