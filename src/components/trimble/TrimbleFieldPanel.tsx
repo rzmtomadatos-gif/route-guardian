@@ -200,6 +200,7 @@ export function TrimbleFieldPanel() {
 
   return (
     <div className="space-y-4">
+      <TrimbleCheckpointsCard />
       {/* Mission */}
       <section className="bg-card rounded-xl p-4 border border-border space-y-3">
         <header className="flex items-center justify-between">
