@@ -3101,5 +3101,17 @@ export function useRouteState() {
     setTrimbleRecordingSegmentOverride,
     voidTrimbleCapturesForSegment,
     markTrimbleSegmentManuallyCaptured,
+    // Trimble checkpoints (fase 2)
+    completeTrimblePrecheck,
+    confirmTrimbleSystemReady,
+    confirmTrimbleGpsTimeValid,
+    confirmTrimbleStaticTail,
+    overrideTrimbleStaticTail,
+    markTrimbleDataOffloaded,
+    updateTrimbleMissionMetadata,
+    updateTrimbleRunMetadata,
+    linkTrimbleTrajectoryDeliverable,
+    acceptTrimbleTrajectory,
+    rejectTrimbleTrajectory,
   };
 }
