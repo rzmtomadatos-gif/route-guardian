@@ -247,6 +247,8 @@ export function GabineteTrimblePanel() {
         </span>
       </div>
 
+      <GabineteTrajectorySection missionFilter={missionFilter} />
+
       <Tabs defaultValue="por-tramo">
         <TabsList>
           <TabsTrigger value="resumen"><LayoutGrid className="w-4 h-4 mr-1" />Resumen</TabsTrigger>
