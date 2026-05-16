@@ -245,6 +245,28 @@ const trimbleQaStatusEnum = z.enum([
   'procesado_ok', 'procesado_con_observaciones', 'descartado_por_calidad',
 ]);
 
+const trimbleModelEnum = z.enum(['MX60', 'MX50', 'MX90', 'MX9', 'unknown', 'other']);
+const trimbleVariantEnum = z.enum(['Core', 'Pro', 'Premium', 'unknown', 'other']);
+const trimbleMissionContainerTypeEnum = z.enum(['mxdb', 'tridb', 'folder', 'unknown', 'other']);
+const trimbleTrajectoryMethodEnum = z.enum([
+  'SingleBase', 'MSB', 'SmartBase', 'PP-RTX', 'SBET', 'realtime', 'other', 'unknown',
+]);
+const trimbleTrajectorySourceEnum = z.enum(['realtime', 'processed', 'unknown']);
+const trimblePosFolderStatusEnum = z.enum([
+  'unknown', 'ok', 'missing_raw', 'missing_realtime', 'raw_corrupted_present', 'other',
+]);
+const trimbleRawFolderSelectionEnum = z.enum(['raw', 'raw_corrupted', 'unknown', 'other']);
+const trimbleRunIntegrityStatusEnum = z.enum([
+  'pending_review', 'field_ok', 'field_warning', 'field_failed',
+  'gabinete_validated', 'gabinete_rejected',
+]);
+const trimbleDeliverableStorageTypeEnum = z.enum([
+  'url', 'nas', 'local_path', 'external_id', 'other',
+]);
+const trimbleProcessingStageEnum = z.enum([
+  'raw', 'trajectory_processed', 'pointcloud_generated', 'qa_reviewed', 'delivered', 'other',
+]);
+
 const trimbleMissionSchema = z.object({
   id: z.string().min(1).max(100),
   workDay: z.number().int().min(0),
@@ -256,6 +278,49 @@ const trimbleMissionSchema = z.object({
   weather: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
   closedReason: z.enum(['manual', 'fin_jornada', 'incidencia']).optional(),
+
+  // Metadatos opcionales (compat. legacy)
+  trimbleModel: trimbleModelEnum.optional(),
+  trimbleVariant: trimbleVariantEnum.optional(),
+  externalMissionId: z.string().max(200).optional(),
+  missionContainerType: trimbleMissionContainerTypeEnum.optional(),
+  missionContainerRef: z.string().max(2000).optional(),
+  dmiEnabled: z.boolean().nullable().optional(),
+  gnssAzimuthEnabled: z.boolean().nullable().optional(),
+  tmiVersion: z.string().max(100).optional(),
+  posFirmwareVersion: z.string().max(100).optional(),
+  tbcVersion: z.string().max(100).optional(),
+  pospacVersion: z.string().max(100).optional(),
+  gnssWindowChecked: z.boolean().optional(),
+  gnssRiskNotes: z.string().max(2000).optional(),
+
+  precheckCompletedAt: isoDateString.nullable().optional(),
+  systemReadyAt: isoDateString.nullable().optional(),
+  gpsTimeValidAt: isoDateString.nullable().optional(),
+
+  staticTailSeconds: z.number().min(0).max(86400).nullable().optional(),
+  staticTailCompletedAt: isoDateString.nullable().optional(),
+  staticTailOverrideReason: z.string().max(2000).nullable().optional(),
+
+  dataOffloadedAt: isoDateString.nullable().optional(),
+  offloadRef: z.string().max(2000).optional(),
+  ssdIds: z.array(z.string().max(200)).max(50).optional(),
+  safeEjectConfirmed: z.boolean().nullable().optional(),
+
+  posFolderStatus: trimblePosFolderStatusEnum.optional(),
+  selectedRawFolder: trimbleRawFolderSelectionEnum.optional(),
+  downloadIntegrityWarning30700: z.boolean().nullable().optional(),
+
+  datumCrs: z.string().max(200).optional(),
+  geoidModel: z.string().max(200).optional(),
+  projectGroupingKey: z.string().max(200).optional(),
+
+  trajectoryDeliverableId: z.string().max(100).nullable().optional(),
+  trajectorySource: trimbleTrajectorySourceEnum.optional(),
+  trajectoryMethod: trimbleTrajectoryMethodEnum.optional(),
+  trajectoryAccepted: z.boolean().nullable().optional(),
+  trajectoryProcessedAt: isoDateString.nullable().optional(),
+  trajectoryProcessedBy: z.string().max(200).optional(),
 }).strict();
 
 const trimbleRunSchema = z.object({
@@ -269,6 +334,28 @@ const trimbleRunSchema = z.object({
   endPosition: latLngSchema.optional(),
   notes: z.string().max(2000).optional(),
   invalidated: z.boolean().optional(),
+
+  externalRunId: z.string().max(200).optional(),
+  runGuid: z.string().max(200).optional(),
+  gpsTimeWasValidAtStart: z.boolean().nullable().optional(),
+  systemReadyWasConfirmed: z.boolean().nullable().optional(),
+
+  runDistanceMeters: z.number().min(0).nullable().optional(),
+  staticTailSeconds: z.number().min(0).max(86400).nullable().optional(),
+  staticTailCompletedAt: isoDateString.nullable().optional(),
+  staticTailOverrideReason: z.string().max(2000).nullable().optional(),
+
+  wifiLossCount: z.number().int().min(0).optional(),
+  gnssIssueCount: z.number().int().min(0).optional(),
+  sensorIssueCount: z.number().int().min(0).optional(),
+  storageIssueCount: z.number().int().min(0).optional(),
+
+  urbanCanyonObserved: z.boolean().optional(),
+  tunnelOrUnderpassObserved: z.boolean().optional(),
+  treeCanopyObserved: z.boolean().optional(),
+
+  integrityStatus: trimbleRunIntegrityStatusEnum.optional(),
+  operatorNotes: z.string().max(2000).optional(),
 }).strict();
 
 const trimbleCaptureSchema = z.object({
@@ -368,6 +455,16 @@ const trimbleDeliverableSchema = z.object({
   uploadedBy: z.string().max(200).optional(),
   uploadedAt: isoDateString,
   notes: z.string().max(2000).optional(),
+
+  storageType: trimbleDeliverableStorageTypeEnum.optional(),
+  version: z.string().max(100).optional(),
+  processedBy: z.string().max(200).optional(),
+  processedAt: isoDateString.optional(),
+  trajectoryMethod: trimbleTrajectoryMethodEnum.optional(),
+  trajectoryAccepted: z.boolean().nullable().optional(),
+  datumCrs: z.string().max(200).optional(),
+  geoidModel: z.string().max(200).optional(),
+  processingStage: trimbleProcessingStageEnum.optional(),
 }).strict();
 
 const trimbleGpsPointSchema = z.object({
