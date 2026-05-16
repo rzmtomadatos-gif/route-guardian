@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Radar, Play, StopCircle, AlertTriangle, MapPin, Ban, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TrimbleCheckpointsCard } from './TrimbleCheckpointsCard';
 
 const FIELD_STATUS_LABELS: Record<TrimbleFieldStatus, string> = {
   en_captura: 'En captura',
