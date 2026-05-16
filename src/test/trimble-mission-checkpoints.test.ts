@@ -145,11 +145,10 @@ describe('Trimble — checkpoints de misión', () => {
   });
 
   it('todas las acciones requieren modo TRIMBLE_LIDAR', () => {
-    const { result } = renderHook(() => useRouteState()).result;
-    // Modo por defecto NO es Trimble
-    expect(result.current.state.acquisitionMode).not.toBe('TRIMBLE_LIDAR');
+    const hook = renderHook(() => useRouteState());
+    expect(hook.result.current.state.acquisitionMode).not.toBe('TRIMBLE_LIDAR');
     let r: any;
-    act(() => { r = result.current.completeTrimblePrecheck({}); });
+    act(() => { r = hook.result.current.completeTrimblePrecheck({}); });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/Trimble/i);
   });
