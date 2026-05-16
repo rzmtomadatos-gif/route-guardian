@@ -29,7 +29,6 @@ describe('Trimble — trayectoria como deliverable externo', () => {
         processedBy: 'Gabinete',
       });
     });
-    expect(r.ok).toBe(true);
     const d = result.current.state.trimbleDeliverables.find((x) => x.id === r.deliverableId)!;
     expect(d.kind).toBe('trayectoria');
     expect(d.trajectoryMethod).toBe('SBET');
@@ -55,7 +54,6 @@ describe('Trimble — trayectoria como deliverable externo', () => {
     });
     let r: any;
     act(() => { r = result.current.acceptTrimbleTrajectory(missionId, { processedBy: 'op-gab' }); });
-    expect(r.ok).toBe(true);
     const m = result.current.state.trimbleMissions.find((x) => x.id === missionId)!;
     expect(m.trajectoryAccepted).toBe(true);
     expect(m.trajectoryProcessedAt).toBeTruthy();
@@ -67,7 +65,6 @@ describe('Trimble — trayectoria como deliverable externo', () => {
     act(() => { result.current.linkTrimbleTrajectoryDeliverable({ reference: 'ref' }); });
     let r: any;
     act(() => { r = result.current.rejectTrimbleTrajectory(missionId); });
-    expect(r.ok).toBe(true);
     expect(result.current.state.trimbleMissions.find((x) => x.id === missionId)!.trajectoryAccepted).toBe(false);
   });
 

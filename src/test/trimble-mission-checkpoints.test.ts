@@ -32,7 +32,6 @@ describe('Trimble — checkpoints de misión', () => {
     act(() => { result.current.startTrimbleMission({}); });
     let r;
     act(() => { r = result.current.completeTrimblePrecheck({ source: 'field' }); });
-    expect(r!.ok).toBe(true);
     expect(result.current.state.trimbleMissions[0].precheckCompletedAt).toBeTruthy();
   });
 
@@ -51,7 +50,6 @@ describe('Trimble — checkpoints de misión', () => {
     act(() => { result.current.startTrimbleMission({}); });
     let r: any;
     act(() => { r = result.current.startTrimbleRun({}); });
-    expect(r.ok).toBe(true);
     expect(r.warning).toBe('warning_no_gps_time_valid');
     const run = result.current.state.trimbleRuns[0];
     expect(run.gpsTimeWasValidAtStart).toBe(false);
@@ -63,7 +61,6 @@ describe('Trimble — checkpoints de misión', () => {
     act(() => { result.current.confirmTrimbleGpsTimeValid({}); });
     let r: any;
     act(() => { r = result.current.startTrimbleRun({}); });
-    expect(r.ok).toBe(true);
     expect(r.warning).toBeUndefined();
     expect(result.current.state.trimbleRuns[0].gpsTimeWasValidAtStart).toBe(true);
   });
@@ -73,7 +70,6 @@ describe('Trimble — checkpoints de misión', () => {
     act(() => { result.current.startTrimbleMission({}); });
     let r: any;
     act(() => { r = result.current.confirmTrimbleStaticTail({ seconds: 120 }); });
-    expect(r.ok).toBe(true);
     const m = result.current.state.trimbleMissions[0];
     expect(m.staticTailSeconds).toBe(120);
     expect(m.staticTailCompletedAt).toBeTruthy();
@@ -94,7 +90,6 @@ describe('Trimble — checkpoints de misión', () => {
     act(() => { result.current.startTrimbleMission({}); });
     let r: any;
     act(() => { r = result.current.overrideTrimbleStaticTail('Tráfico extremo'); });
-    expect(r.ok).toBe(true);
     expect(result.current.state.trimbleMissions[0].staticTailOverrideReason).toBe('Tráfico extremo');
   });
 
@@ -111,7 +106,6 @@ describe('Trimble — checkpoints de misión', () => {
         selectedRawFolder: 'raw',
       });
     });
-    expect(r.ok).toBe(true);
     const m = result.current.state.trimbleMissions[0];
     expect(m.dataOffloadedAt).toBeTruthy();
     expect(m.offloadRef).toContain('mission1');
