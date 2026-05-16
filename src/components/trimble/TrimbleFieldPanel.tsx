@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Radar, Play, StopCircle, AlertTriangle, MapPin, Ban, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TrimbleCheckpointsCard } from './TrimbleCheckpointsCard';
 
 const FIELD_STATUS_LABELS: Record<TrimbleFieldStatus, string> = {
   en_captura: 'En captura',
@@ -199,6 +200,7 @@ export function TrimbleFieldPanel() {
 
   return (
     <div className="space-y-4">
+      <TrimbleCheckpointsCard />
       {/* Mission */}
       <section className="bg-card rounded-xl p-4 border border-border space-y-3">
         <header className="flex items-center justify-between">

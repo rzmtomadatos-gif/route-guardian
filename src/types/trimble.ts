@@ -47,6 +47,23 @@ export const TRIMBLE_QA_STATUSES: readonly TrimbleQaStatus[] = [
   'descartado_por_calidad',
 ] as const;
 
+export type TrimbleModel = 'MX60' | 'MX50' | 'MX90' | 'MX9' | 'unknown' | 'other';
+export type TrimbleVariant = 'Core' | 'Pro' | 'Premium' | 'unknown' | 'other';
+export type TrimbleMissionContainerType = 'mxdb' | 'tridb' | 'folder' | 'unknown' | 'other';
+export type TrimbleTrajectoryMethod =
+  | 'SingleBase' | 'MSB' | 'SmartBase' | 'PP-RTX' | 'SBET' | 'realtime' | 'other' | 'unknown';
+export type TrimbleTrajectorySource = 'realtime' | 'processed' | 'unknown';
+export type TrimblePosFolderStatus =
+  | 'unknown' | 'ok' | 'missing_raw' | 'missing_realtime' | 'raw_corrupted_present' | 'other';
+export type TrimbleRawFolderSelection = 'raw' | 'raw_corrupted' | 'unknown' | 'other';
+export type TrimbleRunIntegrityStatus =
+  | 'pending_review' | 'field_ok' | 'field_warning' | 'field_failed'
+  | 'gabinete_validated' | 'gabinete_rejected';
+export type TrimbleDeliverableStorageType =
+  | 'url' | 'nas' | 'local_path' | 'external_id' | 'other';
+export type TrimbleProcessingStage =
+  | 'raw' | 'trajectory_processed' | 'pointcloud_generated' | 'qa_reviewed' | 'delivered' | 'other';
+
 export interface CaptureMission {
   id: string;
   workDay: number;
@@ -58,6 +75,55 @@ export interface CaptureMission {
   weather?: string;
   notes?: string;
   closedReason?: 'manual' | 'fin_jornada' | 'incidencia';
+
+  // ── Metadatos hardware/software (opcional, compatible legacy) ─────────
+  trimbleModel?: TrimbleModel;
+  trimbleVariant?: TrimbleVariant;
+  externalMissionId?: string;
+  missionContainerType?: TrimbleMissionContainerType;
+  missionContainerRef?: string;
+  dmiEnabled?: boolean | null;
+  gnssAzimuthEnabled?: boolean | null;
+  tmiVersion?: string;
+  posFirmwareVersion?: string;
+  tbcVersion?: string;
+  pospacVersion?: string;
+  gnssWindowChecked?: boolean;
+  gnssRiskNotes?: string;
+
+  // ── Checkpoints operativos ────────────────────────────────────────────
+  precheckCompletedAt?: string | null;
+  systemReadyAt?: string | null;
+  gpsTimeValidAt?: string | null;
+
+  // ── Cola estática (final de jornada/misión) ───────────────────────────
+  staticTailSeconds?: number | null;
+  staticTailCompletedAt?: string | null;
+  staticTailOverrideReason?: string | null;
+
+  // ── Offload / descarga de datos ───────────────────────────────────────
+  dataOffloadedAt?: string | null;
+  offloadRef?: string;
+  ssdIds?: string[];
+  safeEjectConfirmed?: boolean | null;
+
+  // ── POS folder / integridad descarga (TMI bug 3.07.00) ────────────────
+  posFolderStatus?: TrimblePosFolderStatus;
+  selectedRawFolder?: TrimbleRawFolderSelection;
+  downloadIntegrityWarning30700?: boolean | null;
+
+  // ── Datum / agrupación gabinete ───────────────────────────────────────
+  datumCrs?: string;
+  geoidModel?: string;
+  projectGroupingKey?: string;
+
+  // ── Trayectoria final (referencia a TrimbleDeliverable externo) ───────
+  trajectoryDeliverableId?: string | null;
+  trajectorySource?: TrimbleTrajectorySource;
+  trajectoryMethod?: TrimbleTrajectoryMethod;
+  trajectoryAccepted?: boolean | null;
+  trajectoryProcessedAt?: string | null;
+  trajectoryProcessedBy?: string;
 }
 
 export interface CaptureRun {
@@ -72,6 +138,39 @@ export interface CaptureRun {
   notes?: string;
   /** Si se invalidó la pasada por incidencia bloqueante. */
   invalidated?: boolean;
+
+  // ── Metadatos externos / GUIDs ────────────────────────────────────────
+  externalRunId?: string;
+  runGuid?: string;
+
+  // ── Flags de estado al iniciar ────────────────────────────────────────
+  gpsTimeWasValidAtStart?: boolean | null;
+  systemReadyWasConfirmed?: boolean | null;
+
+  // ── Métricas operativas ───────────────────────────────────────────────
+  runDistanceMeters?: number | null;
+  staticTailSeconds?: number | null;
+  staticTailCompletedAt?: string | null;
+  staticTailOverrideReason?: string | null;
+
+  // ── Contadores de incidencias suaves ──────────────────────────────────
+  wifiLossCount?: number;
+  gnssIssueCount?: number;
+  sensorIssueCount?: number;
+  storageIssueCount?: number;
+
+  // ── Observaciones de entorno ──────────────────────────────────────────
+  urbanCanyonObserved?: boolean;
+  tunnelOrUnderpassObserved?: boolean;
+  treeCanopyObserved?: boolean;
+
+  /**
+   * Estado de integridad del run (NO sustituye qaStatus de SegmentCapture).
+   * Sólo describe la pasada en sí: campo OK, advertencia, fallo, validada/rechazada en gabinete.
+   */
+  integrityStatus?: TrimbleRunIntegrityStatus;
+
+  operatorNotes?: string;
 }
 
 export interface SegmentCapture {
@@ -202,6 +301,17 @@ export interface TrimbleDeliverable {
   uploadedBy?: string;
   uploadedAt: string;
   notes?: string;
+
+  // ── Metadatos opcionales adicionales ─────────────────────────────────
+  storageType?: TrimbleDeliverableStorageType;
+  version?: string;
+  processedBy?: string;
+  processedAt?: string;
+  trajectoryMethod?: TrimbleTrajectoryMethod;
+  trajectoryAccepted?: boolean | null;
+  datumCrs?: string;
+  geoidModel?: string;
+  processingStage?: TrimbleProcessingStage;
 }
 
 export interface TrimbleGpsPoint {

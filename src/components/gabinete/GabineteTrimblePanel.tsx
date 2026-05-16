@@ -23,6 +23,7 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { GabineteTrajectorySection } from './GabineteTrajectorySection';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   CheckCircle, AlertCircle, XCircle, Link2, Trash2, ClipboardCheck,
@@ -245,6 +246,8 @@ export function GabineteTrimblePanel() {
           {kpis.totalSegments} tramo{kpis.totalSegments === 1 ? '' : 's'} · {captures.length} captura{captures.length === 1 ? '' : 's'} · {trimbleDeliverables.length} entregable{trimbleDeliverables.length === 1 ? '' : 's'}
         </span>
       </div>
+
+      <GabineteTrajectorySection missionFilter={missionFilter} />
 
       <Tabs defaultValue="por-tramo">
         <TabsList>
