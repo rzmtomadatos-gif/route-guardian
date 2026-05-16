@@ -1855,16 +1855,13 @@ export function useRouteState() {
         return s;
       }
       const id = `tm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const { workDay: _wd, ...rest } = data;
       const mission: CaptureMission = {
+        ...rest,
         id,
         workDay: data.workDay ?? s.workDay,
         startedAt: new Date().toISOString(),
         endedAt: null,
-        vehicle: data.vehicle,
-        sensorRig: data.sensorRig,
-        operator: data.operator,
-        weather: data.weather,
-        notes: data.notes,
       };
       outcome = { ok: true, missionId: id };
       return {
@@ -1922,15 +1919,18 @@ export function useRouteState() {
     return outcome;
   }, [setState]);
 
-  const startTrimbleRun = useCallback((opts: { direction?: CaptureRun['direction']; startPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string; runId?: string } => {
-    let outcome: { ok: boolean; reason?: string; runId?: string } = { ok: false };
+  const startTrimbleRun = useCallback((opts: { direction?: CaptureRun['direction']; startPosition?: LatLng; notes?: string } = {}): { ok: boolean; reason?: string; runId?: string; warning?: string } => {
+    let outcome: { ok: boolean; reason?: string; runId?: string; warning?: string } = { ok: false };
     setState((s) => {
       if (s.acquisitionMode !== 'TRIMBLE_LIDAR') { outcome = { ok: false, reason: 'Modo Trimble inactivo' }; return s; }
       if (!s.activeMissionId) { outcome = { ok: false, reason: 'No hay misión Trimble abierta' }; return s; }
       if (s.activeRunId) { outcome = { ok: false, reason: 'Ya hay una pasada abierta' }; return s; }
       if ((s.trimbleRuns?.length ?? 0) >= 50_000) { outcome = { ok: false, reason: 'Límite de pasadas alcanzado' }; return s; }
+      const mission = (s.trimbleMissions ?? []).find((m) => m.id === s.activeMissionId);
       const missionRuns = (s.trimbleRuns ?? []).filter((r) => r.missionId === s.activeMissionId);
       const id = `tr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const gpsTimeWasValidAtStart = mission?.gpsTimeValidAt ? true : false;
+      const systemReadyWasConfirmed = mission?.systemReadyAt ? true : false;
       const run: CaptureRun = {
         id,
         missionId: s.activeMissionId,
@@ -1940,12 +1940,15 @@ export function useRouteState() {
         endedAt: null,
         startPosition: opts.startPosition,
         notes: opts.notes,
+        gpsTimeWasValidAtStart,
+        systemReadyWasConfirmed,
       };
-      outcome = { ok: true, runId: id };
+      const warning = !gpsTimeWasValidAtStart ? 'warning_no_gps_time_valid' : undefined;
+      outcome = { ok: true, runId: id, warning };
       return { ...s, trimbleRuns: [...(s.trimbleRuns ?? []), run], activeRunId: id };
     }, true);
     if (outcome.ok && outcome.runId) {
-      logEvent('TRIMBLE_RUN_STARTED', { payload: { runId: outcome.runId } });
+      logEvent('TRIMBLE_RUN_STARTED', { payload: { runId: outcome.runId, warning: outcome.warning ?? null } });
     }
     return outcome;
   }, [setState]);
