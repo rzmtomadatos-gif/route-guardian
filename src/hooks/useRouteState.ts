@@ -2596,25 +2596,30 @@ export function useRouteState() {
    * grabación activa, crea la captura asociada al run activo. Si hay grabación
    * activa, además fija override force_captured para trazabilidad.
    */
+  /**
+   * Diagnóstico específico del contexto Trimble (BUG-042). No reutilizar
+   * mensajes genéricos: distingue modo, misión y pasada.
+   */
+  function _diagnoseTrimbleContext(s: AppState): string | null {
+    if (s.acquisitionMode !== 'TRIMBLE_LIDAR') return 'Modo Trimble inactivo';
+    if (!s.activeMissionId) return 'No hay misión Trimble abierta';
+    if (!s.activeRunId) return 'No hay pasada (run) abierta';
+    return null;
+  }
+
   const markTrimbleSegmentManuallyCaptured = useCallback(
     (segmentId: string, notes?: string): { ok: boolean; reason?: string; captureId?: string } => {
       let outcome: { ok: boolean; reason?: string; captureId?: string } = { ok: false };
       setState((s) => {
-        if (s.acquisitionMode !== 'TRIMBLE_LIDAR') {
-          outcome = { ok: false, reason: 'Modo Trimble inactivo' };
-          return s;
-        }
-        if (!s.activeMissionId || !s.activeRunId) {
-          outcome = { ok: false, reason: 'Necesitas misión y pasada abiertas' };
-          return s;
-        }
+        const reason = _diagnoseTrimbleContext(s);
+        if (reason) { outcome = { ok: false, reason }; return s; }
         const id = `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const now = new Date().toISOString();
         const cap: SegmentCapture = {
           id,
           segmentId,
-          runId: s.activeRunId,
-          missionId: s.activeMissionId,
+          runId: s.activeRunId!,
+          missionId: s.activeMissionId!,
           startedAt: now,
           endedAt: now,
           fieldStatus: 'capturado_pendiente_proceso',
@@ -2630,6 +2635,47 @@ export function useRouteState() {
         logEvent('TRIMBLE_SEGMENT_MANUAL_CAPTURED', {
           segmentId,
           payload: { captureId: outcome.captureId, notes: notes ?? null },
+        });
+      }
+      return outcome;
+    },
+    [setState],
+  );
+
+  /**
+   * BUG-043: acción dedicada para marcar un tramo como NO grabable sin
+   * grabación activa. Crea una SegmentCapture con fieldStatus='no_capturable'
+   * y captureSource='operator_override'. NO reutiliza markTrimbleSegmentManuallyCaptured
+   * (que crearía una falsa captura 'capturado_pendiente_proceso').
+   */
+  const markTrimbleSegmentNoCapturable = useCallback(
+    (segmentId: string, notes?: string): { ok: boolean; reason?: string; captureId?: string } => {
+      let outcome: { ok: boolean; reason?: string; captureId?: string } = { ok: false };
+      setState((s) => {
+        const reason = _diagnoseTrimbleContext(s);
+        if (reason) { outcome = { ok: false, reason }; return s; }
+        const id = `tnc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        const cap: SegmentCapture = {
+          id,
+          segmentId,
+          runId: s.activeRunId!,
+          missionId: s.activeMissionId!,
+          startedAt: now,
+          endedAt: now,
+          fieldStatus: 'no_capturable',
+          fieldNotes: notes ?? 'Marcado no grabable por operador',
+          qaStatus: null,
+          captureSource: 'operator_override',
+          recordingSessionId: s.activeTrimbleRecordingId ?? null,
+        };
+        outcome = { ok: true, captureId: id };
+        return { ...s, trimbleSegmentCaptures: [...(s.trimbleSegmentCaptures ?? []), cap] };
+      }, true);
+      if (outcome.ok) {
+        logEvent('TRIMBLE_CAPTURE_MARKED_NON_CAPTURABLE', {
+          segmentId,
+          payload: { captureId: outcome.captureId, notes: notes ?? null, source: 'overlay_no_recording' },
         });
       }
       return outcome;
@@ -3101,6 +3147,7 @@ export function useRouteState() {
     setTrimbleRecordingSegmentOverride,
     voidTrimbleCapturesForSegment,
     markTrimbleSegmentManuallyCaptured,
+    markTrimbleSegmentNoCapturable,
     // Trimble checkpoints (fase 2)
     completeTrimblePrecheck,
     confirmTrimbleSystemReady,

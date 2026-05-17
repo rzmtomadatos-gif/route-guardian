@@ -122,21 +122,21 @@ export function TrimbleSelectedSegmentOverlay({
   const handleNoCapturable = () => {
     if (recordingActive) {
       const r = ctx.setTrimbleRecordingSegmentOverride(segment.id, 'force_no_capturable');
-      if (!r.ok) toast.error(r.reason || 'No se pudo aplicar.');
+      if (!r.ok) toast.error(r.reason ?? 'No se pudo marcar no grabable.');
       else toast.message('Marcado no grabable (esta grabación).');
     } else {
-      // Crea captura operator_override no_capturable directamente.
-      const r = ctx.markTrimbleSegmentManuallyCaptured(segment.id, 'no_capturable_override');
-      // Esta es una llamada simple; para no_capturable real usamos override.
-      // Si no hay misión activa, avisamos.
-      if (!r.ok) toast.error(r.reason || 'Necesitas misión y pasada activas.');
-      else toast.message('Anotado.');
+      // BUG-043: usar función dedicada (no reutilizar markTrimbleSegmentManuallyCaptured,
+      // que crearía una falsa captura 'capturado_pendiente_proceso').
+      const r = ctx.markTrimbleSegmentNoCapturable(segment.id);
+      if (!r.ok) toast.error(r.reason ?? 'No se pudo marcar no grabable.');
+      else toast.success('Marcado como no grabable.');
     }
   };
 
   const handleManualCaptured = () => {
     const r = ctx.markTrimbleSegmentManuallyCaptured(segment.id);
-    if (!r.ok) toast.error(r.reason || 'Necesitas misión y pasada activas.');
+    // BUG-042: mostrar el diagnóstico exacto del estado, sin fallback genérico engañoso.
+    if (!r.ok) toast.error(r.reason ?? 'No se pudo marcar capturado manualmente.');
     else toast.success('Marcado capturado manualmente.');
   };
 

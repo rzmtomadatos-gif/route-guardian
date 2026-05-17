@@ -115,6 +115,21 @@ export function resolveTrimbleSegmentColor(status: TrimbleSegmentStatus): string
 import type { TrimbleLiveCoverageItem } from '@/utils/trimble/live-coverage';
 import { TRIMBLE_LIVE_STATUS_COLOR } from '@/utils/trimble/live-coverage';
 
+/**
+ * Estados Trimble persistentes que NO deben ser sobrescritos por la capa
+ * transitoria de cobertura GPS en vivo (BUG-041). Si el tramo ya fue
+ * capturado/procesado/no_capturable/descartado en otra misión o pasada,
+ * el color base persistente manda y la cobertura en vivo no debe pintarlo
+ * como "live_covered" o "live_partial".
+ */
+const TRIMBLE_PERSISTENT_DOMINATES: ReadonlySet<TrimbleSegmentStatus> = new Set([
+  'capturado_pendiente_proceso',
+  'procesado_ok',
+  'procesado_con_observaciones',
+  'no_capturable',
+  'descartado_por_calidad',
+]);
+
 export function resolveSegmentDisplayColor(params: {
   seg: Segment;
   activeSegmentId?: string | null;
@@ -123,6 +138,10 @@ export function resolveSegmentDisplayColor(params: {
   liveItem?: TrimbleLiveCoverageItem | null;
 }): string {
   const { seg, activeSegmentId, layerColor, trimbleStatus, liveItem } = params;
+  // BUG-041: persistente consolidado tiene prioridad sobre live coverage.
+  if (trimbleStatus && TRIMBLE_PERSISTENT_DOMINATES.has(trimbleStatus)) {
+    return resolveTrimbleSegmentColor(trimbleStatus);
+  }
   if (liveItem) return TRIMBLE_LIVE_STATUS_COLOR[liveItem.status];
   if (trimbleStatus) return resolveTrimbleSegmentColor(trimbleStatus);
   return resolveSegmentColor(seg, activeSegmentId, layerColor ?? undefined);
