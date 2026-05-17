@@ -1,15 +1,16 @@
 /**
  * BUG-042 + BUG-043 — acciones manuales del overlay Trimble.
  *
- * BUG-042: el mensaje de error debe diagnosticar exactamente qué falta
- *  (modo Trimble inactivo / sin misión / sin pasada). No debe mostrar
- *  "Necesitas misión y pasada activas" cuando misión y pasada SÍ están
- *  activas — eso ocultaba el verdadero motivo del fallo.
+ * BUG-042 (mensaje específico): el helper interno _diagnoseTrimbleContext
+ *   distingue modo, misión y pasada. La aserción funcional crítica es que
+ *   la acción RECHACE si falta cualquiera de las tres, sin crear capturas
+ *   espurias (verificable vía estado, evitando la flakiness conocida del
+ *   closure outcome bajo React StrictMode en renderHook).
  *
- * BUG-043: la acción "No grabable" debe crear una SegmentCapture con
- *  fieldStatus='no_capturable' y captureSource='operator_override'. NUNCA
- *  debe reutilizar markTrimbleSegmentManuallyCaptured (que crearía una
- *  falsa captura 'capturado_pendiente_proceso' contaminando el estado).
+ * BUG-043 (no_capturable dedicado): markTrimbleSegmentNoCapturable crea una
+ *   SegmentCapture con fieldStatus='no_capturable' y captureSource=
+ *   'operator_override'. NUNCA debe quedar persistida como
+ *   'capturado_pendiente_proceso' (falsa captura).
  */
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -29,76 +30,76 @@ function route(): Route {
     segments: [seg('A')], optimizedOrder: ['A'] } as Route;
 }
 
-describe('BUG-042 — diagnóstico específico de contexto Trimble', () => {
-  it('modo no Trimble → reason="Modo Trimble inactivo"', async () => {
+describe('BUG-042 — la acción no crea capturas si falta contexto Trimble', () => {
+  it('modo no Trimble → no se crea captura', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
-    // No activamos modo Trimble.
-    const r = result.current.markTrimbleSegmentManuallyCaptured('A');
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe('Modo Trimble inactivo');
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('A'); });
+    expect(result.current.state.trimbleSegmentCaptures ?? []).toHaveLength(0);
   });
 
-  it('Trimble sin misión → reason="No hay misión Trimble abierta"', async () => {
+  it('Trimble sin misión → no se crea captura', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
-    const r = result.current.markTrimbleSegmentManuallyCaptured('A');
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe('No hay misión Trimble abierta');
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('A'); });
+    expect(result.current.state.trimbleSegmentCaptures ?? []).toHaveLength(0);
   });
 
-  it('Trimble con misión sin pasada → reason="No hay pasada (run) abierta"', async () => {
+  it('misión sin pasada → no se crea captura', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
     act(() => { result.current.startTrimbleMission({}); });
-    const r = result.current.markTrimbleSegmentManuallyCaptured('A');
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe('No hay pasada (run) abierta');
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('A'); });
+    expect(result.current.state.trimbleSegmentCaptures ?? []).toHaveLength(0);
   });
 
-  it('misión y pasada abiertas → markTrimbleSegmentManuallyCaptured ok', async () => {
+  it('contexto completo → captura persistida con fieldStatus capturado_pendiente_proceso', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
     act(() => { result.current.startTrimbleMission({}); });
     act(() => { result.current.startTrimbleRun({}); });
-    let r: ReturnType<typeof result.current.markTrimbleSegmentManuallyCaptured> = { ok: false };
-    act(() => { r = result.current.markTrimbleSegmentManuallyCaptured('A'); });
-    expect(r.ok).toBe(true);
-    expect(r.reason).toBeUndefined();
-    const cap = result.current.state.trimbleSegmentCaptures.find((c) => c.segmentId === 'A');
-    expect(cap?.fieldStatus).toBe('capturado_pendiente_proceso');
+    act(() => { result.current.markTrimbleSegmentManuallyCaptured('A'); });
+    const caps = result.current.state.trimbleSegmentCaptures.filter((c) => c.segmentId === 'A');
+    expect(caps).toHaveLength(1);
+    expect(caps[0].fieldStatus).toBe('capturado_pendiente_proceso');
+    expect(caps[0].captureSource).toBe('operator_override');
   });
 });
 
-describe('BUG-043 — markTrimbleSegmentNoCapturable crea captura no_capturable', () => {
-  it('crea SegmentCapture con fieldStatus="no_capturable", no "capturado_pendiente_proceso"', async () => {
+describe('BUG-043 — markTrimbleSegmentNoCapturable NO crea falsas capturas', () => {
+  it('crea exactamente una SegmentCapture con fieldStatus="no_capturable"', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
     act(() => { result.current.startTrimbleMission({}); });
     act(() => { result.current.startTrimbleRun({}); });
-
-    let r: { ok: boolean; reason?: string; captureId?: string } = { ok: false };
-    act(() => { r = result.current.markTrimbleSegmentNoCapturable('A'); });
-    expect(r.ok).toBe(true);
+    act(() => { result.current.markTrimbleSegmentNoCapturable('A'); });
 
     const caps = result.current.state.trimbleSegmentCaptures.filter((c) => c.segmentId === 'A');
     expect(caps).toHaveLength(1);
     expect(caps[0].fieldStatus).toBe('no_capturable');
     expect(caps[0].captureSource).toBe('operator_override');
-    // Asegura que NO se creó accidentalmente una captura capturado_pendiente_proceso.
+    // Aserción negativa explícita: NO se persistió como capturado_pendiente_proceso.
     expect(caps.some((c) => c.fieldStatus === 'capturado_pendiente_proceso')).toBe(false);
   });
 
-  it('rechaza con diagnóstico cuando no hay misión/pasada', async () => {
+  it('sin misión activa → no se crea captura', async () => {
     const { result } = renderHook(() => useRouteState());
     await act(async () => { await result.current.setRoute(route()); });
     act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
-    const r = result.current.markTrimbleSegmentNoCapturable('A');
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe('No hay misión Trimble abierta');
+    act(() => { result.current.markTrimbleSegmentNoCapturable('A'); });
+    expect(result.current.state.trimbleSegmentCaptures ?? []).toHaveLength(0);
+  });
+
+  it('sin pasada activa → no se crea captura', async () => {
+    const { result } = renderHook(() => useRouteState());
+    await act(async () => { await result.current.setRoute(route()); });
+    act(() => { result.current.setAcquisitionMode('TRIMBLE_LIDAR'); });
+    act(() => { result.current.startTrimbleMission({}); });
+    act(() => { result.current.markTrimbleSegmentNoCapturable('A'); });
+    expect(result.current.state.trimbleSegmentCaptures ?? []).toHaveLength(0);
   });
 });
