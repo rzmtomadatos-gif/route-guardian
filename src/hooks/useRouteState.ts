@@ -3147,6 +3147,7 @@ export function useRouteState() {
     setTrimbleRecordingSegmentOverride,
     voidTrimbleCapturesForSegment,
     markTrimbleSegmentManuallyCaptured,
+    markTrimbleSegmentNoCapturable,
     // Trimble checkpoints (fase 2)
     completeTrimblePrecheck,
     confirmTrimbleSystemReady,
