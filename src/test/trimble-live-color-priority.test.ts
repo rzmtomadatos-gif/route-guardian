@@ -31,10 +31,30 @@ function route(): Route {
 describe('resolveSegmentDisplayColor — prioridad visual', () => {
   const s = seg('A');
 
-  it('live override gana sobre trimbleStatus y color base', () => {
+  it('BUG-041: persistente consolidado (capturado) gana sobre live coverage', () => {
     const color = resolveSegmentDisplayColor({
       seg: s,
       trimbleStatus: 'capturado_pendiente_proceso',
+      liveItem: { segmentId: 'A', status: 'live_covered',
+        coverageRatio: 1, matchedPoints: 5, startProgress: 0, endProgress: 1 },
+    });
+    expect(color).toBe(TRIMBLE_STATUS_COLOR.capturado_pendiente_proceso);
+  });
+
+  it('BUG-041: no_capturable persistente gana sobre live_partial', () => {
+    const color = resolveSegmentDisplayColor({
+      seg: s,
+      trimbleStatus: 'no_capturable',
+      liveItem: { segmentId: 'A', status: 'live_partial',
+        coverageRatio: 0.4, matchedPoints: 3, startProgress: 0, endProgress: 0.4 },
+    });
+    expect(color).toBe(TRIMBLE_STATUS_COLOR.no_capturable);
+  });
+
+  it('live coverage SÍ pinta cuando persistente es pendiente/en_captura/repetir', () => {
+    const color = resolveSegmentDisplayColor({
+      seg: s,
+      trimbleStatus: 'pendiente',
       liveItem: { segmentId: 'A', status: 'live_covered',
         coverageRatio: 1, matchedPoints: 5, startProgress: 0, endProgress: 1 },
     });
@@ -50,7 +70,6 @@ describe('resolveSegmentDisplayColor — prioridad visual', () => {
 
   it('sin live ni trimbleStatus, devuelve color base operativo', () => {
     const color = resolveSegmentDisplayColor({ seg: s });
-    // pendiente sin layer => gris por defecto del resolver base
     expect(color).toBe('#6b7280');
   });
 });
