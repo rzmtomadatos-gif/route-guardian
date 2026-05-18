@@ -66,6 +66,7 @@ interface Props {
   copilotActive: boolean;
   onCopilotStart: () => Promise<CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
+  onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
   onSetActiveSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
@@ -96,6 +97,7 @@ export function TrimbleNavigationPanel({
   copilotActive,
   onCopilotStart,
   onCopilotEnd,
+  onCopilotGeneratePairing,
   onCopilotPushQueue,
   onSetActiveSegment,
   onAddIncident,

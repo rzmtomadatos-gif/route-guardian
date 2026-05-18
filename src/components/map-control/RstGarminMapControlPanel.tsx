@@ -85,6 +85,7 @@ interface Props {
   copilotActive: boolean;
   onCopilotStart: () => Promise<import('@/hooks/useCopilotSession').CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
+  onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   onForceSendBatch?: () => void;
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
@@ -141,6 +142,7 @@ export function RstGarminMapControlPanel({
   onCopilotStart,
   canNavigate: canNavigateProp = true,
   onCopilotEnd,
+  onCopilotGeneratePairing,
   onForceSendBatch,
   acquisitionMode,
   onSetAcquisitionMode,
