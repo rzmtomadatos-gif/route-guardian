@@ -74,6 +74,7 @@ function renderPanel() {
       copilotActive={false}
       onCopilotStart={async () => null}
       onCopilotEnd={async () => {}}
+      onCopilotGeneratePairing={async () => null}
       onCopilotPushQueue={async () => {}}
       onSetActiveSegment={() => {}}
       onAddIncident={() => {}}
@@ -164,6 +165,7 @@ describe('TrimbleNavigationPanel — UI grabación continua', () => {
         copilotActive={false}
         onCopilotStart={async () => null}
         onCopilotEnd={async () => {}}
+        onCopilotGeneratePairing={async () => null}
         onCopilotPushQueue={async () => {}}
         onSetActiveSegment={() => {}}
         onAddIncident={() => {}}
