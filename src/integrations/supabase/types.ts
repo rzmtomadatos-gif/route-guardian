@@ -35,6 +35,97 @@ export type Database = {
         }
         Relationships: []
       }
+      copilot_pairings: {
+        Row: {
+          consume_attempts: number
+          consumed_at: string | null
+          consumed_by_user_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          last_attempt_at: string | null
+          nonce_hash: string
+          operator_user_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          session_id: string
+        }
+        Insert: {
+          consume_attempts?: number
+          consumed_at?: string | null
+          consumed_by_user_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          nonce_hash: string
+          operator_user_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          session_id: string
+        }
+        Update: {
+          consume_attempts?: number
+          consumed_at?: string | null
+          consumed_by_user_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          nonce_hash?: string
+          operator_user_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "copilot_pairings_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "copilot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      copilot_session_events: {
+        Row: {
+          actor: string
+          actor_user_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          session_id: string
+        }
+        Insert: {
+          actor: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          session_id: string
+        }
+        Update: {
+          actor?: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "copilot_session_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "copilot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       copilot_sessions: {
         Row: {
           batch_number: number
@@ -43,12 +134,21 @@ export type Database = {
           cursor_index: number
           destination_lat: number | null
           destination_lng: number | null
+          driver_last_seen_at: string | null
+          driver_token_hash: string | null
+          driver_token_issued_at: string | null
+          driver_user_id: string | null
+          expires_at: string | null
           id: string
+          last_route_opened_at: string | null
+          last_route_opened_batch: number | null
+          last_route_received_batch: number | null
+          operator_user_id: string | null
           queue: Json
           segment_id: string | null
           segment_name: string | null
           status: string
-          token: string
+          token: string | null
           track_number: number | null
           updated_at: string
         }
@@ -59,12 +159,21 @@ export type Database = {
           cursor_index?: number
           destination_lat?: number | null
           destination_lng?: number | null
+          driver_last_seen_at?: string | null
+          driver_token_hash?: string | null
+          driver_token_issued_at?: string | null
+          driver_user_id?: string | null
+          expires_at?: string | null
           id?: string
+          last_route_opened_at?: string | null
+          last_route_opened_batch?: number | null
+          last_route_received_batch?: number | null
+          operator_user_id?: string | null
           queue?: Json
           segment_id?: string | null
           segment_name?: string | null
           status?: string
-          token?: string
+          token?: string | null
           track_number?: number | null
           updated_at?: string
         }
@@ -75,12 +184,21 @@ export type Database = {
           cursor_index?: number
           destination_lat?: number | null
           destination_lng?: number | null
+          driver_last_seen_at?: string | null
+          driver_token_hash?: string | null
+          driver_token_issued_at?: string | null
+          driver_user_id?: string | null
+          expires_at?: string | null
           id?: string
+          last_route_opened_at?: string | null
+          last_route_opened_batch?: number | null
+          last_route_received_batch?: number | null
+          operator_user_id?: string | null
           queue?: Json
           segment_id?: string | null
           segment_name?: string | null
           status?: string
-          token?: string
+          token?: string | null
           track_number?: number | null
           updated_at?: string
         }
@@ -159,15 +277,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _gen_url_token: { Args: { p_bytes?: number }; Returns: string }
       check_email_allowed: { Args: { p_email: string }; Returns: boolean }
+      claim_driver_pairing: { Args: { p_nonce: string }; Returns: Json }
       create_copilot_session: { Args: never; Returns: Json }
       delete_copilot_session: { Args: { p_token: string }; Returns: undefined }
+      driver_mark_route_opened: {
+        Args: { p_batch_number: number; p_driver_token: string }
+        Returns: Json
+      }
+      driver_read_session: { Args: { p_driver_token: string }; Returns: Json }
+      driver_report_recovered: {
+        Args: { p_driver_token: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      hash_token: { Args: { p_token: string }; Returns: string }
+      operator_end_session: {
+        Args: { p_session_id: string }
+        Returns: undefined
+      }
+      operator_generate_pairing: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      operator_get_session: { Args: { p_session_id: string }; Returns: Json }
+      operator_update_session: {
+        Args: { p_session_id: string; p_updates: Json }
+        Returns: Json
       }
       read_copilot_session_by_token: {
         Args: { p_token: string }
@@ -183,7 +326,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "supervisor" | "operator" | "gabinete"
+      app_role: "admin" | "supervisor" | "operator" | "gabinete" | "driver"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -311,7 +454,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "supervisor", "operator", "gabinete"],
+      app_role: ["admin", "supervisor", "operator", "gabinete", "driver"],
     },
   },
 } as const
