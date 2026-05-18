@@ -40,7 +40,7 @@ export default function AuthPage() {
         ? 'Credenciales inválidas. Comprueba email y contraseña.'
         : error.message);
     } else {
-      navigate('/', { replace: true });
+      navigate(nextPath, { replace: true });
     }
   };
 
