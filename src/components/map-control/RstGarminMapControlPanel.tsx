@@ -328,7 +328,7 @@ export function RstGarminMapControlPanel({
               <Button variant="outline" onClick={onReoptimize} size="sm" className="h-9 flex-1 p-0" title="Optimizar">
                 <RotateCcw className="w-4 h-4" />
               </Button>
-              <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onForceSendBatch={onForceSendBatch}>
+              <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onGeneratePairing={onCopilotGeneratePairing} onForceSendBatch={onForceSendBatch}>
                 <Button variant="outline" size="sm" className={`h-9 flex-1 p-0 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
                   <Radio className="w-4 h-4" />
                 </Button>
@@ -523,6 +523,7 @@ export function RstGarminMapControlPanel({
                 active={copilotActive}
                 onStart={onCopilotStart}
                 onEnd={onCopilotEnd}
+                onGeneratePairing={onCopilotGeneratePairing}
                 onForceSendBatch={onForceSendBatch}
               >
                 <Button variant="outline" className={`h-12 px-3 ${copilotActive ? 'border-emerald-500/40 text-emerald-500' : ''}`} title="Modo Copiloto">
