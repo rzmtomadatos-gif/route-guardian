@@ -66,6 +66,7 @@ interface Props {
   copilotActive: boolean;
   onCopilotStart: () => Promise<CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
+  onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
   onSetActiveSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
@@ -96,6 +97,7 @@ export function TrimbleNavigationPanel({
   copilotActive,
   onCopilotStart,
   onCopilotEnd,
+  onCopilotGeneratePairing,
   onCopilotPushQueue,
   onSetActiveSegment,
   onAddIncident,
@@ -591,7 +593,7 @@ export function TrimbleNavigationPanel({
               {gpsEnabled ? <LocateFixed className="w-4 h-4 mr-1" /> : <LocateOff className="w-4 h-4 mr-1" />}
               {gpsEnabled ? 'GPS activo' : 'Activar GPS'}
             </Button>
-            <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd}>
+            <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onGeneratePairing={onCopilotGeneratePairing}>
               <Button variant="outline" size="sm" className={`h-9 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
                 <Radio className="w-4 h-4" />
               </Button>

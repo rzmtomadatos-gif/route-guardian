@@ -68,6 +68,7 @@ function renderPanel(segments: Segment[]) {
       copilotActive={false}
       onCopilotStart={async () => null}
       onCopilotEnd={async () => {}}
+      onCopilotGeneratePairing={async () => null}
       onCopilotPushQueue={async () => {}}
       onSetActiveSegment={() => {}}
       onAddIncident={() => {}}

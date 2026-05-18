@@ -1,15 +1,74 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useCopilotDriver } from '@/hooks/useCopilotSession';
-import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, Map } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  useCopilotDriver,
+  claimDriverPairing,
+  getStoredDriverToken,
+  clearStoredDriverToken,
+} from '@/hooks/useCopilotSession';
+import { useAuth } from '@/hooks/useAuth';
+import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, Map, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+const PENDING_NONCE_KEY = 'vialroute_pending_driver_nonce';
 
 export default function DriverPage() {
   const [params] = useSearchParams();
-  const token = params.get('session');
-  const { session, loading, error } = useCopilotDriver(token);
+  const nonce = params.get('p');
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
-  // Track seen batch to show "new batch" alert
+  const [driverToken, setDriverToken] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // Auth + claim flow (same model as DriverMiniPage).
+  useEffect(() => {
+    if (authLoading) return;
+    if (nonce) {
+      try { sessionStorage.setItem(PENDING_NONCE_KEY, nonce); } catch { /* ignore */ }
+    }
+    if (!user) {
+      if (nonce) {
+        const next = `/driver?p=${encodeURIComponent(nonce)}`;
+        navigate(`/auth?next=${encodeURIComponent(next)}`, { replace: true });
+      }
+      return;
+    }
+    let pending: string | null = null;
+    try { pending = sessionStorage.getItem(PENDING_NONCE_KEY); } catch { /* ignore */ }
+
+    if (pending) {
+      setClaiming(true);
+      claimDriverPairing(pending)
+        .then((res) => {
+          if (!res) { setClaimError('Emparejamiento inválido o caducado'); return; }
+          setDriverToken(res.driver_token);
+          setSessionId(res.session_id);
+          setClaimError(null);
+        })
+        .finally(() => {
+          setClaiming(false);
+          try { sessionStorage.removeItem(PENDING_NONCE_KEY); } catch { /* ignore */ }
+          if (nonce) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('p');
+            window.history.replaceState({}, '', url.toString());
+          }
+        });
+      return;
+    }
+    const stored = getStoredDriverToken();
+    if (stored) {
+      setDriverToken(stored.driver_token);
+      setSessionId(stored.session_id);
+    }
+  }, [nonce, user, authLoading, navigate]);
+
+  const { status, session, markRouteOpened } = useCopilotDriver(driverToken);
+
+  // Track seen batch to highlight "nuevo lote".
   const [seenBatch, setSeenBatch] = useState(0);
   const [showNewBatch, setShowNewBatch] = useState(false);
   const prevBatchRef = useRef(0);
@@ -19,32 +78,21 @@ export default function DriverPage() {
     const bn = session.batch_number || 0;
     if (bn > prevBatchRef.current && prevBatchRef.current > 0) {
       setShowNewBatch(true);
-      // Vibrate to alert driver
-      try { navigator.vibrate?.([300, 100, 300]); } catch {}
+      try { navigator.vibrate?.([300, 100, 300]); } catch { /* ignore */ }
     }
     prevBatchRef.current = bn;
   }, [session?.batch_number]);
 
   const handleOpenBatch = useCallback(() => {
     if (!session?.batch_url) return;
-    window.open(session.batch_url, '_blank');
+    void markRouteOpened(session.batch_number ?? 0);
+    window.open(session.batch_url, '_blank', 'noopener,noreferrer');
     setShowNewBatch(false);
     setSeenBatch(session.batch_number || 0);
-  }, [session]);
+  }, [session, markRouteOpened]);
 
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="text-center space-y-3">
-          <WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />
-          <h1 className="text-lg font-bold text-foreground">Sin sesión</h1>
-          <p className="text-sm text-muted-foreground">Escanea el código QR del operador para conectar.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
+  // ── Render states ──
+  if (authLoading || claiming) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -52,28 +100,43 @@ export default function DriverPage() {
     );
   }
 
-  if (error || !session) {
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="text-center space-y-3">
-          <WifiOff className="w-12 h-12 text-destructive mx-auto" />
-          <h1 className="text-lg font-bold text-foreground">Error de conexión</h1>
-          <p className="text-sm text-muted-foreground">{error || 'Sesión no encontrada'}</p>
-        </div>
+      <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Inicia sesión" subtitle="Inicia sesión para conectarte al copiloto." />
+    );
+  }
+  if (claimError) {
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />} title="Escanea un QR nuevo" subtitle={claimError} />;
+  }
+  if (!driverToken) {
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sin sesión" subtitle="Escanea el QR de emparejamiento del operador." />;
+  }
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
-
-  if (session.status === 'ended') {
+  if (status === 'invalid_token' || status === 'expired') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="text-center space-y-3">
-          <Clock className="w-12 h-12 text-muted-foreground mx-auto" />
-          <h1 className="text-lg font-bold text-foreground">Sesión finalizada</h1>
-          <p className="text-sm text-muted-foreground">El operador ha terminado la sesión.</p>
-        </div>
-      </div>
+      <ErrorScreen
+        icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />}
+        title="Escanea un QR nuevo"
+        subtitle="El emparejamiento ya no es válido."
+        action={
+          <Button variant="outline" size="sm" onClick={() => { clearStoredDriverToken(); setDriverToken(null); setSessionId(null); }}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Reiniciar
+          </Button>
+        }
+      />
     );
+  }
+  if (status === 'ended' || session?.status === 'ended') {
+    return <ErrorScreen icon={<Clock className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sesión finalizada" subtitle="El operador ha terminado la sesión." />;
+  }
+  if (status === 'error' || !session) {
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-amber-500 mx-auto" />} title="Reintentando…" subtitle="Sin respuesta del servidor." />;
   }
 
   const isBlocked = session.status === 'blocked';
@@ -85,7 +148,6 @@ export default function DriverPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col safe-area-bottom safe-area-top">
-      {/* Header */}
       <header className="bg-card border-b border-border px-4 py-3 flex items-center gap-3">
         <Navigation className="w-5 h-5 text-primary" />
         <div className="flex-1 min-w-0">
@@ -99,7 +161,6 @@ export default function DriverPage() {
         <StatusDot status={session.status} />
       </header>
 
-      {/* Main content */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
         {isWaiting && !hasBatch && (
           <div className="text-center space-y-3">
@@ -125,7 +186,6 @@ export default function DriverPage() {
           </div>
         )}
 
-        {/* New batch alert */}
         {!isBlocked && isNewBatch && hasBatch && (
           <div className="w-full max-w-sm space-y-6 text-center">
             <div className="w-24 h-24 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto animate-pulse">
@@ -135,17 +195,13 @@ export default function DriverPage() {
               <h2 className="text-2xl font-bold text-foreground">Nuevo itinerario disponible</h2>
               <p className="text-sm text-muted-foreground">Lote {batchNum} · {queue.length} paradas</p>
             </div>
-            <Button
-              className="w-full h-16 text-lg font-bold"
-              onClick={handleOpenBatch}
-            >
+            <Button className="w-full h-16 text-lg font-bold" onClick={handleOpenBatch}>
               <ExternalLink className="w-6 h-6 mr-3" />
               Abrir en Google Maps
             </Button>
           </div>
         )}
 
-        {/* Current batch (already seen) */}
         {!isBlocked && !isNewBatch && hasBatch && (
           <div className="w-full max-w-sm space-y-4 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
@@ -156,16 +212,10 @@ export default function DriverPage() {
               <h2 className="text-xl font-bold text-foreground">Lote {batchNum}</h2>
               <p className="text-xs text-muted-foreground">{queue.length} paradas en cola</p>
             </div>
-
-            <Button
-              className="w-full h-14 text-base font-bold"
-              onClick={handleOpenBatch}
-            >
+            <Button className="w-full h-14 text-base font-bold" onClick={handleOpenBatch}>
               <ExternalLink className="w-5 h-5 mr-2" />
               Abrir itinerario en Google Maps
             </Button>
-
-            {/* Queue preview */}
             {queue.length > 0 && (
               <div className="border border-border rounded-lg overflow-hidden mt-2 text-left">
                 <div className="px-3 py-2 bg-muted/50 border-b border-border">
@@ -187,10 +237,24 @@ export default function DriverPage() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="bg-card border-t border-border px-4 py-2 text-center">
         <p className="text-[10px] text-muted-foreground">Route-Guardian · Solo lectura</p>
       </footer>
+    </div>
+  );
+}
+
+function ErrorScreen({
+  icon, title, subtitle, action,
+}: { icon: React.ReactNode; title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="text-center space-y-3">
+        {icon}
+        <h1 className="text-lg font-bold text-foreground">{title}</h1>
+        {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+        {action}
+      </div>
     </div>
   );
 }

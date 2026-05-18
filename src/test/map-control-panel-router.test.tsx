@@ -74,6 +74,7 @@ const baseProps = {
   copilotActive: false,
   onCopilotStart: asyncNoop,
   onCopilotEnd: asyncNoop,
+  onCopilotGeneratePairing: asyncNoop,
   trimbleEligibleSegmentIds: new Set<string>(),
   trimbleOrderIds: [],
 };

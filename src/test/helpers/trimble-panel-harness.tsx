@@ -46,7 +46,7 @@ export function buildState(segments: Segment[], captures: SegmentCapture[] = [])
 
 export function makeCopilotSession(): CopilotSession {
   return {
-    id: 'cop-1', token: 'tok-1',
+    id: 'cop-1',
     segment_name: null, segment_id: null,
     destination_lat: null, destination_lng: null,
     status: 'waiting', track_number: null,
