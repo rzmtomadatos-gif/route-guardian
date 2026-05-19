@@ -55,7 +55,7 @@ export default function DriverMiniPage() {
       setClaimStatus('claiming');
       claimDriverPairing(pending)
         .then((res) => {
-          if (!res.ok) { setClaimError(res.reason); setClaimStatus('error'); return; }
+          if (res.ok === false) { setClaimError(res.reason); setClaimStatus('error'); return; }
           setDriverToken(res.driver_token);
           setSessionId(res.session_id);
           setClaimError(null);
