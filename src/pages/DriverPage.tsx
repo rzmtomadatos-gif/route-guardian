@@ -5,8 +5,11 @@ import {
   claimDriverPairing,
   getStoredDriverToken,
   clearStoredDriverToken,
+  type PairingClaimErrorReason,
+  type PairingClaimStatus,
 } from '@/hooks/useCopilotSession';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, Map, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,10 +20,12 @@ export default function DriverPage() {
   const nonce = params.get('p');
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { role } = useUserRole();
 
   const [driverToken, setDriverToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<PairingClaimErrorReason | null>(null);
+  const [claimStatus, setClaimStatus] = useState<PairingClaimStatus>('idle');
   const [claiming, setClaiming] = useState(false);
 
   // Auth + claim flow (same model as DriverMiniPage).
@@ -41,12 +46,14 @@ export default function DriverPage() {
 
     if (pending) {
       setClaiming(true);
+      setClaimStatus('claiming');
       claimDriverPairing(pending)
         .then((res) => {
-          if (!res) { setClaimError('Emparejamiento inválido o caducado'); return; }
+          if (res.ok === false) { setClaimError(res.reason); setClaimStatus('error'); return; }
           setDriverToken(res.driver_token);
           setSessionId(res.session_id);
           setClaimError(null);
+          setClaimStatus('ok');
         })
         .finally(() => {
           setClaiming(false);
@@ -66,7 +73,7 @@ export default function DriverPage() {
     }
   }, [nonce, user, authLoading, navigate]);
 
-  const { status, session, markRouteOpened } = useCopilotDriver(driverToken);
+  const { status, session, markRouteOpened, refreshNow, lastPollAt, error: lastRpcError } = useCopilotDriver(driverToken);
 
   // Track seen batch to highlight "nuevo lote".
   const [seenBatch, setSeenBatch] = useState(0);
@@ -82,6 +89,10 @@ export default function DriverPage() {
     }
     prevBatchRef.current = bn;
   }, [session?.batch_number]);
+
+  const debugBatchNumber = session?.batch_number ?? 0;
+  const debugHasBatch = !!session?.batch_url;
+  const debugHasNew = showNewBatch && debugBatchNumber > seenBatch;
 
   const handleOpenBatch = useCallback(() => {
     if (!session?.batch_url) return;
@@ -106,10 +117,10 @@ export default function DriverPage() {
     );
   }
   if (claimError) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />} title="Escanea un QR nuevo" subtitle={claimError} />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />} title="Escanea un QR nuevo" subtitle={claimError === 'role_not_allowed' ? 'Tu usuario no tiene rol conductor' : claimError} action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
   if (!driverToken) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sin sesión" subtitle="Escanea el QR de emparejamiento del operador." />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sin sesión" subtitle="Escanea el QR de emparejamiento del operador." action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
   if (status === 'loading') {
     return (
@@ -125,9 +136,12 @@ export default function DriverPage() {
         title="Escanea un QR nuevo"
         subtitle="El emparejamiento ya no es válido."
         action={
-          <Button variant="outline" size="sm" onClick={() => { clearStoredDriverToken(); setDriverToken(null); setSessionId(null); }}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Reiniciar
-          </Button>
+          <>
+            <Button variant="outline" size="sm" onClick={() => { clearStoredDriverToken(); setDriverToken(null); setSessionId(null); }}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Reiniciar
+            </Button>
+            <DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />
+          </>
         }
       />
     );
@@ -136,7 +150,7 @@ export default function DriverPage() {
     return <ErrorScreen icon={<Clock className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sesión finalizada" subtitle="El operador ha terminado la sesión." />;
   }
   if (status === 'error' || !session) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-amber-500 mx-auto" />} title="Reintentando…" subtitle="Sin respuesta del servidor." />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-amber-500 mx-auto" />} title="Reintentando…" subtitle="Sin respuesta del servidor." action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
 
   const isBlocked = session.status === 'blocked';
@@ -240,6 +254,7 @@ export default function DriverPage() {
       <footer className="bg-card border-t border-border px-4 py-2 text-center">
         <p className="text-[10px] text-muted-foreground">Route-Guardian · Solo lectura</p>
       </footer>
+      <DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={batchNum} hasBatchUrl={hasBatch} seenRev={seenBatch} hasNew={isNewBatch} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />
     </div>
   );
 }
@@ -255,6 +270,28 @@ function ErrorScreen({
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         {action}
       </div>
+    </div>
+  );
+}
+
+function shortId(v?: string | null) {
+  return v ? `${v.slice(0, 8)}…` : '—';
+}
+
+function DriverDebug(props: {
+  userId?: string | null; role: string | null; noncePresent: boolean; claimStatus: PairingClaimStatus;
+  claimError: PairingClaimErrorReason | null; driverTokenPresent: boolean; sessionId: string | null;
+  readStatus: string; batchNumber: number; hasBatchUrl: boolean; seenRev: number; hasNew: boolean;
+  lastPollAt?: string | null; lastRpcError?: string | null; onRefresh: () => void;
+}) {
+  if (!import.meta.env.DEV) return null;
+  return (
+    <div className="mt-3 rounded-md bg-muted/80 border border-border p-2 text-[10px] text-muted-foreground text-left font-mono space-y-0.5">
+      <div>debug driver · user {shortId(props.userId)} · rol {props.role ?? '—'} · nonce {props.noncePresent ? 'sí' : 'no'} · claim {props.claimStatus}</div>
+      <div>reason {props.claimError ?? '—'} · token {props.driverTokenPresent ? 'sí' : 'no'} · session {shortId(props.sessionId)} · read {props.readStatus}</div>
+      <div>batch {props.batchNumber} · url {props.hasBatchUrl ? 'sí' : 'no'} · seenRev {props.seenRev} · hasNew {props.hasNew ? 'sí' : 'no'}</div>
+      <div>poll {props.lastPollAt ? new Date(props.lastPollAt).toLocaleTimeString() : '—'} · rpc {props.lastRpcError ?? '—'}</div>
+      <button onClick={props.onRefresh} className="mt-1 underline">Refrescar ahora</button>
     </div>
   );
 }

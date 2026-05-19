@@ -34,7 +34,7 @@ import { buildGoogleMapsBatchUrl, SEGMENTS_PER_BATCH } from '@/utils/google-maps
 import { findActiveCapture, type TrimbleSegmentStatus } from '@/types/trimble';
 import { logEvent } from '@/utils/persistence/event-log';
 import type { LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
-import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
+import type { CopilotSendResult, CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
 
 const STATUS_LABELS: Record<TrimbleSegmentStatus, string> = {
@@ -67,7 +67,9 @@ interface Props {
   onCopilotStart: () => Promise<CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
-  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
+  copilotLastRpcError?: string | null;
+  copilotLastEvent?: string | null;
+  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult | void>;
   onSetActiveSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   currentPosition: LatLng | null;
@@ -98,6 +100,8 @@ export function TrimbleNavigationPanel({
   onCopilotStart,
   onCopilotEnd,
   onCopilotGeneratePairing,
+  copilotLastRpcError,
+  copilotLastEvent,
   onCopilotPushQueue,
   onSetActiveSegment,
   onAddIncident,
@@ -593,7 +597,7 @@ export function TrimbleNavigationPanel({
               {gpsEnabled ? <LocateFixed className="w-4 h-4 mr-1" /> : <LocateOff className="w-4 h-4 mr-1" />}
               {gpsEnabled ? 'GPS activo' : 'Activar GPS'}
             </Button>
-            <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onGeneratePairing={onCopilotGeneratePairing}>
+            <CopilotPanel session={copilotSession} active={copilotActive} onStart={onCopilotStart} onEnd={onCopilotEnd} onGeneratePairing={onCopilotGeneratePairing} lastRpcError={copilotLastRpcError} lastEvent={copilotLastEvent}>
               <Button variant="outline" size="sm" className={`h-9 ${copilotActive ? 'border-emerald-500/60 text-emerald-500' : ''}`} title="Copiloto">
                 <Radio className="w-4 h-4" />
               </Button>

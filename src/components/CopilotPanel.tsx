@@ -15,6 +15,8 @@ interface Props {
   onEnd: () => Promise<void>;
   onGeneratePairing: () => Promise<PairingInfo | null>;
   onForceSendBatch?: () => void;
+  lastRpcError?: string | null;
+  lastEvent?: string | null;
   children: React.ReactNode;
 }
 
@@ -27,7 +29,7 @@ function fmtCountdown(ms: number) {
 }
 
 export function CopilotPanel({
-  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, children,
+  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, lastRpcError, lastEvent, children,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -67,15 +69,26 @@ export function CopilotPanel({
 
   const handleStart = async () => {
     setLoading(true);
-    await onStart();
-    setLoading(false);
+    try {
+      await onStart();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo activar Copiloto');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGenerate = async () => {
     setPairingLoading(true);
-    const p = await onGeneratePairing();
-    setPairingLoading(false);
-    if (!p) { toast.error('No se pudo generar el QR'); return; }
+    let p: PairingInfo | null = null;
+    try {
+      p = await onGeneratePairing();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo generar el QR');
+    } finally {
+      setPairingLoading(false);
+    }
+    if (!p?.nonce || p.nonce === 'undefined') { toast.error('No se pudo generar el QR'); return; }
     setPairing(p);
     setNow(Date.now());
   };
@@ -233,6 +246,15 @@ export function CopilotPanel({
                 </Button>
               </div>
             </div>
+
+            {import.meta.env.DEV && (
+              <div className="rounded-md border border-dashed border-border bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
+                <div>debug op · active {active ? 'sí' : 'no'} · session {session.id.slice(0, 8)}… · driver {driverConnected ? 'sí' : 'no'}</div>
+                <div>batch {session.batch_number ?? 0} · url {session.batch_url ? 'sí' : 'no'} · pairing {pairing ? 'sí' : 'no'} · ttl {pairing ? fmtCountdown(expiresMs) : '—'}</div>
+                <div>event {lastEvent ?? '—'}</div>
+                <div>rpc {lastRpcError ?? '—'}</div>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>

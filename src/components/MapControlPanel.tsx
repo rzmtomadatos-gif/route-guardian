@@ -10,7 +10,7 @@
 import type { Segment, LatLng, IncidentCategory, IncidentImpact, BaseLocation, TrackSession, AcquisitionMode } from '@/types/route';
 import { TrimbleNavigationPanel } from '@/components/map-control/TrimbleNavigationPanel';
 import { RstGarminMapControlPanel } from '@/components/map-control/RstGarminMapControlPanel';
-import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
+import type { CopilotSendResult, CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
 interface Props {
   segments: Segment[];
@@ -59,6 +59,8 @@ interface Props {
   onCopilotStart: () => Promise<CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
+  copilotLastRpcError?: string | null;
+  copilotLastEvent?: string | null;
   onForceSendBatch?: () => void;
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
@@ -68,7 +70,7 @@ interface Props {
   /** Trimble: IDs elegibles por capas activas (NO viewport/renderizado). */
   trimbleEligibleSegmentIds: Set<string>;
   trimbleOrderIds: string[];
-  onCopilotPushQueue?: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
+  onCopilotPushQueue?: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult | void>;
   onOpenAdvancedTrimble?: () => void;
 }
 
@@ -83,6 +85,8 @@ export function MapControlPanel(props: Props) {
         onCopilotStart={props.onCopilotStart}
         onCopilotEnd={props.onCopilotEnd}
         onCopilotGeneratePairing={props.onCopilotGeneratePairing}
+        copilotLastRpcError={props.copilotLastRpcError}
+        copilotLastEvent={props.copilotLastEvent}
         onCopilotPushQueue={props.onCopilotPushQueue ?? (async () => {})}
         onSetActiveSegment={props.onSegmentSelect}
         onAddIncident={props.onAddIncident}
