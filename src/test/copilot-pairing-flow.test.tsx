@@ -8,6 +8,15 @@ const rpcMock = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     rpc: (...args: unknown[]) => rpcMock(...args),
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          limit: () => ({
+            maybeSingle: () => Promise.resolve({ data: { role: 'driver' }, error: null }),
+          }),
+        }),
+      }),
+    }),
     channel: () => ({ on: () => ({ subscribe: () => ({}) }) }),
     removeChannel: () => {},
     auth: {
