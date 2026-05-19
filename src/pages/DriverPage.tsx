@@ -136,9 +136,12 @@ export default function DriverPage() {
         title="Escanea un QR nuevo"
         subtitle="El emparejamiento ya no es válido."
         action={
-          <Button variant="outline" size="sm" onClick={() => { clearStoredDriverToken(); setDriverToken(null); setSessionId(null); }}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Reiniciar
-          </Button>
+          <>
+            <Button variant="outline" size="sm" onClick={() => { clearStoredDriverToken(); setDriverToken(null); setSessionId(null); }}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Reiniciar
+            </Button>
+            <DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />
+          </>
         }
       />
     );
