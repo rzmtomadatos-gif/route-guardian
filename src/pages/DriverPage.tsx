@@ -251,6 +251,7 @@ export default function DriverPage() {
       <footer className="bg-card border-t border-border px-4 py-2 text-center">
         <p className="text-[10px] text-muted-foreground">Route-Guardian · Solo lectura</p>
       </footer>
+      <DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={batchNum} hasBatchUrl={hasBatch} seenRev={seenBatch} hasNew={isNewBatch} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />
     </div>
   );
 }
