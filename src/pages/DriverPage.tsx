@@ -270,6 +270,28 @@ function ErrorScreen({
   );
 }
 
+function shortId(v?: string | null) {
+  return v ? `${v.slice(0, 8)}…` : '—';
+}
+
+function DriverDebug(props: {
+  userId?: string | null; role: string | null; noncePresent: boolean; claimStatus: PairingClaimStatus;
+  claimError: PairingClaimErrorReason | null; driverTokenPresent: boolean; sessionId: string | null;
+  readStatus: string; batchNumber: number; hasBatchUrl: boolean; seenRev: number; hasNew: boolean;
+  lastPollAt?: string | null; lastRpcError?: string | null; onRefresh: () => void;
+}) {
+  if (!import.meta.env.DEV) return null;
+  return (
+    <div className="mt-3 rounded-md bg-muted/80 border border-border p-2 text-[10px] text-muted-foreground text-left font-mono space-y-0.5">
+      <div>debug driver · user {shortId(props.userId)} · rol {props.role ?? '—'} · nonce {props.noncePresent ? 'sí' : 'no'} · claim {props.claimStatus}</div>
+      <div>reason {props.claimError ?? '—'} · token {props.driverTokenPresent ? 'sí' : 'no'} · session {shortId(props.sessionId)} · read {props.readStatus}</div>
+      <div>batch {props.batchNumber} · url {props.hasBatchUrl ? 'sí' : 'no'} · seenRev {props.seenRev} · hasNew {props.hasNew ? 'sí' : 'no'}</div>
+      <div>poll {props.lastPollAt ? new Date(props.lastPollAt).toLocaleTimeString() : '—'} · rpc {props.lastRpcError ?? '—'}</div>
+      <button onClick={props.onRefresh} className="mt-1 underline">Refrescar ahora</button>
+    </div>
+  );
+}
+
 function StatusDot({ status }: { status: string }) {
   const color = status === 'navigating'
     ? 'bg-emerald-500'
