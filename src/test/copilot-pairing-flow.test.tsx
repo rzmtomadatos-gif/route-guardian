@@ -108,7 +108,7 @@ describe('claimDriverPairing', () => {
 
     const res = await claimDriverPairing('nonce-xyz');
     expect(rpcMock).toHaveBeenCalledWith('claim_driver_pairing', { p_nonce: 'nonce-xyz' });
-    expect(res).toEqual({ driver_token: 'drv-token-xyz', session_id: 'sess-9' });
+    expect(res).toEqual({ ok: true, driver_token: 'drv-token-xyz', session_id: 'sess-9' });
 
     expect(localStorage.getItem('vialroute_active_driver_session_id')).toBe('sess-9');
     expect(localStorage.getItem('vialroute_driver_token_sess-9')).toBe('drv-token-xyz');
@@ -118,10 +118,17 @@ describe('claimDriverPairing', () => {
     expect(getStoredDriverToken()).toBeNull();
   });
 
-  it('devuelve null si la RPC falla', async () => {
+  it('devuelve error clasificado si la RPC falla', async () => {
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'fail' } });
     const res = await claimDriverPairing('bad');
-    expect(res).toBeNull();
+    expect(res).toEqual({ ok: false, reason: 'unknown' });
+    expect(localStorage.getItem('vialroute_active_driver_session_id')).toBeNull();
+  });
+
+  it('propaga reason role_not_allowed sin guardar token', async () => {
+    rpcMock.mockResolvedValueOnce({ data: { status: 'error', reason: 'role_not_allowed' }, error: null });
+    const res = await claimDriverPairing('nonce-role');
+    expect(res).toEqual({ ok: false, reason: 'role_not_allowed' });
     expect(localStorage.getItem('vialroute_active_driver_session_id')).toBeNull();
   });
 });
