@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, renderHook } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
@@ -28,6 +28,7 @@ import {
   claimDriverPairing,
   getStoredDriverToken,
   clearStoredDriverToken,
+  useCopilotOperator,
 } from '@/hooks/useCopilotSession';
 import DriverMiniPage from '@/pages/DriverMiniPage';
 
@@ -130,6 +131,47 @@ describe('claimDriverPairing', () => {
     const res = await claimDriverPairing('nonce-role');
     expect(res).toEqual({ ok: false, reason: 'role_not_allowed' });
     expect(localStorage.getItem('vialroute_active_driver_session_id')).toBeNull();
+  });
+});
+
+describe('useCopilotOperator — envío confirmado', () => {
+  it('usa operator_send_batch e incrementa lote confirmado por backend', async () => {
+    rpcMock.mockImplementation((name: string) => {
+      if (name === 'create_copilot_session') {
+        return Promise.resolve({ data: { session_id: 'sess-op-1' }, error: null });
+      }
+      if (name === 'operator_get_session') {
+        return Promise.resolve({ data: { ...SESSION, id: 'sess-op-1' }, error: null });
+      }
+      if (name === 'operator_send_batch') {
+        return Promise.resolve({
+          data: {
+            ...SESSION,
+            id: 'sess-op-1',
+            status: 'navigating',
+            queue: [{ segmentId: 's1', name: 'A', lat: 1, lng: 2 }],
+            batch_url: 'https://maps.example/batch',
+            batch_number: 1,
+          },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const { result } = renderHook(() => useCopilotOperator());
+    await act(async () => { await result.current.createSession(); });
+    let sendResult: Awaited<ReturnType<typeof result.current.pushQueue>> | undefined;
+    await act(async () => {
+      sendResult = await result.current.pushQueue([{ segmentId: 's1', name: 'A', lat: 1, lng: 2 }], 0, 'https://maps.example/batch');
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith('operator_send_batch', expect.objectContaining({
+      p_session_id: 'sess-op-1',
+      p_batch_url: 'https://maps.example/batch',
+    }));
+    expect(sendResult?.ok).toBe(true);
+    expect(sendResult?.session?.batch_number).toBe(1);
   });
 });
 
