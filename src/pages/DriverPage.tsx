@@ -5,8 +5,11 @@ import {
   claimDriverPairing,
   getStoredDriverToken,
   clearStoredDriverToken,
+  type PairingClaimErrorReason,
+  type PairingClaimStatus,
 } from '@/hooks/useCopilotSession';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Navigation, MapPin, Loader2, WifiOff, Clock, ExternalLink, Map, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,10 +20,12 @@ export default function DriverPage() {
   const nonce = params.get('p');
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { role } = useUserRole();
 
   const [driverToken, setDriverToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<PairingClaimErrorReason | null>(null);
+  const [claimStatus, setClaimStatus] = useState<PairingClaimStatus>('idle');
   const [claiming, setClaiming] = useState(false);
 
   // Auth + claim flow (same model as DriverMiniPage).
@@ -41,12 +46,14 @@ export default function DriverPage() {
 
     if (pending) {
       setClaiming(true);
+      setClaimStatus('claiming');
       claimDriverPairing(pending)
         .then((res) => {
-          if (!res) { setClaimError('Emparejamiento inválido o caducado'); return; }
+          if (res.ok === false) { setClaimError(res.reason); setClaimStatus('error'); return; }
           setDriverToken(res.driver_token);
           setSessionId(res.session_id);
           setClaimError(null);
+          setClaimStatus('ok');
         })
         .finally(() => {
           setClaiming(false);
@@ -66,7 +73,7 @@ export default function DriverPage() {
     }
   }, [nonce, user, authLoading, navigate]);
 
-  const { status, session, markRouteOpened } = useCopilotDriver(driverToken);
+  const { status, session, markRouteOpened, refreshNow, lastPollAt, error: lastRpcError } = useCopilotDriver(driverToken);
 
   // Track seen batch to highlight "nuevo lote".
   const [seenBatch, setSeenBatch] = useState(0);
