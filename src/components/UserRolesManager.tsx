@@ -18,6 +18,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   operator: 'Operador',
   gabinete: 'Gabinete',
   supervisor: 'Supervisor',
+  driver: 'Conductor',
 };
 
 export function UserRolesManager() {
@@ -146,6 +147,7 @@ export function UserRolesManager() {
                         <SelectItem value="sin_rol" disabled>Sin rol</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="operator">Operador</SelectItem>
+                        <SelectItem value="driver">Conductor</SelectItem>
                         <SelectItem value="gabinete">Gabinete</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                       </SelectContent>
