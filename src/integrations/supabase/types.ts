@@ -308,6 +308,16 @@ export type Database = {
         Returns: Json
       }
       operator_get_session: { Args: { p_session_id: string }; Returns: Json }
+      operator_send_batch: {
+        Args: {
+          p_batch_url: string
+          p_cursor_index: number
+          p_queue: Json
+          p_segment_meta?: Json
+          p_session_id: string
+        }
+        Returns: Json
+      }
       operator_update_session: {
         Args: { p_session_id: string; p_updates: Json }
         Returns: Json
