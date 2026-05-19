@@ -90,6 +90,10 @@ export default function DriverPage() {
     prevBatchRef.current = bn;
   }, [session?.batch_number]);
 
+  const debugBatchNumber = session?.batch_number ?? 0;
+  const debugHasBatch = !!session?.batch_url;
+  const debugHasNew = showNewBatch && debugBatchNumber > seenBatch;
+
   const handleOpenBatch = useCallback(() => {
     if (!session?.batch_url) return;
     void markRouteOpened(session.batch_number ?? 0);
@@ -113,10 +117,10 @@ export default function DriverPage() {
     );
   }
   if (claimError) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />} title="Escanea un QR nuevo" subtitle={claimError} />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-destructive mx-auto" />} title="Escanea un QR nuevo" subtitle={claimError === 'role_not_allowed' ? 'Tu usuario no tiene rol conductor' : claimError} action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
   if (!driverToken) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sin sesión" subtitle="Escanea el QR de emparejamiento del operador." />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sin sesión" subtitle="Escanea el QR de emparejamiento del operador." action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
   if (status === 'loading') {
     return (
@@ -143,7 +147,7 @@ export default function DriverPage() {
     return <ErrorScreen icon={<Clock className="w-12 h-12 text-muted-foreground mx-auto" />} title="Sesión finalizada" subtitle="El operador ha terminado la sesión." />;
   }
   if (status === 'error' || !session) {
-    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-amber-500 mx-auto" />} title="Reintentando…" subtitle="Sin respuesta del servidor." />;
+    return <ErrorScreen icon={<WifiOff className="w-12 h-12 text-amber-500 mx-auto" />} title="Reintentando…" subtitle="Sin respuesta del servidor." action={<DriverDebug userId={user.id} role={role} noncePresent={!!nonce} claimStatus={claimStatus} claimError={claimError} driverTokenPresent={!!driverToken} sessionId={sessionId} readStatus={status} batchNumber={debugBatchNumber} hasBatchUrl={debugHasBatch} seenRev={seenBatch} hasNew={debugHasNew} lastPollAt={lastPollAt} lastRpcError={lastRpcError} onRefresh={refreshNow} />} />;
   }
 
   const isBlocked = session.status === 'blocked';
