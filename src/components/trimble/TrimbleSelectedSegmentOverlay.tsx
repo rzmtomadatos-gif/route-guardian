@@ -25,7 +25,7 @@ import type { CopilotSendResult, CopilotSession, QueueItem } from '@/hooks/useCo
 interface Props {
   copilotActive: boolean;
   copilotSession: CopilotSession | null;
-  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult>;
+  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult | void>;
   onActivateCopilotCta?: () => void;
 }
 
