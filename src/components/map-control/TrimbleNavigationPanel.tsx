@@ -34,7 +34,7 @@ import { buildGoogleMapsBatchUrl, SEGMENTS_PER_BATCH } from '@/utils/google-maps
 import { findActiveCapture, type TrimbleSegmentStatus } from '@/types/trimble';
 import { logEvent } from '@/utils/persistence/event-log';
 import type { LatLng, IncidentCategory, IncidentImpact } from '@/types/route';
-import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
+import type { CopilotSendResult, CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
 
 const STATUS_LABELS: Record<TrimbleSegmentStatus, string> = {
@@ -67,7 +67,7 @@ interface Props {
   onCopilotStart: () => Promise<CopilotSession | null>;
   onCopilotEnd: () => Promise<void>;
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
-  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
+  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult | void>;
   onSetActiveSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
   currentPosition: LatLng | null;
