@@ -20,12 +20,12 @@ import { buildSingleSegmentSendPayload } from '@/utils/trimble/single-segment-se
 import { deriveTrimbleSegmentStatus } from '@/utils/trimble/recording-queue';
 import { hasNearbyParallelCoverage } from '@/utils/trimble/parallel-coverage';
 import { logEvent } from '@/utils/persistence/event-log';
-import type { CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
+import type { CopilotSendResult, CopilotSession, QueueItem } from '@/hooks/useCopilotSession';
 
 interface Props {
   copilotActive: boolean;
   copilotSession: CopilotSession | null;
-  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<void>;
+  onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult>;
   onActivateCopilotCta?: () => void;
 }
 
