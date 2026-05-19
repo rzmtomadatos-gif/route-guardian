@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const ROLE_CACHE_KEY = 'vialroute_user_role';
 
-export type AppRole = 'admin' | 'supervisor' | 'operator' | 'gabinete';
+export type AppRole = 'admin' | 'supervisor' | 'operator' | 'gabinete' | 'driver';
 
 interface UserRoleState {
   role: AppRole | null;
