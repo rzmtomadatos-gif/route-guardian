@@ -1,6 +1,6 @@
 # Cierre formal — Bloque Driver/Copiloto
 
-**Fecha de cierre:** 2025-05-24
+**Fecha de cierre:** 2026-05-24
 **Entorno:** Preview operativo (pruebas reales en campo)
 **Estado del bloque:** CERRADO. No se reabre salvo nueva reproducción confirmada.
 **Próxima fase autorizada:** Desde este estado cerrado únicamente.
