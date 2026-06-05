@@ -53,12 +53,23 @@ export default function AuthPage() {
     }
     setLoading(true);
 
-    // El servidor (auth hook validate-signup-allowlist) valida la lista de autorizados.
-    // No comprobamos en cliente para no permitir enumeración del allowlist.
+    // La validación de allowlist se aplica en la base de datos mediante el
+    // trigger BEFORE INSERT `enforce_signup_allowlist_trigger` sobre
+    // `auth.users` (barrera principal en Lovable Cloud). No comprobamos en
+    // cliente para no permitir enumeración del allowlist.
     const { error } = await signUp(email, password, fullName || undefined);
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      const msg = (error.message || '').toLowerCase();
+      const isAllowlistRejection =
+        msg.includes('registro no permitido') ||
+        msg.includes('database error') ||
+        msg.includes('unexpected_failure');
+      toast.error(
+        isAllowlistRejection
+          ? 'No ha sido posible completar el registro. Si crees que deberías tener acceso, contacta con un administrador.'
+          : error.message,
+      );
     } else {
       toast.success('Cuenta creada. Revisa tu email para confirmar el registro.');
       setMode('login');
