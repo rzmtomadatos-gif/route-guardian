@@ -1,16 +1,20 @@
-// Supabase Auth Hook: "Before User Created"
-// Validates that the email being registered exists in public.allowed_emails.
+// Supabase Auth Hook: "Before User Created" — DEFENSE IN DEPTH ONLY.
+//
+// ⚠️ IMPORTANT — Lovable Cloud deployment note:
+// Lovable Cloud does NOT expose the Supabase Dashboard, so this function
+// CANNOT be registered as a "Before User Created" Auth Hook. The PRIMARY
+// allowlist enforcement is the database trigger
+// `enforce_signup_allowlist_trigger` (BEFORE INSERT ON auth.users), created
+// by migration 20260605_enforce_signup_allowlist. This edge function is
+// kept deployed as a hardened fallback in case the hook ever becomes
+// configurable (or the project migrates to a self-managed Supabase
+// instance), but it is NOT in the live signup path on Lovable Cloud.
 //
 // Security:
-// - Verifies the Standard Webhooks signature using AUTH_HOOK_SECRET before
-//   processing the body. Unsigned/invalid requests are rejected with a
-//   generic 401 error to prevent enumeration of the allowlist by external
-//   callers (the prior version returned discriminatory responses to anyone).
-// - verify_jwt remains false because Supabase Auth invokes the hook without
-//   a user JWT; authenticity is established via the shared signing secret.
-// - Logs include the email/decision for internal audit, but the HTTP body
-//   never reveals whether an email is in the allowlist when the caller is
-//   unauthenticated or the signature fails.
+// - Verifies Standard Webhooks signature using AUTH_HOOK_SECRET before
+//   processing the body. Unsigned/invalid requests get a generic 403.
+// - verify_jwt remains false (Supabase Auth would invoke without JWT).
+// - Logs include email/decision for audit; HTTP body never reveals it.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
