@@ -458,7 +458,7 @@ export default function SegmentsPage({
         </div>
 
         {/* Status filter chips (solo en vista por capas) */}
-        {viewMode === 'layers' && (
+        {effectiveViewMode === 'layers' && (
           <div className="flex gap-0.5 mb-2">
             {STATUS_OPTIONS.map((opt) => (
               <button
@@ -479,13 +479,14 @@ export default function SegmentsPage({
           </div>
         )}
 
-        {/* View mode toggle: solo si hay misiones Trimble o estamos en modo Trimble */}
-        {(isTrimbleMode || (state.trimbleMissions?.length ?? 0) > 0) && (
+        {/* View mode toggle: SOLO en modo TRIMBLE_LIDAR. En RST/Garmin la vista
+            por capas es la única vista de tramos disponible (BUG-VIEW-MODE-001). */}
+        {isTrimbleMode && (
           <div className="flex gap-0.5 mb-2">
             <button
               onClick={() => setViewMode('layers')}
               className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
-                viewMode === 'layers'
+                effectiveViewMode === 'layers'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
@@ -495,7 +496,7 @@ export default function SegmentsPage({
             <button
               onClick={() => setViewMode('trimble')}
               className={`px-2 py-1 rounded text-[10px] font-medium gap-1 inline-flex items-center transition-colors ${
-                viewMode === 'trimble'
+                effectiveViewMode === 'trimble'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
               }`}
