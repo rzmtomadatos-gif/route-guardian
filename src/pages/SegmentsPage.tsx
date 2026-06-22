@@ -583,7 +583,7 @@ export default function SegmentsPage({
 
       {/* Main content: Trimble flat view o Layer panel */}
       <div className="flex-1 overflow-hidden">
-        {viewMode === 'trimble' ? (
+        {effectiveViewMode === 'trimble' ? (
           <TrimbleSegmentsTable
             state={state}
             segments={(() => {
