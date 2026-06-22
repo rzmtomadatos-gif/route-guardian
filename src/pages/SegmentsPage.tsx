@@ -136,6 +136,16 @@ export default function SegmentsPage({
     try { localStorage.setItem('vialroute_segments_view_mode', mode); } catch {}
   }, []);
 
+  /**
+   * BUG-VIEW-MODE-001 — La vista por capas es TRANSVERSAL a todos los modos
+   * de adquisición (RST, Garmin, Trimble). La vista Trimble es específica
+   * del modo TRIMBLE_LIDAR. Fuera de ese modo forzamos siempre 'layers'
+   * para que la preferencia persistida en localStorage no deje atascada
+   * la página en 'trimble' al cambiar a RST/Garmin (donde no se renderiza
+   * toggle para revertirlo).
+   */
+  const effectiveViewMode: 'layers' | 'trimble' = isTrimbleMode ? viewMode : 'layers';
+
   // Geolocation for proximity features
   const geo = useGeolocation(true);
 
