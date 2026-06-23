@@ -88,6 +88,7 @@ interface Props {
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   copilotLastRpcError?: string | null;
   copilotLastEvent?: string | null;
+  copilotSessionOrigin?: import('@/hooks/useCopilotSession').CopilotSessionOrigin;
   onForceSendBatch?: () => void;
   /** Whether the current user can navigate/operate segments (admin/operator only) */
   canNavigate?: boolean;
