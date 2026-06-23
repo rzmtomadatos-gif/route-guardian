@@ -375,6 +375,7 @@ export function useCopilotOperator() {
     generatePairing,
     lastRpcError,
     lastEvent,
+    sessionOrigin,
   };
 }
 
