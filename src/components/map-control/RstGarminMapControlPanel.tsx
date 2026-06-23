@@ -148,6 +148,7 @@ export function RstGarminMapControlPanel({
   onCopilotGeneratePairing,
   copilotLastRpcError,
   copilotLastEvent,
+  copilotSessionOrigin,
   onForceSendBatch,
   acquisitionMode,
   onSetAcquisitionMode,
