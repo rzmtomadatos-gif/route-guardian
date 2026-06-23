@@ -141,10 +141,6 @@ export function useCopilotOperator() {
 
   useEffect(() => { sessionRef.current = session; }, [session]);
 
-  const sessionRef = useRef<CopilotSession | null>(null);
-
-  useEffect(() => { sessionRef.current = session; }, [session]);
-
   // Recover session_id from sessionStorage on mount (survives page refresh).
   useEffect(() => {
     let cancelled = false;
@@ -156,13 +152,17 @@ export function useCopilotOperator() {
       const { data, error } = await rpc('operator_get_session', { p_session_id: stored });
       if (cancelled) return;
       if (error || !data) {
-        setLastRpcError('Sesión existente no recuperable. Genera una sesión nueva de Copiloto.');
+        setLastRpcError('La sesión anterior ya no es válida. Se ha limpiado.');
+        setLastEvent('operator_get_session:failed_on_recover');
+        setSessionOrigin('cleared_invalid');
         try { sessionStorage.removeItem(SESSION_ID_STORAGE_KEY); } catch { /* ignore */ }
         return;
       }
       const parsed = parseSessionRow(data);
       if (!parsed || parsed.status === 'ended') {
-        setLastRpcError('Sesión existente no recuperable. Genera una sesión nueva de Copiloto.');
+        setLastRpcError('La sesión anterior ya no es válida. Se ha limpiado.');
+        setLastEvent('operator_get_session:ended_on_recover');
+        setSessionOrigin('cleared_ended');
         try { sessionStorage.removeItem(SESSION_ID_STORAGE_KEY); } catch { /* ignore */ }
         return;
       }
@@ -171,10 +171,12 @@ export function useCopilotOperator() {
       setActive(true);
       setLastRpcError(null);
       setLastEvent('operator_get_session:recovered');
+      setSessionOrigin('recovered_from_storage');
     })();
 
     return () => { cancelled = true; };
   }, []);
+
 
   // Realtime subscription — operator can SELECT own session row via RLS.
   useEffect(() => {
