@@ -264,12 +264,16 @@ export function CopilotPanel({
 
             {import.meta.env.DEV && (
               <div className="rounded-md border border-dashed border-border bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                <div>debug op · active {active ? 'sí' : 'no'} · session {session.id.slice(0, 8)}… · driver {driverConnected ? 'sí' : 'no'}</div>
-                <div>batch {session.batch_number ?? 0} · url {session.batch_url ? 'sí' : 'no'} · pairing {pairing ? 'sí' : 'no'} · ttl {pairing ? fmtCountdown(expiresMs) : '—'}</div>
+                <div>debug op · user {user?.id ? `${user.id.slice(0, 8)}…` : '—'} · rol {role ?? '—'}</div>
+                <div>active {active ? 'sí' : 'no'} · origin {sessionOrigin ?? '—'} · session {session.id.slice(0, 8)}… · status {session.status}</div>
+                <div>driver {driverConnected ? `${(session.driver_user_id ?? '').slice(0, 8)}…` : 'no'} · last_seen {session.driver_last_seen_at ? new Date(session.driver_last_seen_at).toLocaleTimeString() : '—'}</div>
+                <div>batch {session.batch_number ?? 0} · url {session.batch_url ? `sí (len ${session.batch_url.length})` : 'no'} · queue {(session.queue || []).length} · cursor {session.cursor_index}</div>
+                <div>pairing {pairing ? 'sí' : 'no'} · ttl {pairing ? fmtCountdown(expiresMs) : '—'}</div>
                 <div>event {lastEvent ?? '—'}</div>
                 <div>rpc {lastRpcError ?? '—'}</div>
               </div>
             )}
+
           </div>
         )}
       </DialogContent>
