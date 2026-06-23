@@ -335,6 +335,7 @@ export function useCopilotOperator() {
     sessionIdRef.current = null;
     setSession(null);
     setActive(false);
+    setSessionOrigin(null);
   }, []);
 
   const generatePairing = useCallback(async (): Promise<PairingInfo | null> => {
