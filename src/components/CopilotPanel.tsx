@@ -33,8 +33,11 @@ function fmtCountdown(ms: number) {
 }
 
 export function CopilotPanel({
-  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, lastRpcError, lastEvent, children,
+  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, lastRpcError, lastEvent, sessionOrigin, children,
 }: Props) {
+  const { user } = useAuth();
+  const { role } = useUserRole();
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pairing, setPairing] = useState<PairingInfo | null>(null);
