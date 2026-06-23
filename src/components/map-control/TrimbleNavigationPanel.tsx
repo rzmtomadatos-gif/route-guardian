@@ -103,6 +103,7 @@ export function TrimbleNavigationPanel({
   onCopilotGeneratePairing,
   copilotLastRpcError,
   copilotLastEvent,
+  copilotSessionOrigin,
   onCopilotPushQueue,
   onSetActiveSegment,
   onAddIncident,
