@@ -69,6 +69,7 @@ interface Props {
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   copilotLastRpcError?: string | null;
   copilotLastEvent?: string | null;
+  copilotSessionOrigin?: import('@/hooks/useCopilotSession').CopilotSessionOrigin;
   onCopilotPushQueue: (items: QueueItem[], cursor: number, batchUrl?: string) => Promise<CopilotSendResult | void>;
   onSetActiveSegment: (segmentId: string) => void;
   onAddIncident: (segmentId: string, category: IncidentCategory, impact: IncidentImpact, note?: string, location?: LatLng, currentSegmentNonRecordable?: boolean) => void;
