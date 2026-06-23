@@ -533,6 +533,7 @@ export function RstGarminMapControlPanel({
                 onForceSendBatch={onForceSendBatch}
                 lastRpcError={copilotLastRpcError}
                 lastEvent={copilotLastEvent}
+                sessionOrigin={copilotSessionOrigin}
               >
                 <Button variant="outline" className={`h-12 px-3 ${copilotActive ? 'border-emerald-500/40 text-emerald-500' : ''}`} title="Modo Copiloto">
                   <Radio className="w-4 h-4" />
