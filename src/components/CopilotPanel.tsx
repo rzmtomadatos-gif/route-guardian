@@ -5,7 +5,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { QRCodeSVG } from 'qrcode.react';
 import { Radio, Copy, ExternalLink, X, Send, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
-import type { CopilotSession, PairingInfo } from '@/hooks/useCopilotSession';
+import type { CopilotSession, PairingInfo, CopilotSessionOrigin } from '@/hooks/useCopilotSession';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 
 interface Props {
@@ -17,8 +19,10 @@ interface Props {
   onForceSendBatch?: () => void;
   lastRpcError?: string | null;
   lastEvent?: string | null;
+  sessionOrigin?: CopilotSessionOrigin;
   children: React.ReactNode;
 }
+
 
 function fmtCountdown(ms: number) {
   if (ms <= 0) return '00:00';
