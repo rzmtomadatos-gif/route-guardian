@@ -61,6 +61,7 @@ interface Props {
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   copilotLastRpcError?: string | null;
   copilotLastEvent?: string | null;
+  copilotSessionOrigin?: import('@/hooks/useCopilotSession').CopilotSessionOrigin;
   onForceSendBatch?: () => void;
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
