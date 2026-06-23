@@ -144,8 +144,19 @@ export function CopilotPanel({
             <Button onClick={handleStart} disabled={loading} className="w-full h-11">
               {loading ? 'Conectando…' : 'Activar Copiloto'}
             </Button>
+            {lastRpcError && (
+              <p className="text-[11px] text-destructive">{lastRpcError}</p>
+            )}
+            {import.meta.env.DEV && (
+              <div className="rounded-md border border-dashed border-border bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground space-y-0.5 text-left">
+                <div>debug op · user {user?.id ? `${user.id.slice(0, 8)}…` : '—'} · rol {role ?? '—'}</div>
+                <div>active no · origin {sessionOrigin ?? '—'} · event {lastEvent ?? '—'}</div>
+                <div>rpc {lastRpcError ?? '—'}</div>
+              </div>
+            )}
           </div>
         )}
+
 
         {active && session && (
           <div className="space-y-3">
