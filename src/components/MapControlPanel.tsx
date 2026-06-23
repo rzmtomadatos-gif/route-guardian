@@ -88,6 +88,7 @@ export function MapControlPanel(props: Props) {
         onCopilotGeneratePairing={props.onCopilotGeneratePairing}
         copilotLastRpcError={props.copilotLastRpcError}
         copilotLastEvent={props.copilotLastEvent}
+        copilotSessionOrigin={props.copilotSessionOrigin}
         onCopilotPushQueue={props.onCopilotPushQueue ?? (async () => {})}
         onSetActiveSegment={props.onSegmentSelect}
         onAddIncident={props.onAddIncident}
