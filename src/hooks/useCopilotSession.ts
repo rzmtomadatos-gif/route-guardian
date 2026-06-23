@@ -61,6 +61,14 @@ export type PairingClaimResult =
   | { ok: true; driver_token: string; session_id: string }
   | { ok: false; reason: PairingClaimErrorReason };
 
+/** Where the current operator session came from. Useful for QA/debug panels. */
+export type CopilotSessionOrigin =
+  | null
+  | 'fresh_create'
+  | 'recovered_from_storage'
+  | 'cleared_invalid'
+  | 'cleared_ended';
+
 /* ─── Internal helpers ─── */
 
 const SESSION_ID_STORAGE_KEY = 'vialroute_copilot_session_id';
