@@ -1784,6 +1784,7 @@ export default function MapPage({
         onCopilotGeneratePairing={copilot.generatePairing}
         copilotLastRpcError={copilot.lastRpcError}
         copilotLastEvent={copilot.lastEvent}
+        copilotSessionOrigin={copilot.sessionOrigin}
         onForceSendBatch={handleForceSendBatch}
         onReorder={onReorderSegment}
         onReactivateSegment={(segId) => {

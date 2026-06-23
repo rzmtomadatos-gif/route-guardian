@@ -5,7 +5,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { QRCodeSVG } from 'qrcode.react';
 import { Radio, Copy, ExternalLink, X, Send, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
-import type { CopilotSession, PairingInfo } from '@/hooks/useCopilotSession';
+import type { CopilotSession, PairingInfo, CopilotSessionOrigin } from '@/hooks/useCopilotSession';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 
 interface Props {
@@ -17,8 +19,10 @@ interface Props {
   onForceSendBatch?: () => void;
   lastRpcError?: string | null;
   lastEvent?: string | null;
+  sessionOrigin?: CopilotSessionOrigin;
   children: React.ReactNode;
 }
+
 
 function fmtCountdown(ms: number) {
   if (ms <= 0) return '00:00';
@@ -29,8 +33,11 @@ function fmtCountdown(ms: number) {
 }
 
 export function CopilotPanel({
-  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, lastRpcError, lastEvent, children,
+  session, active, onStart, onEnd, onGeneratePairing, onForceSendBatch, lastRpcError, lastEvent, sessionOrigin, children,
 }: Props) {
+  const { user } = useAuth();
+  const { role } = useUserRole();
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pairing, setPairing] = useState<PairingInfo | null>(null);
@@ -68,15 +75,23 @@ export function CopilotPanel({
   );
 
   const handleStart = async () => {
+    // Front-end gate: avoid hitting the RPC when we already know it will fail.
+    if (!user) { toast.error('No has iniciado sesión.'); return; }
+    if (role && role !== 'admin' && role !== 'operator') {
+      toast.error('Tu usuario no tiene permiso de operador.');
+      return;
+    }
     setLoading(true);
     try {
-      await onStart();
+      const s = await onStart();
+      if (s) toast.success('Copiloto iniciado correctamente.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo activar Copiloto');
+      toast.error(err instanceof Error ? err.message : 'No se pudo crear la sesión de Copiloto.');
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleGenerate = async () => {
     setPairingLoading(true);
@@ -129,8 +144,19 @@ export function CopilotPanel({
             <Button onClick={handleStart} disabled={loading} className="w-full h-11">
               {loading ? 'Conectando…' : 'Activar Copiloto'}
             </Button>
+            {lastRpcError && (
+              <p className="text-[11px] text-destructive">{lastRpcError}</p>
+            )}
+            {import.meta.env.DEV && (
+              <div className="rounded-md border border-dashed border-border bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground space-y-0.5 text-left">
+                <div>debug op · user {user?.id ? `${user.id.slice(0, 8)}…` : '—'} · rol {role ?? '—'}</div>
+                <div>active no · origin {sessionOrigin ?? '—'} · event {lastEvent ?? '—'}</div>
+                <div>rpc {lastRpcError ?? '—'}</div>
+              </div>
+            )}
           </div>
         )}
+
 
         {active && session && (
           <div className="space-y-3">
@@ -249,12 +275,16 @@ export function CopilotPanel({
 
             {import.meta.env.DEV && (
               <div className="rounded-md border border-dashed border-border bg-muted/40 p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                <div>debug op · active {active ? 'sí' : 'no'} · session {session.id.slice(0, 8)}… · driver {driverConnected ? 'sí' : 'no'}</div>
-                <div>batch {session.batch_number ?? 0} · url {session.batch_url ? 'sí' : 'no'} · pairing {pairing ? 'sí' : 'no'} · ttl {pairing ? fmtCountdown(expiresMs) : '—'}</div>
+                <div>debug op · user {user?.id ? `${user.id.slice(0, 8)}…` : '—'} · rol {role ?? '—'}</div>
+                <div>active {active ? 'sí' : 'no'} · origin {sessionOrigin ?? '—'} · session {session.id.slice(0, 8)}… · status {session.status}</div>
+                <div>driver {driverConnected ? `${(session.driver_user_id ?? '').slice(0, 8)}…` : 'no'} · last_seen {session.driver_last_seen_at ? new Date(session.driver_last_seen_at).toLocaleTimeString() : '—'}</div>
+                <div>batch {session.batch_number ?? 0} · url {session.batch_url ? `sí (len ${session.batch_url.length})` : 'no'} · queue {(session.queue || []).length} · cursor {session.cursor_index}</div>
+                <div>pairing {pairing ? 'sí' : 'no'} · ttl {pairing ? fmtCountdown(expiresMs) : '—'}</div>
                 <div>event {lastEvent ?? '—'}</div>
                 <div>rpc {lastRpcError ?? '—'}</div>
               </div>
             )}
+
           </div>
         )}
       </DialogContent>

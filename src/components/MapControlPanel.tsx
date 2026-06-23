@@ -61,6 +61,7 @@ interface Props {
   onCopilotGeneratePairing: () => Promise<import('@/hooks/useCopilotSession').PairingInfo | null>;
   copilotLastRpcError?: string | null;
   copilotLastEvent?: string | null;
+  copilotSessionOrigin?: import('@/hooks/useCopilotSession').CopilotSessionOrigin;
   onForceSendBatch?: () => void;
   canNavigate?: boolean;
   onReorder?: (id: string, dir: 'up' | 'down') => void;
@@ -87,6 +88,7 @@ export function MapControlPanel(props: Props) {
         onCopilotGeneratePairing={props.onCopilotGeneratePairing}
         copilotLastRpcError={props.copilotLastRpcError}
         copilotLastEvent={props.copilotLastEvent}
+        copilotSessionOrigin={props.copilotSessionOrigin}
         onCopilotPushQueue={props.onCopilotPushQueue ?? (async () => {})}
         onSetActiveSegment={props.onSegmentSelect}
         onAddIncident={props.onAddIncident}
