@@ -135,7 +135,12 @@ export function useCopilotOperator() {
   const [active, setActive] = useState(false);
   const [lastRpcError, setLastRpcError] = useState<string | null>(null);
   const [lastEvent, setLastEvent] = useState<string | null>(null);
+  const [sessionOrigin, setSessionOrigin] = useState<CopilotSessionOrigin>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const sessionRef = useRef<CopilotSession | null>(null);
+
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
   const sessionRef = useRef<CopilotSession | null>(null);
 
   useEffect(() => { sessionRef.current = session; }, [session]);
