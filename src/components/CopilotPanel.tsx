@@ -75,15 +75,23 @@ export function CopilotPanel({
   );
 
   const handleStart = async () => {
+    // Front-end gate: avoid hitting the RPC when we already know it will fail.
+    if (!user) { toast.error('No has iniciado sesión.'); return; }
+    if (role && role !== 'admin' && role !== 'operator') {
+      toast.error('Tu usuario no tiene permiso de operador.');
+      return;
+    }
     setLoading(true);
     try {
-      await onStart();
+      const s = await onStart();
+      if (s) toast.success('Copiloto iniciado correctamente.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo activar Copiloto');
+      toast.error(err instanceof Error ? err.message : 'No se pudo crear la sesión de Copiloto.');
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleGenerate = async () => {
     setPairingLoading(true);
