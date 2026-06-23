@@ -236,6 +236,7 @@ export function useCopilotOperator() {
     setActive(true);
     setLastRpcError(null);
     setLastEvent('create_copilot_session:ok');
+    setSessionOrigin('fresh_create');
     return parsed;
   }, []);
 
